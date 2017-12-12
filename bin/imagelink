@@ -1,0 +1,13 @@
+#!/usr/bin/python
+# Print borders around text we read in so we won't miss trailing newlines
+import sys
+
+TEXT= """
+<a href="%s" alt="%s"><img src="%s" alt="%s" border="0" width="600" /></a>
+"""
+if len(sys.argv) < 3:
+  print "usage: %s image alt text" % sys.argv[0]
+else:
+  image = "http://www.dresan.com/images/%s" % sys.argv[1]
+  alt = ' '.join(sys.argv[2:])
+  print TEXT % (image, alt, image, alt)

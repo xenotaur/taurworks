@@ -1,0 +1,21 @@
+#!/bin/bash
+# Create (if needed) the logging directory, ~/.logs by default.
+LOGDIR="$(cd; pwd)/.logs"
+mkdir -p "${LOGDIR}"
+LOGFILE="${LOGDIR}/bash-$(date +"%Y").log"
+
+# Create a function for logging the last command
+function lastcommand() {
+    CMD=$(history | tail -n2 | head -n1 | sed 's/^ *[0-9]* *//')
+    NUM=$(history | tail -n2 | head -n1 | sed 's/^ *\([0-9]*\).*$/\1/')
+    DAT=$(date +"%Y%m%d:%H%M%S")
+    echo "${DAT}	${HOSTNAME}	${USER}	$(pwd)	${NUM}	${CMD}"
+}
+
+# Write to the PROMPT_COMMAND="
+PROMPT_COMMAND="lastcommand >> ${LOGFILE}"
+
+# Create a stopgap logged command
+function logged() {
+    grep $* ${LOGDIR}/*.log | grep -v logged
+}
