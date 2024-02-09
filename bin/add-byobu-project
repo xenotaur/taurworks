@@ -1,0 +1,20 @@
+#/bin/bash
+echo "Creating byobu windows for development project '$*' ..."
+
+# Likely no longer needed, but keep until we confirm
+# export TERM=xterm-256color
+
+if byobu has-session -t "$*" 2> /dev/null
+then
+	echo "Byobu Session $* already exists, not creating."
+else
+	# byobu has-session -t "$*" || byobu new-session -s "$*"
+	set -o xtrace
+	byobu new-session -d -s "$*" -n "$* (Development)"
+	byobu new-window -t "$*:" -n "$* (Build)"
+	byobu new-window -t "$*:" -n "$* (Monitor)"
+	byobu new-window -t "$*:" -n "$* (Alternate)"
+	byobu new-window -t "$*:" -n "$* (Client A)"
+	byobu new-window -t "$*:" -n "$* (Client B)"
+fi
+

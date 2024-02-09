@@ -1,0 +1,7 @@
+# Customize the prompt and add color to ls.
+source ~/bin/colorprompt.source
+source ~/bin/clientlog.source
+
+# Add aliases and update paths
+source ~/bin/aliases.source
+source ~/bin/paths.source

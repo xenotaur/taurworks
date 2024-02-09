@@ -8,10 +8,6 @@ case $- in
       *) return;;
 esac
 
-
-#######################################################
-# From Parallels or other software installs
-#######################################################
 # don't put duplicate lines or lines starting with space in the history.
 # See bash(1) for more options
 HISTCONTROL=ignoreboth
@@ -120,27 +116,3 @@ if ! shopt -oq posix; then
   fi
 fi
 [ -r /home/parallels/.byobu/prompt ] && . /home/parallels/.byobu/prompt   #byobu-prompt#
-
-
-#######################################################
-# User Bash Lines
-#######################################################
-source ~/bin/bash.source
-
-
-
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/home/parallels/anaconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/home/parallels/anaconda3/etc/profile.d/conda.sh" ]; then
-        . "/home/parallels/anaconda3/etc/profile.d/conda.sh"
-    else
-        export PATH="/home/parallels/anaconda3/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-# <<< conda initialize <<<
-

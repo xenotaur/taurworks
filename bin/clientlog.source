@@ -17,5 +17,5 @@ PROMPT_COMMAND="lastcommand >> ${LOGFILE}"
 
 # Create a stopgap logged command
 function logged() {
-    grep $* ${LOGDIR}/*.log | grep -v logged
+    grep "$*" ${LOGDIR}/*.log | grep -v logged
 }

@@ -1,0 +1,12 @@
+#!/bin/bash
+# I don't recall why this following one was a failure.
+# screen -rx -c ~/bin/screenrc
+
+# The next one leads to "no screen to be attached" on first invocation.
+# screen -d -RR -x -c ~/bin/screenrc
+
+# This one steals the old screen
+#screen -d -RR -c ~/bin/screenrc
+
+# This one is closer and seems to work properly.
+screen -xRR -c ~/bin/screenrc

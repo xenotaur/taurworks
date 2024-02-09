@@ -1,0 +1,10 @@
+#/bin/bash
+echo "Creating screen windows for development project '$*' ..."
+echo screen -t "$* (Development)"
+export TERM=xterm-256color
+screen -t "$* (Development)"
+screen -t "$* (Build)"
+screen -t "$* (Monitor)"
+screen -t "$* (Alternate)"
+screen -t "$* (Client A)"
+screen -t "$* (Client B)"

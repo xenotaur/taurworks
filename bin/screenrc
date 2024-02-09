@@ -1,0 +1,12 @@
+# This is the master screen for normal usage.
+sessionname TheCentaurScreen
+
+# Escape character is C-\ because C-a conflicts with Emacs.
+escape ^\\
+
+
+# Create a hard status line to show the current screen.
+# See https://www.kilobitspersecond.com/2014/02/10/understanding-gnu-screens-hardstatus-strings/
+hardstatus lastline
+hardstatus string "%{= Gk} [%`] %H %{= Gk}|%{-} %{= bG}[%n]%f %t%{-} %=[%c%a %Y-%M-%d]"
+backtick 0 30 30 sh -c 'screen -ls | grep --color=no -o "$PPID[^[:space:]]*"'

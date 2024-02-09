@@ -1,0 +1,8 @@
+# Set up paths.
+export PATH=/usr/local/bin:$PATH
+# export PATH=/Users/centaur/bin:$PATH
+export PATH=~/bin:$PATH
+# export PATH=/Users/centaur/.local/bin:$PATH
+
+# Added by Anaconda3 4.4.0 installer
+# export PATH="/Users/centaur/anaconda/bin:$PATH"

@@ -1,0 +1,3 @@
+alias today="date +%Y-%m-%d-%H-%M-%S"
+alias logscript="script -a worklog.typescript"
+alias rebind="bind -f ~/bin/dot.inputrc"
