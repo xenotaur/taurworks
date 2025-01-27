@@ -1,3 +1,6 @@
 alias today="date +%Y-%m-%d-%H-%M-%S"
 alias logscript="script -a worklog.typescript"
 alias rebind="bind -f ~/bin/dot.inputrc"
+alias psg="ps aux | grep"
+alias grr="grep -r"
+alias aquamacs="open -a Aquamacs"

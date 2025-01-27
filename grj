@@ -1,0 +1,70 @@
+#!/bin/bash
+
+# Function to display usage
+usage() {
+    echo "Usage: grj [--show=fkvpb] [--name=<pattern>] <key> <list_of_files_or_directories>"
+    echo "  --show=fkvpb   Specify what to show: f = filename, k = key, v = value"
+    echo "                 p=path, b=basename. Default is 'fv' (filename and value)."
+    echo "  --name         Specify the file name pattern to search for (default: '*.json')."
+    exit 1
+}
+
+# Default output options and file name pattern
+show="fv"
+name="*.json"
+divider="none"
+
+# Parse optional parameters
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --show=*) show="${1#--show=}" ;;
+        --name=*) name="${1#--name=}" ;;
+	--divider=*) divider="${1#--divider=}" ;;
+	--divider) divider="" ;;
+        *) break ;;  # Break on the first non-option argument (key)
+    esac
+    shift
+done
+
+# Ensure we have a key and at least one path
+if [[ $# -lt 2 ]]; then
+    usage
+fi
+
+key=$1
+shift
+
+# Function to generate and print output
+process_file() {
+    local file=$1
+    local result=$(jq -r ".$key" "$file" 2>/dev/null)
+    if [[ $? -eq 0 ]]; then
+        local output=""
+        [[ "$show" == *f* ]] && output+="$file"
+        [[ "$show" == *p* ]] && output+=$([[ -n "$output" ]] && echo -e "\t$(dirname $file)" || echo "$(dirname $file)")
+        [[ "$show" == *b* ]] && output+=$([[ -n "$output" ]] && echo -e "\t$(basename $file)" || echo "$(basename $file)")
+        [[ "$show" == *k* ]] && output+=$([[ -n "$output" ]] && echo -e "\t$key" || echo "$key")
+        [[ "$show" == *v* ]] && output+=$([[ -n "$output" ]] && echo -e "\t$result" || echo "$result")
+        echo -e "$output"
+    fi
+    if [[ "$divider" != "none" ]]; then
+	echo "$divider"
+    fi
+
+}
+
+# Process files and directories
+for path in "$@"; do
+    if [[ -d "$path" ]]; then
+        # If path is a directory, find files matching the specified pattern
+        find "$path" -type f -name "$name" | sort | while read -r file; do
+            process_file "$file"
+        done
+    elif [[ -f "$path" ]]; then
+        # If path is a file, process it
+        process_file "$path"
+    else
+        echo "File or directory not found: $path"
+    fi
+done
+
