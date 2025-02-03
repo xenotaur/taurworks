@@ -1,0 +1,13 @@
+#!/bin/bash
+echo "Installing treemi in develop mode..."
+set -x
+
+pip install -e .
+EXIT_CODE=$?
+
+# Turn off logging and print a blank line
+{ set +x; } 2>/dev/null
+echo
+
+# If the command failed, exit with the exit code
+exit $EXIT_CODE

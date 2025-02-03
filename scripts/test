@@ -1,0 +1,14 @@
+#!/bin/bash
+echo "Running tests..."
+set -x
+
+# Run the tests and capture the exit code
+python -m unittest discover tests "*_test.py"
+EXIT_CODE=$?
+
+# Turn off logging and print a blank line
+{ set +x; } 2>/dev/null
+echo
+
+# If the command failed, exit with the exit code
+exit $EXIT_CODE

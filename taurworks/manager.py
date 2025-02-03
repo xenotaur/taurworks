@@ -1,7 +1,6 @@
 import os
 import subprocess
 
-# Default workspace location (can be overridden by environment variable)
 TAURWORKS_WORKSPACE = os.getenv("TAURWORKS_WORKSPACE", os.path.expanduser("~/Workspace"))
 
 def list_projects():
@@ -18,8 +17,8 @@ def list_projects():
     else:
         print("No projects found.")
 
-def create_project(project_name):
-    """Creates a new project with the predefined structure."""
+def create_project(project_name, python_version="3.11", packages=None, env_file=None):
+    """Creates a new project with optional Conda customization."""
     project_dir = os.path.join(TAURWORKS_WORKSPACE, project_name)
     admin_dir = os.path.join(project_dir, ".taurworks")
     repo_dir = os.path.join(project_dir, project_name)
@@ -30,9 +29,20 @@ def create_project(project_name):
     os.makedirs(project_dir, exist_ok=True)
     os.makedirs(admin_dir, exist_ok=True)
 
-    # Create virtual environment with Conda
+    # Create Conda environment
     print(f"Creating Conda environment: {env_name} ...")
-    subprocess.run(["conda", "create", "--name", env_name, "python=3.9", "-y"], check=True)
+
+    if env_file:
+        print(f"Using environment file: {env_file}")
+        subprocess.run(["conda", "env", "create", "--name", env_name, "--file", env_file], check=True)
+    else:
+        conda_cmd = ["conda", "create", "--name", env_name, f"python={python_version}", "-y"]
+        if packages:
+            package_list = packages.split(",")
+            conda_cmd.extend(package_list)
+            print(f"Installing additional packages: {package_list}")
+
+        subprocess.run(conda_cmd, check=True)
 
     # Create the repository directory
     os.makedirs(repo_dir, exist_ok=True)
@@ -64,4 +74,3 @@ def activate_project(project_name):
 
     print(f"Run the following command to activate:\n")
     print(f"source {setup_script}")
-
