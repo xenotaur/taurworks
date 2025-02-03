@@ -6,5 +6,9 @@ source ~/bin/clientlog.source
 source ~/bin/aliases.source
 source ~/bin/paths.source
 
+# Add utilities
+source ~/bin/utilities.source
+source ~/bin/grr.source
+
 # Update bindings
 bind -f ~/bin/dot.inputrc

@@ -1,0 +1,127 @@
+#!/bin/bash
+
+# Default exclusion patterns (common temp files)
+default_excludes=("*~" "*.swp" "*.swo" ".DS_Store" "Thumbs.db")
+
+# Parse arguments
+exclude_patterns=()
+include_patterns=()
+no_exclude=false
+details=false
+details_lines=10
+while [[ "$1" == --* ]]; do
+  case "$1" in
+    --exclude=*)
+      arg=${1#--exclude=}
+      if [[ "$arg" == "None" || -z "$arg" ]]; then
+        no_exclude=true
+      else
+        IFS=',' read -ra exclude_patterns <<< "$arg"
+      fi
+      ;;
+    --include=*)
+      IFS=',' read -ra include_patterns <<< "${1#--include=}" 
+      ;;
+    --noexclude)
+      no_exclude=true
+      ;;
+    --details)
+      details=true
+      details_lines=10
+      ;;
+    --details=*)
+      arg=${1#--details=}
+      details=true
+      if [[ "$arg" == "all" ]]; then
+        details_lines=""
+      elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+        details_lines="$arg"
+      else
+        echo "Invalid argument for --details: $arg"
+        exit 1
+      fi
+      ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1
+      ;;
+  esac
+  shift
+done
+
+if [[ "$#" -ne 2 ]]; then
+  echo "Usage: drq [--exclude=ext1,ext2 | --noexclude] [--include=ext1,ext2] [--details[=N|all]] dir1 dir2"
+  exit 1
+fi
+
+dir1="$1"
+dir2="$2"
+
+# Build exclusion arguments
+exclude_args=()
+if ! $no_exclude; then
+  for pattern in "${default_excludes[@]}"; do
+    exclude_args+=("!" "-name" "$pattern")
+  done
+  for pattern in "${exclude_patterns[@]}"; do
+    if [[ "$pattern" == *\** ]]; then
+      exclude_args+=("!" "-name" "$pattern")
+    else
+      exclude_args+=("!" "-name" "*.$pattern")
+    fi
+  done
+fi
+
+# Build inclusion arguments
+include_args=()
+if [[ "${#include_patterns[@]}" -gt 0 ]]; then
+  include_args=("(")
+  for pattern in "${include_patterns[@]}"; do
+    if [[ "$pattern" == *\** ]]; then
+      include_args+=("-name" "$pattern" "-o")
+    else
+      include_args+=("-name" "*.$pattern" "-o")
+    fi
+  done
+  unset 'include_args[${#include_args[@]}-1]'
+  include_args+=(")")
+fi
+
+# Find files in both directories
+dir1_files=$(find "$dir1" -type f "${include_args[@]}" "${exclude_args[@]}")
+dir2_files=$(find "$dir2" -type f "${include_args[@]}" "${exclude_args[@]}")
+
+# Compare files in both directories
+echo "$dir1_files" | while read -r file1; do
+  rel_path="${file1#$dir1/}"
+  file2="$dir2/$rel_path"
+  
+  if [[ -f "$file2" ]]; then
+    if ! diff -q "$file1" "$file2"; then
+        if $details; then
+          diff "$file1" "$file2" | head -n ${details_lines:-10}
+          echo
+        fi
+    fi
+  else
+    echo "Only in $dir1: $rel_path"
+    if $details; then
+       head -n ${details_lines:-10} "$file1"
+       echo
+    fi
+  fi
+done
+
+echo "$dir2_files" | while read -r file2; do
+  rel_path="${file2#$dir2/}"
+  file1="$dir1/$rel_path"
+  
+  if [[ ! -f "$file1" ]]; then
+    echo "Only in $dir2: $rel_path"
+    if $details; then
+       head -n ${details_lines:-10} "$file2"
+       echo
+    fi
+  fi
+done
+

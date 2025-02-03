@@ -1,0 +1,50 @@
+#!/bin/bash
+
+if [[ "$#" -lt 3 ]]; then
+  echo "Usage: cpd.sh source_dir target_dir path_to_file [--copy]"
+  exit 1
+fi
+
+source_dir=$1
+target_dir=$2
+path_to_file=$3
+copy_flag=$4
+
+source_file="$source_dir/$path_to_file"
+target_file="$target_dir/$path_to_file"
+
+# Check if source file exists
+if [[ ! -f "$source_file" ]]; then
+  echo "Error: Source file '$source_file' does not exist."
+  exit 1
+fi
+
+# Check if target file exists
+if [[ ! -f "$target_file" ]]; then
+  echo "Warning: Target file '$target_file' does not exist."
+fi
+
+# Run diff command
+echo "Running diff between:"
+echo "Source: $source_file"
+echo "Target: $target_file"
+diff "$source_file" "$target_file"
+
+# Handle --copy option
+if [[ "$copy_flag" == "--copy" ]]; then
+  read -p "Copy the file? (Y/N): " confirm
+  case "$confirm" in
+    [Yy]* )
+      mkdir -p "$(dirname "$target_file")" # Ensure target directory exists
+      cp "$source_file" "$target_file"
+      echo "File copied to '$target_file'."
+      ;;
+    [Nn]* )
+      echo "File not copied."
+      ;;
+    * )
+      echo "Invalid response. File not copied."
+      ;;
+  esac
+fi
+
