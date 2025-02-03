@@ -1,0 +1,46 @@
+#======================================================================
+# ~/bin/utilities.source
+#======================================================================
+# Various utilities designed to be sourced rather than run as a script,
+# but which you may not want to run on every session.
+#======================================================================
+
+#----------------------------------------------------------------------
+# AWS Login Utilities
+#----------------------------------------------------------------------
+# For AWS logins with username ubuntu:
+extract-instance-name () { export INSTANCE=$(echo $* | grep -o "ubuntu.*com"); echo INSTANCE is $INSTANCE; }
+alias ein=extract-instance-name
+
+# Check to see if CREDENTIALS and INSTANCE are set.
+aws-setup-check () {
+   if [ -z "${CREDENTIALS}" ]; then
+     echo CREDENTIALS are not set
+     return 1
+   elif [ -z "${INSTANCE}" ]; then
+     echo INSTANCE is not set
+     return 1
+   else
+     return 0
+   fi
+}
+
+# Options to prevent saving these one-off credentials to the known hosts file.
+DONTSAVEHOSTS="-o UserKnownHostsFile=/dev/null  -o StrictHostKeyChecking=no"
+
+# Normal ssh shell into AWS.
+awsh () {
+   if aws-setup-check; then
+     echo ssh $DONTSAVEHOSTS -i $CREDENTIALS $INSTANCE
+     ssh $DONTSAVEHOSTS -i $CREDENTIALS $INSTANCE
+   fi
+}
+
+# Shell ssh tunnel for VNC and related programs.
+SSHTUNNELS="-L 5901:localhost:5901 -L 5902:localhost:5902 -L 8787:localhost:8787"
+awst () {
+   if aws-setup-check; then
+     echo ssh $DONTSAVEHOSTS $SSHTUNNELS -i $CREDENTIALS $INSTANCE
+     ssh $DONTSAVEHOSTS $SSHTUNNELS -i $CREDENTIALS $INSTANCE
+   fi
+}
