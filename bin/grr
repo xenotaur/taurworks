@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+#
+# grr: A script for recursive grep with file-type inclusion/exclusion.
+#      Also supports passing arbitrary single-dash options to grep.
+
+# ------------------------------
+#  Configuration
+# ------------------------------
+
+# Known file types mapped to one or more file extensions
+declare -A TYPE_MAP=(
+    [python]="py ipynb"
+    [cpp]="c h cpp hpp"
+    [c++]="c h cpp hpp"
+    [rust]="rs"
+    [html]="html htm htmlx"
+    [gatsby]="js jsx ts tsx css scss json graphql md mdx"
+    [doc]="doc docx odt pdf txt"
+    [img]="png jpg jpeg webp gif bmp svg"
+)
+
+# ------------------------------
+#  Main script logic
+# ------------------------------
+
+# Arrays to collect things
+grep_opts=()        # Any single-dash or short options for grep
+directories=()      # Directories to search (defaults to .)
+include_exts=()     # File extensions to include
+exclude_exts=()     # File extensions to exclude
+search_pattern=""
+
+# Print usage information
+function usage() {
+    echo "Usage: grr [GREP_OPTS] [--type=TYPE] [--skip=TYPE] [--ext=EXT] [--noext=EXT] SEARCH_PATTERN [DIRECTORY ...]"
+    echo
+    echo "Examples:"
+    echo "  # Simple search for 'main' in Python files, case-insensitive:"
+    echo "  grr -i --type=python main"
+    echo
+    echo "  # Search for 'Error' in .js and .jsx files, skipping .test.js, in src/ directory:"
+    echo "  grr -i --type=gatsby --noext=test.js Error src/"
+    echo
+    echo "Known file types: ${!TYPE_MAP[@]}"
+}
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --type=*)
+            # e.g. --type=python
+            type="${1#*=}"
+            if [[ -n ${TYPE_MAP[$type]} ]]; then
+                include_exts+=( ${TYPE_MAP[$type]} )
+            else
+                echo "Unknown type: $type"
+                exit 1
+            fi
+            ;;
+        --skip=*)
+            # e.g. --skip=rust
+            type="${1#*=}"
+            if [[ -n ${TYPE_MAP[$type]} ]]; then
+                exclude_exts+=( ${TYPE_MAP[$type]} )
+            else
+                echo "Unknown type: $type"
+                exit 1
+            fi
+            ;;
+        --ext=*)
+            # e.g. --ext=py
+            ext="${1#*=}"
+            include_exts+=( "$ext" )
+            ;;
+        --noext=*)
+            # e.g. --noext=pyc
+            ext="${1#*=}"
+            exclude_exts+=( "$ext" )
+            ;;
+        -?*)
+            # e.g. -i, -n, -C2 => pass these to grep_opts
+            grep_opts+=( "$1" )
+            ;;
+        *)
+            # Non-option argument
+            if [[ -z "$search_pattern" ]]; then
+                # First bare argument => search pattern
+                search_pattern="$1"
+            else
+                # Subsequent bare arguments => directories
+                directories+=( "$1" )
+            fi
+            ;;
+    esac
+    shift
+done
+
+# Validate inputs
+if [[ -z "$search_pattern" ]]; then
+    usage
+    exit 1
+fi
+
+# If no directories are given, default to .
+if [[ ${#directories[@]} -eq 0 ]]; then
+    directories=( "." )
+fi
+
+# Build 'find' command
+# Example: find [directories] -type f ...include clauses... ...exclude clauses...
+find_cmd=( find "${directories[@]}" -type f )
+
+# Handle includes (multiple OR conditions)
+if [[ ${#include_exts[@]} -gt 0 ]]; then
+    find_cmd+=( "(" )
+    for ext in "${include_exts[@]}"; do
+        if [[ "${find_cmd[-1]}" != "(" ]]; then
+            find_cmd+=( "-o" )
+        fi
+        find_cmd+=( "-name" "*.$ext" )
+    done
+    find_cmd+=( ")" )
+fi
+
+# Handle excludes
+if [[ ${#exclude_exts[@]} -gt 0 ]]; then
+    for ext in "${exclude_exts[@]}"; do
+        find_cmd+=( "-not" "-name" "*.$ext" )
+    done
+fi
+
+# Debug print if desired:
+# echo "DEBUG: ${find_cmd[*]} | xargs grep ${grep_opts[*]} -- '$search_pattern'"
+
+# Execute the command
+"${find_cmd[@]}" | xargs grep "${grep_opts[@]}" --color=auto -nH -- "$search_pattern"
+
