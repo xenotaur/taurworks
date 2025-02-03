@@ -1,0 +1,33 @@
+# Function to get list of projects in the workspace
+_taurworks_project_list() {
+    local workspace="${TAURWORKS_WORKSPACE:-$HOME/Workspace}"
+    if [[ -d "$workspace" ]]; then
+        ls "$workspace" 2>/dev/null
+    fi
+}
+
+# Function to provide completion for 'tw' and 'taurworks'
+_taurworks_completion() {
+    local cur prev
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    local commands="projects create refresh activate"
+
+    case "$prev" in
+        activate|refresh|create)
+            COMPREPLY=( $(compgen -W "$(_taurworks_project_list)" -- "$cur") )
+            return
+            ;;
+        *)
+            COMPREPLY=( $(compgen -W "$commands" -- "$cur") )
+            return
+            ;;
+    esac
+}
+
+# Register completion for both 'taurworks' and 'tw'
+complete -F _taurworks_completion taurworks
+complete -F _taurworks_completion tw
+
