@@ -1,0 +1,19 @@
+# Source me, bro.
+
+function tw() {
+    if [[ "$1" == "activate" && -n "$2" ]]; then
+        PROJECT_NAME="$2"
+        TAURWORKS_WORKSPACE="${TAURWORKS_WORKSPACE:-$HOME/Workspace}"
+        SETUP_SCRIPT="$TAURWORKS_WORKSPACE/$PROJECT_NAME/.taurworks/project-setup.source"
+
+        if [[ -f "$SETUP_SCRIPT" ]]; then
+            echo "Activating project '$PROJECT_NAME'..."
+            source "$SETUP_SCRIPT"
+        else
+            echo "❌ Error: Activation script not found for project '$PROJECT_NAME' at $SETUP_SCRIPT" >&2
+            return 1
+        fi
+    else
+        taurworks "$@"
+    fi
+}
