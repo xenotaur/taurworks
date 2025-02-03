@@ -1,0 +1,53 @@
+# Ignore Emacs backup files
+*~
+
+# Ignore .pyc files
+*.pyc
+
+# Ignore compiled Python files
+__pycache__/
+
+# Ignore virtual environment directories
+venv/
+env/
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+
+# Ignore database files
+*.db
+*.sqlite
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore package build directories
+dist/
+build/
+
+# Ignore IDE-specific files
+.idea/
+.vscode/
+
+# Ignore compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Ignore package installation files
+*.egg-info/
+*.egg
+
+# Ignore cache directories
+__pycache__/
+.cache/
+
+# Ignore coverage reports
+.coverage
+htmlcov/
+
+# Ignore documentation files
+docs/_build/
