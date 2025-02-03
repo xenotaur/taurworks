@@ -6,8 +6,9 @@ def main():
     
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # List projects
-    subparsers.add_parser("projects", help="List available project environments.")
+    # List projects with optional details
+    parser_list = subparsers.add_parser("projects", help="List available project environments.")
+    parser_list.add_argument("-l", "--details", action="store_true", help="Show detailed project information.")
 
     # Create a project with optional Conda settings
     parser_create = subparsers.add_parser("create", help="Create a new project.")
@@ -23,7 +24,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "projects":
-        list_projects()
+        list_projects(show_details=args.details)
     elif args.command == "create":
         create_project(args.project_name, python_version=args.python, packages=args.packages, env_file=args.file)
     elif args.command == "activate":
@@ -31,4 +32,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

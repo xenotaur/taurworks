@@ -3,19 +3,62 @@ import subprocess
 
 TAURWORKS_WORKSPACE = os.getenv("TAURWORKS_WORKSPACE", os.path.expanduser("~/Workspace"))
 
-def list_projects():
-    """Lists available projects in the workspace."""
+def get_conda_environments():
+    """Returns a set of existing Conda environment names."""
+    try:
+        result = subprocess.run(["conda", "env", "list"], capture_output=True, text=True, check=True)
+        envs = set()
+        for line in result.stdout.split("\n"):
+            if line and not line.startswith("#") and " " in line:
+                env_name = line.split()[0]  # Extract the environment name
+                envs.add(os.path.basename(env_name))  # Conda paths might appear
+        return envs
+    except Exception as e:
+        print(f"Warning: Could not fetch Conda environments: {e}")
+        return set()
+
+def get_directory_info(path):
+    """Returns the total size and number of files in a directory."""
+    total_size = 0
+    file_count = 0
+    for root, _, files in os.walk(path):
+        file_count += len(files)
+        for f in files:
+            fp = os.path.join(root, f)
+            if os.path.isfile(fp):
+                total_size += os.path.getsize(fp)
+    return total_size, file_count
+
+def list_projects(show_details=False):
+    """Lists available projects in the workspace, with optional details."""
     if not os.path.exists(TAURWORKS_WORKSPACE):
         print(f"No workspace found at {TAURWORKS_WORKSPACE}.")
         return
     
     projects = [p for p in os.listdir(TAURWORKS_WORKSPACE) if os.path.isdir(os.path.join(TAURWORKS_WORKSPACE, p))]
-    if projects:
-        print("Available projects:")
-        for project in projects:
-            print(f"- {project}")
-    else:
+    if not projects:
         print("No projects found.")
+        return
+
+    conda_envs = get_conda_environments()
+
+    print("Available projects:\n")
+    for project in projects:
+        project_dir = os.path.join(TAURWORKS_WORKSPACE, project)
+        admin_dir = os.path.join(project_dir, ".taurworks")
+        has_admin = os.path.exists(admin_dir)
+        has_env = project in conda_envs
+
+        if show_details:
+            dir_size, file_count = get_directory_info(project_dir)
+            size_str = f"{dir_size / (1024*1024):.2f} MB"  # Convert to MB
+            print(f"- {project}")
+            print(f"  ├── .taurworks Exists: {'✔' if has_admin else '✘'}")
+            print(f"  ├── Conda Env Exists: {'✔' if has_env else '✘'} ({'active' if has_env else 'missing'})")
+            print(f"  ├── Files: {file_count}, Size: {size_str}\n")
+        else:
+            print(f"- {project}")
+
 
 def create_project(project_name, python_version="3.11", packages=None, env_file=None):
     """Creates a new project with optional Conda customization."""
