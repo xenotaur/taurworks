@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import subprocess
 
@@ -42,11 +43,17 @@ def create_conda_environment(env_name, python_version="3.11", packages=None, env
 
         subprocess.run(conda_cmd, check=True)
 
+def camel_to_snake(name):
+    """Convert CamelCase to snake_case."""
+    return re.sub(r'(?<!^)([A-Z])', r'_\1', name).lower()
+
+
 def refresh_project(project_name, python_version="3.11", packages=None, env_file=None):
     """Ensures a project is correctly set up."""
     project_dir = os.path.join(TAURWORKS_WORKSPACE, project_name)
     admin_dir = os.path.join(project_dir, ".taurworks")
-    repo_dir = os.path.join(project_dir, project_name)
+    repo_name = camel_to_snake(project_name)
+    repo_dir = os.path.join(project_dir, repo_name)
     env_name = f"{project_name}"
 
     # Ensure workspace exists

@@ -29,3 +29,50 @@ There are two ways of installing this: dead source and live source.
 
   This will enable you to track changes and upload them via `git push`.
 
+## Documentation
+
+### The Bin Directory
+
+Commands and Aliases
+* grr
+* cpd
+* drq
+* grj
+* today
+* xi
+* aquamacs
+* sample.py
+* logscript
+* psg
+* grr ->retire
+
+To rework
+* sample.py
+
+To retire
+
+* Blog Image tools
+  * imagelink
+  * fileimages.py
+* parallels.original.bashrc
+
+### Screen Tools
+* byobu
+* screen
+  * myscreen
+  * screenrc
+
+### AWS Tools
+  * extract-instance-name
+  * aws-setup-check
+  * awsh
+  * awst
+
+### The Prompt
+
+
+### The Command Logger
+* lastcommand
+* logged
+* group_logged.py
+
