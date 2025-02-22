@@ -11,3 +11,9 @@ source ~/bin/utilities.source
 
 # Update bindings
 bind -f ~/bin/dot.inputrc
+
+# Start SSH agent if not already running and if the SSH key exists
+if [ -z "$SSH_AUTH_SOCK" ] && [ -f ~/.ssh/id_ed25519 ]; then
+    eval "$(ssh-agent -s)"
+    ssh-add ~/.ssh/id_ed25519
+fi
