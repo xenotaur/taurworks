@@ -1,0 +1,25 @@
+#!/bin/bash
+
+if [ "$#" -eq 0 ]; then
+    echo "Usage: pygots module1 module2 ..."
+    exit 1
+fi
+
+python - "$@" <<EOF
+import sys
+
+modules = sys.argv[1:]
+
+# Find the longest module name for formatting
+max_length = max(len(module) for module in modules)
+
+for module in modules:
+    try:
+        __import__(module)
+        print(f"{module.rjust(max_length)}: imported successfully.")
+    except ImportError:
+        print(f"{module.rjust(max_length)}: ERROR importing module.")
+
+sys.exit(0)
+EOF
+
