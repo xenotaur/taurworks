@@ -4,8 +4,12 @@ import os
 import time
 import shutil
 
-DOWNLOADS = "/Users/centaur/Pictures/Downloads/"
-FILEPHOTO = "/Users/centaur/Pictures/Photos/"
+HOME_DIR = os.path.expanduser("~")
+assert os.path.exists(HOME_DIR)
+
+DOWNLOADS = os.path.join(HOME_DIR, "Pictures", "Downloads")
+FILEPHOTO = os.path.join(HOME_DIR, "Pictures", "Photos")
+
 
 def Error(message):
   print message
