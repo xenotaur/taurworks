@@ -59,19 +59,27 @@ done
 
 if [[ "$#" -ne 2 ]]; then
   echo "Usage: drq [--exclude=ext1,ext2 | --noexclude] [--include=ext1,ext2] [--details[=N|all]] dir1 dir2"
-  echo ""
-  echo "Compares the contents of two directories and reports missing or differing files."
-  echo ""
-  echo "OPTIONS:"
-  echo "  --exclude=ext1,ext2   Exclude files with the specified extensions. Accepts comma-separated values." 
-  echo "  --noexclude           Disable default exclusions for common temp files (e.g., *~, .DS_Store)."
-  echo "  --include=ext1,ext2   Only compare files with the specified extensions. Accepts comma-separated values."
-  echo "  --details[=N|all]     Show detailed differences. If 'N' is provided, show up to N lines per difference. If 'all' is provided, show full diffs."
+echo ""
+echo "Compares the contents of two directories and reports missing or differing files."
+echo ""
+echo "OPTIONS:"
+echo "  --exclude=ext1,ext2   Exclude files with the specified extensions. Accepts comma-separated values." 
+echo "  --noexclude           Disable default exclusions for common temp files (e.g., *~, .DS_Store)."
+echo "  --include=ext1,ext2   Only compare files with the specified extensions. Accepts comma-separated values."
+echo "  --details[=N|all]     Show detailed differences. If 'N' is provided, show up to N lines per difference. If 'all' is provided, show full diffs."
   exit 1
 fi
 
-dir1="$(realpath -s "$1")"
-dir2="$(realpath -s "$2")"
+if command -v realpath &>/dev/null; then
+  dir1="$(realpath "$1" 2>/dev/null || echo "$1")"
+else
+  dir1="$(cd "$1" 2>/dev/null && pwd || echo "$1")"
+fi
+if command -v realpath &>/dev/null; then
+  dir2="$(realpath "$2" 2>/dev/null || echo "$2")"
+else
+  dir2="$(cd "$2" 2>/dev/null && pwd || echo "$2")"
+fi
 
 # Build exclusion arguments
 exclude_args=()
@@ -109,7 +117,7 @@ dir2_files=$(find "$dir2" -type f "${include_args[@]}" "${exclude_args[@]}")
 
 # Compare files in both directories
 echo "$dir1_files" | while read -r file1; do
-  rel_path="$(realpath --relative-to="$dir1" "$file1")"
+  rel_path="$(perl -e 'use Cwd "abs_path"; use File::Spec; print File::Spec->abs2rel(abs_path($ARGV[1]), abs_path($ARGV[0]))' "$dir1" "$file1")"
   file2="$dir2/$rel_path"
   
   if [[ -f "$file2" ]]; then
@@ -129,7 +137,7 @@ echo "$dir1_files" | while read -r file1; do
 done
 
 echo "$dir2_files" | while read -r file2; do
-  rel_path="$(realpath --relative-to="$dir2" "$file2")"
+  rel_path="$(perl -e 'use Cwd "abs_path"; use File::Spec; print File::Spec->abs2rel(abs_path($ARGV[1]), abs_path($ARGV[0]))' "$dir2" "$file2")"
   file1="$dir1/$rel_path"
   
   if [[ ! -f "$file1" ]]; then
