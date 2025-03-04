@@ -1,0 +1,22 @@
+# Define the user-specific man directory
+USER_MANPATH="$HOME/man"
+
+# Check if USER_MANPATH is already in MANPATH
+if [[ ":$MANPATH:" == *":$USER_MANPATH:"* ]]; then
+  return 0  # No changes needed
+fi
+
+# Check if USER_MANPATH exists and is not empty
+if [[ ! -d "$USER_MANPATH" || -z "$(ls -A "$USER_MANPATH" 2>/dev/null)" ]]; then
+  echo "Error: USER_MANPATH directory $USER_MANPATH does not exist or is empty." >&2
+  return 1
+fi
+
+# Check if USER_MANPATH/man1 exists and is not empty
+if [[ ! -d "$USER_MANPATH/man1" || -z "$(ls -A "$USER_MANPATH/man1" 2>/dev/null)" ]]; then
+  echo "Error: USER_MANPATH subdirectory $USER_MANPATH/man1 does not exist or is empty." >&2
+  return 1
+fi
+
+# If all checks pass, prepend USER_MANPATH to MANPATH
+export MANPATH="$USER_MANPATH:$MANPATH"

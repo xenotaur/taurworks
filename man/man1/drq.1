@@ -1,0 +1,43 @@
+.TH DRQ 1 "March 2025" "drq version 1.0" "User Commands"
+.SH NAME
+drq \- A directory comparison utility
+.SH SYNOPSIS
+.B drq
+[OPTIONS] DIR1 DIR2
+.SH DESCRIPTION
+.B drq
+compares the contents of two directories and reports missing or differing files. 
+It supports filtering by file extensions and provides options for detailed output.
+
+.SH OPTIONS
+.TP
+.B --exclude=ext1,ext2
+Exclude files with the specified extensions. Accepts comma-separated values.
+.TP
+.B --noexclude
+Disable default exclusions for common temp files (e.g., *~, .DS_Store).
+.TP
+.B --include=ext1,ext2
+Only compare files with the specified extensions. Accepts comma-separated values.
+.TP
+.B --details[=N|all]
+Show detailed differences. If 'N' is provided, show up to N lines per difference. If 'all' is provided, show full diffs.
+
+.SH EXAMPLES
+Compare two directories:
+.IP
+.B drq ~/bin ~/backup/bin
+.PP
+Compare directories but exclude `.log` and `.tmp` files:
+.IP
+.B drq --exclude=log,tmp ~/project1 ~/project2
+.PP
+Show up to 20 lines of differences:
+.IP
+.B drq --details=20 ~/dirA ~/dirB
+
+.SH AUTHOR
+Written by Anthony Francis and ChatGPT.
+
+.SH SEE ALSO
+diff(1), find(1)
