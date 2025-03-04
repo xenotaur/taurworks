@@ -11,6 +11,11 @@
 # Default exclusion patterns (common temp files)
 default_excludes=("*~" "*.swp" "*.swo" ".DS_Store" "Thumbs.db")
 
+# Define helper function for relative paths
+relative_path() {
+  perl -e 'use Cwd "abs_path"; use File::Spec; print File::Spec->abs2rel(abs_path($ARGV[1]), abs_path($ARGV[0]))' "$1" "$2"
+}
+
 # Parse arguments
 exclude_patterns=()
 include_patterns=()
@@ -70,16 +75,8 @@ echo "  --details[=N|all]     Show detailed differences. If 'N' is provided, sho
   exit 1
 fi
 
-if command -v realpath &>/dev/null; then
-  dir1="$(realpath "$1" 2>/dev/null || echo "$1")"
-else
-  dir1="$(cd "$1" 2>/dev/null && pwd || echo "$1")"
-fi
-if command -v realpath &>/dev/null; then
-  dir2="$(realpath "$2" 2>/dev/null || echo "$2")"
-else
-  dir2="$(cd "$2" 2>/dev/null && pwd || echo "$2")"
-fi
+dir1="$(cd "$1" 2>/dev/null && pwd || echo "$1")"
+dir2="$(cd "$2" 2>/dev/null && pwd || echo "$2")"
 
 # Build exclusion arguments
 exclude_args=()
@@ -117,7 +114,7 @@ dir2_files=$(find "$dir2" -type f "${include_args[@]}" "${exclude_args[@]}")
 
 # Compare files in both directories
 echo "$dir1_files" | while read -r file1; do
-  rel_path="$(perl -e 'use Cwd "abs_path"; use File::Spec; print File::Spec->abs2rel(abs_path($ARGV[1]), abs_path($ARGV[0]))' "$dir1" "$file1")"
+  rel_path="$(relative_path "$dir1" "$file1")"
   file2="$dir2/$rel_path"
   
   if [[ -f "$file2" ]]; then
@@ -137,7 +134,7 @@ echo "$dir1_files" | while read -r file1; do
 done
 
 echo "$dir2_files" | while read -r file2; do
-  rel_path="$(perl -e 'use Cwd "abs_path"; use File::Spec; print File::Spec->abs2rel(abs_path($ARGV[1]), abs_path($ARGV[0]))' "$dir2" "$file2")"
+  rel_path="$(relative_path "$dir2" "$file2")"
   file1="$dir1/$rel_path"
   
   if [[ ! -f "$file1" ]]; then
