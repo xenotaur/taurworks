@@ -16,7 +16,7 @@ Aligned repository documentation around the current Taurworks command model and 
 - Updated roadmap with explicit in-scope vs out-of-scope boundaries for the current phase.
 
 # Validation
-- Attempted editable install: failed in this environment due unavailable package index/proxy for build dependencies.
+- Attempted editable install: failed in this environment due to unavailable package index/proxy for build dependencies.
 - Ran `scripts/test`: failed because `taurworks` package is not importable without editable install in this environment.
 - Ran `PYTHONPATH=src python -m taurworks.cli --help`: passed as a local smoke test for current CLI command surface.
 - Ran `taurworks --help`: failed because the console entry point is unavailable without successful editable install.

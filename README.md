@@ -19,6 +19,8 @@ Both namespaces are expected to share a common configuration/discovery core.
 
 ### Implementation status and compatibility
 
+Status note: the namespaced subcommands shown above (`taurworks project ...` and `taurworks dev ...`) are planned command model direction and are not currently implemented in the shipped CLI. For now, use the supported top-level commands below.
+
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 
 - `taurworks create`
