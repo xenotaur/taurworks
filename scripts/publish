@@ -1,18 +1,18 @@
 #!/bin/bash
-# Publish treemi to PyPI via twine
+# Publish taurworks to PyPI via twine
 # Requires:
-# - pip install twine
-echo "Publishing treemi to pip..."
+# - python -m pip install twine
+echo "Publishing taurworks to PyPI..."
 set -x
 
 if [ -d "dist" ]; then
     echo twine upload dist/*
-    echo "Publishing not yet supported until treemi is more heavily tested / fleshed out."
-    exit 1 # replace with EXIT_CODE=$?
+    echo "Publishing not yet supported until taurworks is more heavily tested / fleshed out."
+    EXIT_CODE=1
 
 else
     echo "No dist directory found, please run build first."
-    exit 1
+    EXIT_CODE=1
 fi
 
 # Turn off logging and print a blank line

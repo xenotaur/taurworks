@@ -5,7 +5,7 @@
 
 ## Overview
 - The repository combines legacy Unix utilities (`bin/`) with an installable Python CLI (`taurworks=taurworks.cli:main`).
-- Current lifecycle operations are centered in `taurworks/cli.py` and `taurworks/manager.py`.
+- Current lifecycle operations are centered in `src/taurworks/cli.py` and `src/taurworks/manager.py`.
 - Lifecycle behavior is explicit and inspectable: directories and scripts are created on disk; activation is printed for manual sourcing.
 
 ## Goals and Direction
