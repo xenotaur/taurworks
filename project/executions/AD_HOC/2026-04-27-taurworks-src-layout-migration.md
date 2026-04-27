@@ -2,7 +2,7 @@
 prompt_id: "PROMPT(TAURWORKS_SRC_LAYOUT_MIGRATION)[IMPLEMENT/2026-04-27]"
 work_item: "AD_HOC"
 slug: "taurworks-src-layout-migration"
-status: "in_progress"
+status: "landed"
 date: "2026-04-27"
 ---
 
@@ -16,7 +16,8 @@ Migrated the Python package to a `src/` layout by moving `taurworks/` to `src/ta
 
 # Validation
 - Attempted to run `scripts/prompts/record-execution` but the helper script is not present in this repository checkout.
-- Ran editable install, import checks outside repo root, CLI help, and unit tests.
+- Attempted editable install (`pip install -e .`), but this environment could not fetch/import build backend dependencies due network/proxy constraints.
+- Ran import checks outside repo root, CLI help, and unit tests with the available environment.
 
 # Follow-up
 - Optionally add `scripts/prompts/record-execution` helper if prompt-workflow automation is desired in this repository.
