@@ -24,7 +24,7 @@ This roadmap is phased and conservative. It prioritizes command-model alignment 
 - Preserve existing `create`, `refresh`, `activate`, and `projects` command behavior during transition.
 
 ## Phase 4 — Deliver minimal `taurworks dev` MVP
-- Focus on `init`, `doctor`/`config show`, `test`, `lint`, `format`, `coverage`, `clean`, and `develop`.
+- Focus on `init`, `test`, `lint`, `format`, `coverage`, `clean`, and `develop`.
 - Keep command resolution transparent and inspectable.
 
 ## Phase 5 — Defer higher-risk dev commands until stable

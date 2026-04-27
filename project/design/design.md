@@ -1,5 +1,8 @@
 # Design Overview
 
+## Status note
+The `taurworks project ...` and `taurworks dev ...` namespaces described below are target design direction and are not yet fully implemented in the currently shipped CLI. Today, top-level commands such as `create`, `refresh`, `activate`, and `projects` remain the supported compatibility interface until migration is finalized.
+
 ## Product model
 Taurworks uses one executable, `taurworks`, with two namespaces:
 
