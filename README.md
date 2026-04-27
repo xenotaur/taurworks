@@ -19,7 +19,7 @@ Both namespaces are expected to share a common configuration/discovery core.
 
 ### Implementation status and compatibility
 
-Status note: the namespaced subcommands shown above (`taurworks project ...` and `taurworks dev ...`) are planned command model direction and are not currently implemented in the shipped CLI. For now, use the supported top-level commands below.
+Status note: `taurworks project ...` is now scaffolded in the shipped CLI as a safe help/placeholder namespace. `taurworks dev ...` remains planned and is not implemented yet.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 
@@ -27,6 +27,13 @@ The namespaced model is the active design direction. The currently shipped CLI r
 - `taurworks refresh`
 - `taurworks activate`
 - `taurworks projects`
+
+The scaffolded `project` namespace currently advertises planned read-only commands:
+
+- `taurworks project where` (placeholder)
+- `taurworks project list` (placeholder)
+
+These placeholders intentionally do not mutate files, environments, or shell state.
 
 Breaking command removals/renames are intentionally deferred until a migration path is explicitly documented and implemented.
 
@@ -69,6 +76,7 @@ Then validate the package import and CLI entry point:
 ```bash
 python -c "import taurworks; print(taurworks.__file__)"
 taurworks --help
+taurworks project --help
 python -m taurworks.cli --help
 ```
 
