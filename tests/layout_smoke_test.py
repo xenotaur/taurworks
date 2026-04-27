@@ -23,14 +23,31 @@ class SrcLayoutSmokeTest(unittest.TestCase):
         )
 
     def test_module_cli_help(self):
-        result = subprocess.run(
-            [sys.executable, "-m", "taurworks.cli", "--help"],
-            capture_output=True,
-            text=True,
-            check=False,
+        cmd = [sys.executable, "-m", "taurworks.cli", "--help"]
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except subprocess.TimeoutExpired as exc:
+            self.fail(
+                "CLI help command timed out after "
+                f"{exc.timeout} seconds: {cmd}\n"
+                f"stdout:\n{exc.stdout or ''}\n"
+                f"stderr:\n{exc.stderr or ''}"
+            )
+
+        failure_message = (
+            f"Command failed: {cmd}\n"
+            f"return code: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
         )
-        self.assertEqual(result.returncode, 0, msg=result.stderr)
-        self.assertIn("Manage taurworks projects.", result.stdout)
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("Manage taurworks projects.", result.stdout, msg=failure_message)
 
 
 if __name__ == "__main__":
