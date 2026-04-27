@@ -49,6 +49,60 @@ class SrcLayoutSmokeTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("Manage taurworks projects.", result.stdout, msg=failure_message)
 
+    def test_module_cli_project_help(self):
+        cmd = [sys.executable, "-m", "taurworks.cli", "project", "--help"]
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except subprocess.TimeoutExpired as exc:
+            self.fail(
+                "CLI help command timed out after "
+                f"{exc.timeout} seconds: {cmd}\n"
+                f"stdout:\n{exc.stdout or ''}\n"
+                f"stderr:\n{exc.stderr or ''}"
+            )
+        failure_message = (
+            f"Command failed: {cmd}\n"
+            f"return code: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("where", result.stdout, msg=failure_message)
+        self.assertIn("list", result.stdout, msg=failure_message)
+
+    def test_module_cli_project_where_placeholder(self):
+        cmd = [sys.executable, "-m", "taurworks.cli", "project", "where"]
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except subprocess.TimeoutExpired as exc:
+            self.fail(
+                "CLI placeholder command timed out after "
+                f"{exc.timeout} seconds: {cmd}\n"
+                f"stdout:\n{exc.stdout or ''}\n"
+                f"stderr:\n{exc.stderr or ''}"
+            )
+        failure_message = (
+            f"Command failed: {cmd}\n"
+            f"return code: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertEqual(result.stdout.strip(), "", msg=failure_message)
+        self.assertIn("scaffold placeholder", result.stderr, msg=failure_message)
+
 
 if __name__ == "__main__":
     unittest.main()
