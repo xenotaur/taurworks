@@ -83,14 +83,15 @@ To retire
 For Python package and CLI development, install Taurworks in editable mode from the repository root:
 
 ```bash
-pip install -e .
+python -m pip install -e .
 ```
 
 Then validate the package import and CLI entry point:
 
 ```bash
-python -c "import taurworks"
+python -c "import taurworks; print(taurworks.__file__)"
 taurworks --help
+python -m taurworks.cli --help
 ```
 
 The import package is provided from `src/taurworks/` using a standard `src/` layout.

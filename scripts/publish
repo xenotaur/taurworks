@@ -1,13 +1,13 @@
 #!/bin/bash
-# Publish treemi to PyPI via twine
+# Publish taurworks to PyPI via twine
 # Requires:
 # - pip install twine
-echo "Publishing treemi to pip..."
+echo "Publishing taurworks to pip..."
 set -x
 
 if [ -d "dist" ]; then
     echo twine upload dist/*
-    echo "Publishing not yet supported until treemi is more heavily tested / fleshed out."
+    echo "Publishing not yet supported until taurworks is more heavily tested / fleshed out."
     exit 1 # replace with EXIT_CODE=$?
 
 else

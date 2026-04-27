@@ -23,13 +23,13 @@ Adopt one primary `taurworks` executable with two namespaces:
 
 ### Inputs reviewed
 - `README.md`
-- `taurworks/cli.py`
-- `taurworks/manager.py`
+- `src/taurworks/cli.py`
+- `src/taurworks/manager.py`
 - `setup.py`
 - Top-level repository file/directory layout
 
 ### Assumptions made
-1. The authoritative project lifecycle behavior is encoded in `taurworks/cli.py` and `taurworks/manager.py`.
+1. The authoritative project lifecycle behavior is encoded in `src/taurworks/cli.py` and `src/taurworks/manager.py`.
 2. README's "suite of Unix utilities" framing remains valid, even as lifecycle tooling expands.
 3. Minimal additive documentation is preferred over speculative architecture documents.
 
