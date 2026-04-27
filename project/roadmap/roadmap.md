@@ -10,6 +10,20 @@ confidence: medium
 ## Horizon framing
 This roadmap is phased and conservative. It prioritizes command-model alignment and safe incremental delivery.
 
+## Current phase snapshot (2026-04-27)
+
+### In scope now
+- Documentation/design alignment around one primary executable (`taurworks`).
+- Clear command responsibilities for `taurworks project ...` and `taurworks dev ...`.
+- Shared configuration/discovery model clarity across both namespaces.
+- Safety and shell-integration guardrails.
+- Compatibility/migration-path documentation without breaking removals.
+
+### Out of scope now
+- Immediate implementation of every planned `taurworks dev` command.
+- Breaking removals or renames of compatibility commands.
+- Broad refactors unrelated to command-model alignment.
+
 ## Phase 1 — Document unified product direction
 - Align project artifacts around one executable: `taurworks`.
 - Document `taurworks project ...` and `taurworks dev ...` responsibilities.

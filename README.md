@@ -1,82 +1,60 @@
 # taurworks
-A suite of Unix utilities used by the Centaur in his day-to-day work.
 
-## Installation
+Taurworks is a command-line development framework for creating, switching to, and working in multiple development projects.
 
-NOTE: Check your .bashrc and .bash_profile prior to overwriting them,
-as your local installation may have placed things in these files.
+## Current command model (design-aligned)
 
-There are two ways of installing this: dead source and live source.
+Taurworks currently standardizes on one primary executable:
 
-* Dead Source: Copy the bin directory to ~/bin on a Linux installation,
-  and copy the following files to the root directory:
+```bash
+taurworks
+```
 
-  * cd ~
-  * cp ~/bin/dot.bash_profile .bash_profile
-  * cp ~/bin/dot.bashrc .bashrc
-  * cp -r ~/bin/byobu .byobu
-  
-  This will be disconnected from source control, but it's the simplest.
+The intended command model is namespaced:
 
-* Live Source: Place taurworks someplace safe and symbolically link
-  the files so that the connections are live:
+- `taurworks project ...` for project/workspace lifecycle operations.
+- `taurworks dev ...` for repository/developer workflow operations.
 
-  * cd ~
-  * ln -s taurworks/bin ~/bin
-  * ln -s ~/bin/dot.bash_profile .bash_profile
-  * ln -s ~/bin/dot.bashrc .bashrc
-  * ln -s ~/bin/byobu .byobu
+Both namespaces are expected to share a common configuration/discovery core.
 
-  This will enable you to track changes and upload them via `git push`.
+### Implementation status and compatibility
 
-## Documentation
+Status note: the namespaced subcommands shown above (`taurworks project ...` and `taurworks dev ...`) are planned command model direction and are not currently implemented in the shipped CLI. For now, use the supported top-level commands below.
 
-### The Bin Directory
+The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 
-Commands and Aliases
-* grr
-* cpd
-* drq
-* grj
-* today
-* xi
-* aquamacs
-* sample.py
-* logscript
-* psg
-* grr ->retire
+- `taurworks create`
+- `taurworks refresh`
+- `taurworks activate`
+- `taurworks projects`
 
-To rework
-* sample.py
+Breaking command removals/renames are intentionally deferred until a migration path is explicitly documented and implemented.
 
-To retire
+## Safety and shell-integration guardrails
 
-* Blog Image tools
-  * imagelink
-  * fileimages.py
-* parallels.original.bashrc
+Taurworks documentation and command behavior should follow conservative shell safety:
 
-### Screen Tools
-* byobu
-* screen
-  * myscreen
-  * screenrc
+- Do not silently mutate shell startup files (`.bashrc`, `.bash_profile`, etc.).
+- Prefer commands that print shell instructions when parent-shell mutation is required.
+- Keep environment activation explicit and inspectable (`source ...` performed by the operator).
+- Make state-changing operations explicit; avoid implying hidden side effects.
 
-### AWS Tools
-  * extract-instance-name
-  * aws-setup-check
-  * awsh
-  * awst
+## Phased roadmap status
 
-### The Prompt
+Current phase work is focused on:
 
+1. Documentation/design alignment.
+2. Command-model clarification (`project` vs `dev`).
+3. Shared configuration/discovery expectations.
+4. Safety guardrails and migration-path clarity.
 
-### The Command Logger
-* lastcommand
-* logged
-* group_logged.py
+Out of scope for this phase:
 
+- Immediate implementation of every planned `taurworks dev` command.
+- Breaking removals of compatibility commands.
+- Broad refactors unrelated to command-model alignment.
 
+See `project/roadmap/roadmap.md` and `project/design/unified_command_model.md` for detail.
 
 ## Python package development
 
@@ -95,3 +73,7 @@ python -m taurworks.cli --help
 ```
 
 The import package is provided from `src/taurworks/` using a standard `src/` layout.
+
+## Legacy shell utility inventory (historical)
+
+The repository still contains historical shell utilities under `bin/` and `sourceme/`. These artifacts remain available, but the command model and roadmap focus for Taurworks development is the `taurworks` executable and the documented namespaced direction above.
