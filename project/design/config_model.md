@@ -4,11 +4,13 @@
 Configuration should resolve in this order (highest to lowest):
 
 1. Command-line options
-2. XDG-style global user configuration/state/cache
-3. Visible project/workspace metadata (`Admin/` or `.taurworks/`)
-4. Repo-local workflow configuration (`taurdev.toml`)
-5. Optional Python integration (`[tool.taurdev]` in `pyproject.toml`)
+2. Repo-local workflow configuration (`taurdev.toml`)
+3. Optional Python integration (`[tool.taurdev]` in `pyproject.toml`)
+4. Visible project/workspace metadata (`Admin/` or `.taurworks/`)
+5. XDG-style global user configuration/state/cache
 6. Built-in defaults
+
+This precedence keeps repository-defined dev behavior authoritative while still allowing user defaults when repository config is absent.
 
 ## Global model (user scope)
 Use XDG-style directories for user-level settings and registries, including workspace/project registration and user defaults.
