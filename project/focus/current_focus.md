@@ -1,23 +1,25 @@
 ---
-updated: 2026-04-10
-basis: repository_inspection
-confidence: medium
+updated: 2026-04-27
+basis: design_alignment
+confidence: high
 ---
 
-# Current Focus (Appears)
+# Current Focus
 
-Based on current code layout and commands, Taurworks appears focused on stabilizing a basic project lifecycle:
-1. Create project scaffolding and environment.
-2. Refresh/repair project setup.
-3. Provide explicit activation instructions.
-4. Surface project inventory and basic health via listing.
+Taurworks is currently focused on **design alignment and command model clarification**, not immediate implementation of every planned dev command.
 
-## Signals
-- Manager logic centers on filesystem + Conda setup.
-- CLI exposes lifecycle-oriented verbs (`create`, `refresh`, `projects`, `activate`).
-- Activation is explicit (printed command), not automatic.
+## Active direction
+1. Keep one primary executable: `taurworks`.
+2. Clarify namespaced project lifecycle commands under `taurworks project ...`.
+3. Clarify namespaced repo workflow commands under `taurworks dev ...`.
+4. Keep a shared config/discovery model across both namespaces.
+5. Preserve compatibility with current command behavior while a migration path is defined.
 
-## Unclear from repository
-- Whether plugin/extensibility is an active development track.
-- Whether a formal configuration schema is planned for projects.
-- Whether this lifecycle will remain Conda-only.
+## In scope now
+- Documentation and design alignment across `project/` artifacts.
+- Guardrails for safety and shell integration.
+- Phased roadmap clarity.
+
+## Out of scope now
+- Full immediate implementation of every `taurworks dev` command.
+- Breaking command renames or removals.

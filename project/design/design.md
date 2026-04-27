@@ -1,30 +1,55 @@
 # Design Overview
 
-## High-level architecture (from code)
-1. **CLI layer** (`taurworks/cli.py`)
-   - Parses subcommands and options.
-   - Delegates to manager functions.
+## Product model
+Taurworks uses one executable, `taurworks`, with two namespaces:
 
-2. **Manager layer** (`taurworks/manager.py`)
-   - Implements project operations:
-     - create/refresh project filesystem structure
-     - discover/create Conda environments
-     - generate activation setup script
-     - list projects with optional details
+- `taurworks project ...` for workspace/project lifecycle and activation concerns.
+- `taurworks dev ...` for repo-local development workflow orchestration.
 
-3. **Filesystem + environment model**
-   - Workspace root from `TAURWORKS_WORKSPACE` (default `~/Workspace`).
-   - Per-project directory.
-   - Per-project `.taurworks/` admin directory.
-   - Per-project activation script (`project-setup.source`).
-   - Per-project Conda environment named after project.
+These namespaces are conceptually separate, but should share core services for discovery, configuration loading, diagnostics, and path normalization.
 
-## Primary flows
-- **Create flow:** CLI `create` -> `create_project` -> workspace/project/admin dirs + conda env + repo dir + setup script.
-- **Refresh flow:** CLI `refresh` -> `refresh_project` -> idempotent checks and creation of missing components.
-- **Activate flow:** CLI `activate` -> `activate_project` -> prints `source <.../project-setup.source>` for manual execution.
-- **List flow:** CLI `projects` -> `list_projects` -> enumerates workspace project directories and compares to Conda env list.
+## CLI namespace model
 
-## Conservative interpretation
-- Appears to prioritize explicit, inspectable behavior over hidden automation.
-- Unclear from repository whether a formal long-term schema for project metadata is planned.
+### Project namespace
+- `taurworks project init`
+- `taurworks project activate`
+- `taurworks project list`
+- `taurworks project refresh`
+
+### Dev namespace
+- `taurworks dev init`
+- `taurworks dev clean`
+- `taurworks dev develop`
+- `taurworks dev test`
+- `taurworks dev smoke`
+- `taurworks dev coverage`
+- `taurworks dev lint`
+- `taurworks dev format`
+- `taurworks dev build`
+- `taurworks dev update`
+- `taurworks dev precommit`
+- `taurworks dev publish`
+- `taurworks dev sandbox`
+- `taurworks dev version`
+- `taurworks dev validate`
+
+## Compatibility commands
+Existing top-level commands such as `create`, `refresh`, `activate`, and `projects` remain documented compatibility commands until a migration plan is finalized.
+
+## Dev command resolution model
+For `taurworks dev <command>`, resolution should follow this order:
+
+1. Explicit configured command
+2. Project-local script (for example `scripts/test`)
+3. Built-in default selected from project type/layout
+
+This model preserves project intent while providing a reliable fallback path.
+
+## Transparency and safety
+- Command behavior should be explainable and inspectable.
+- Dry-run, verbose, and doctor-style diagnostics should be supported where practical.
+- Higher-risk commands (`clean`, `precommit`, `publish`, `update`, `sandbox`) should use conservative defaults and avoid implicit destructive behavior.
+
+## Non-goals
+- Do not replace standard tools with a new build/lint/test/package/release system.
+- Do not split into unrelated init/discovery flows for project vs dev operations.

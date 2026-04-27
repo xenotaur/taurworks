@@ -1,5 +1,24 @@
 # Decision Log
 
+## 2026-04-27 — Adopt unified Taurworks command model
+
+### Decision
+Adopt one primary `taurworks` executable with two namespaces:
+
+- `taurworks project ...`
+- `taurworks dev ...`
+
+### Rationale
+- Avoid duplicated init/config behavior.
+- Keep workspace activation responsibilities separate from repo workflow orchestration.
+- Avoid global short-command collisions.
+- Support XDG-style global config plus visible project-local and repo-local configuration.
+
+### Consequences
+- Existing top-level commands remain compatibility commands for now.
+- `taurworks dev` should delegate to standard tools and project scripts.
+- Implementation should proceed in small, reviewable phases.
+
 ## 2026-04-10 — LRH bootstrap initialization
 
 ### Inputs reviewed
