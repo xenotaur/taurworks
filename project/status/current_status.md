@@ -1,21 +1,21 @@
 # Current Status
 
 ## Maturity snapshot
-Taurworks appears to be an early-stage to mid-transition toolset: part personal Unix utilities, part structured project/environment manager.
+Taurworks is in a design-alignment phase moving toward a unified command model while preserving current behavior.
 
-## What exists (observed)
-- Installable Python package with CLI entry point.
-- Lifecycle commands for creating, refreshing, listing, and activating projects.
-- Workspace + `.taurworks` + setup script model implemented in code.
-- Conda environment creation and discovery logic.
-- Legacy/general utility scripts in `bin/` retained in repository.
+## Current direction (documented)
+- One primary executable: `taurworks`.
+- Namespaced workspace lifecycle commands: `taurworks project ...`.
+- Namespaced repo workflow commands: `taurworks dev ...`.
+- Shared discovery/configuration core across namespaces.
+- Compatibility coverage for existing top-level commands (`create`, `refresh`, `activate`, `projects`).
 
-## What appears missing or not yet formalized
-- Formal project configuration schema.
-- Unified status/introspection command beyond `projects` listing.
-- Explicit plugin or extension framework.
-- Documented governance around migration from legacy utilities to project-system-first workflow.
+## What this phase prioritizes
+- Aligning design, principles, guardrails, roadmap, and decision memory.
+- Clarifying command responsibilities and configuration precedence.
+- Defining conservative sequencing for future implementation.
 
-## Confidence notes
-- High confidence on implemented CLI/manager behavior.
-- Medium confidence on roadmap direction (inferred from structure and command set).
+## What remains future implementation work
+- Full command implementation across all `taurworks dev` verbs.
+- Finalized migration/deprecation mechanics for compatibility commands.
+- Expanded diagnostics and dry-run support across all command paths.

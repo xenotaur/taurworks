@@ -2,17 +2,21 @@
 
 ## Do
 - Prefer explicit, user-visible commands and files.
-- Preserve cross-platform behavior for macOS/Linux.
-- Keep changes simple and inspectable.
-- Treat CLI behavior in `taurworks/cli.py` and `taurworks/manager.py` as primary signals.
+- Keep changes simple, inspectable, and reversible.
+- Preserve conceptual separation between `taurworks project` and `taurworks dev`.
+- Treat compatibility commands as in-scope until explicit migration guidance is documented.
 
 ## Do Not
-- Do not auto-activate environments in user shells.
+- Do not install short global commands like `tw`, `td`, or `dev` by default.
 - Do not silently mutate shell startup files.
-- Do not introduce hidden state outside declared project directories.
-- Do not assume features (plugins, schema, status APIs) that are not present.
-- Do not overfit to one OS-specific workaround.
+- Do not silently publish packages, install hooks, delete files, or change environments.
+- Do not turn `taurworks dev` into a replacement build/lint/test/package/release system.
+- Do not remove or rename current commands before an explicit migration path exists.
 
-## Inference discipline
-- Label inferred statements with wording such as "Appears to", "Likely", or "Unclear from repository".
-- If conflicting signals appear, document both interpretations instead of silently choosing one.
+## Shell activation guardrail
+- Keep shell activation explicit and inspectable.
+- Account for subprocess boundaries: command subprocesses cannot directly mutate the parent shell environment.
+
+## Safety posture
+- Use conservative defaults for destructive or environment-changing operations.
+- Prefer dry-run, explain, and diagnostic-friendly behavior where practical.
