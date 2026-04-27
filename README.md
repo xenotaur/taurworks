@@ -76,3 +76,21 @@ To retire
 * logged
 * group_logged.py
 
+
+
+## Python package development
+
+For Python package and CLI development, install Taurworks in editable mode from the repository root:
+
+```bash
+pip install -e .
+```
+
+Then validate the package import and CLI entry point:
+
+```bash
+python -c "import taurworks"
+taurworks --help
+```
+
+The import package is provided from `src/taurworks/` using a standard `src/` layout.
