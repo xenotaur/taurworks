@@ -1,7 +1,7 @@
 # Unified Command Model
 
 ## Status note
-The command model below is current design direction and roadmap intent. The shipped CLI now includes a minimal `taurworks project ...` namespace scaffold for help/shape validation, but full namespaced behavior is still in progress.
+The command model below is current design direction and roadmap intent. The shipped CLI now includes `taurworks project ...` scaffolding plus an implemented read-only diagnostic command: `taurworks project where`.
 
 ## Why one primary executable: `taurworks`
 A single primary executable keeps command discovery simple, avoids duplicated initialization paths, and reduces user confusion around which binary owns workspace vs development behavior.
@@ -58,7 +58,7 @@ These aliases are opt-in and user-controlled.
 
 ## Compatibility and migration notes
 - Existing top-level commands (`create`, `refresh`, `activate`, `projects`) are retained as compatibility commands.
-- The `project` namespace scaffold currently advertises planned read-only command paths such as `where` and `list` via placeholder help/dispatch.
+- The `project` namespace now implements `where` as a read-only diagnostic command, while `list` remains a placeholder path.
 - Migration to namespaced forms should be incremental and documented.
 - Deprecation planning should only begin after namespaced behavior is stable and compatibility coverage is verified.
 - Breaking removals/renames are out of scope for the current documentation-alignment phase.

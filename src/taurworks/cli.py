@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from taurworks import manager
+from taurworks import project_resolution
 
 
 PROJECT_NOT_IMPLEMENTED_MESSAGE = (
@@ -12,7 +13,12 @@ PROJECT_NOT_IMPLEMENTED_MESSAGE = (
 
 def _handle_project_command(args):
     """Handle scaffolded `taurworks project ...` commands."""
-    if args.project_command in {"where", "list"}:
+    if args.project_command == "where":
+        diagnostics = project_resolution.gather_project_where_diagnostics()
+        print(project_resolution.format_project_where_output(diagnostics))
+        return
+
+    if args.project_command == "list":
         print(
             PROJECT_NOT_IMPLEMENTED_MESSAGE.format(command=args.project_command),
             file=sys.stderr,
@@ -84,10 +90,10 @@ def main():
 
     parser_project_where = project_subparsers.add_parser(
         "where",
-        help="(Planned) Show the selected project directory (placeholder).",
+        help="Show project/config/discovery resolution diagnostics (read-only).",
         description=(
-            "Placeholder command. Planned to report the selected project "
-            "directory without mutating state."
+            "Report current project/config/discovery resolution in a read-only "
+            "diagnostic format."
         ),
     )
     parser_project_where.set_defaults(project_parser=parser_project)

@@ -30,12 +30,31 @@ The namespaced model is the active design direction. The currently shipped CLI r
 
 The scaffolded `project` namespace currently advertises planned read-only commands:
 
-- `taurworks project where` (placeholder)
+- `taurworks project where` (implemented, read-only diagnostics)
 - `taurworks project list` (placeholder)
 
-These placeholders intentionally do not mutate files, environments, or shell state.
+`taurworks project where` intentionally does not mutate files, environments, or shell state.
+The `project list` placeholder remains non-mutating and returns scaffold guidance.
 
 Breaking command removals/renames are intentionally deferred until a migration path is explicitly documented and implemented.
+
+
+## `taurworks project where`
+
+Use this command to inspect Taurworks project/config/discovery resolution without mutating anything:
+
+```bash
+taurworks project where
+```
+
+The output reports:
+
+- current working directory
+- nearest discovered project root candidate (based on `.taurworks/` metadata)
+- discovery source
+- XDG-style config path candidate and whether it currently exists
+- whether project metadata was found
+- current resolution limitations in plain language
 
 ## Safety and shell-integration guardrails
 
