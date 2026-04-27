@@ -17,7 +17,10 @@ def _handle_project_command(args):
             PROJECT_NOT_IMPLEMENTED_MESSAGE.format(command=args.project_command),
             file=sys.stderr,
         )
-        print("Use `taurworks project --help` to view planned read-only commands.")
+        print(
+            "Use `taurworks project --help` to view planned read-only commands.",
+            file=sys.stderr,
+        )
         return
 
     args.project_parser.print_help()

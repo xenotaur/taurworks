@@ -51,13 +51,21 @@ class SrcLayoutSmokeTest(unittest.TestCase):
 
     def test_module_cli_project_help(self):
         cmd = [sys.executable, "-m", "taurworks.cli", "project", "--help"]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except subprocess.TimeoutExpired as exc:
+            self.fail(
+                "CLI help command timed out after "
+                f"{exc.timeout} seconds: {cmd}\n"
+                f"stdout:\n{exc.stdout or ''}\n"
+                f"stderr:\n{exc.stderr or ''}"
+            )
         failure_message = (
             f"Command failed: {cmd}\n"
             f"return code: {result.returncode}\n"
@@ -70,13 +78,21 @@ class SrcLayoutSmokeTest(unittest.TestCase):
 
     def test_module_cli_project_where_placeholder(self):
         cmd = [sys.executable, "-m", "taurworks.cli", "project", "where"]
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=10,
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        except subprocess.TimeoutExpired as exc:
+            self.fail(
+                "CLI placeholder command timed out after "
+                f"{exc.timeout} seconds: {cmd}\n"
+                f"stdout:\n{exc.stdout or ''}\n"
+                f"stderr:\n{exc.stderr or ''}"
+            )
         failure_message = (
             f"Command failed: {cmd}\n"
             f"return code: {result.returncode}\n"
@@ -84,6 +100,7 @@ class SrcLayoutSmokeTest(unittest.TestCase):
             f"stderr:\n{result.stderr}"
         )
         self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertEqual(result.stdout.strip(), "", msg=failure_message)
         self.assertIn("scaffold placeholder", result.stderr, msg=failure_message)
 
 

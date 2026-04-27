@@ -16,7 +16,7 @@ Added a minimal scaffold for `taurworks project ...` in the CLI with placeholder
 - Extended smoke tests to cover `taurworks project --help` and placeholder behavior.
 
 # Validation
-- Attempted `python -m pip install -e .` but it failed due offline/proxy restrictions fetching build dependencies (`setuptools>=64`).
+- Attempted `python -m pip install -e .` but it failed due to offline/proxy restrictions fetching build dependencies (`setuptools>=64`).
 - Attempted `taurworks --help` and `taurworks project --help`, but `taurworks` was unavailable because editable install did not complete.
 - Ran `PYTHONPATH=src python -m taurworks.cli --help`.
 - Ran `PYTHONPATH=src python -m taurworks.cli project --help`.
