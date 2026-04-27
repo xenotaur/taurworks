@@ -75,6 +75,32 @@ class ProjectWhereCommandTest(unittest.TestCase):
         self.assertIn("project_metadata_found: True", result.stdout, msg=failure_message)
         self.assertIn(f"project_root_candidate: {project_root}", result.stdout, msg=failure_message)
 
+
+    def test_project_where_ignores_relative_xdg_config_home(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            env = _subprocess_env()
+            env["XDG_CONFIG_HOME"] = ".config"
+            cmd = [sys.executable, "-m", "taurworks.cli", "project", "where"]
+            result = subprocess.run(
+                cmd,
+                cwd=temp_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        failure_message = (
+            f"Command failed: {cmd}\n"
+            f"return code: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        fallback = pathlib.Path.home() / ".config" / "taurworks" / "config.toml"
+        self.assertIn(f"config_path_candidate: {fallback}", result.stdout, msg=failure_message)
+
     def test_project_where_uses_xdg_config_home_when_set(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             env = _subprocess_env()

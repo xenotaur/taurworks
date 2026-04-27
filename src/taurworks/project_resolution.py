@@ -14,7 +14,11 @@ def _config_path_candidate() -> pathlib.Path:
     """Return the XDG-style Taurworks config path candidate."""
     xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
     if xdg_config_home:
-        base_dir = pathlib.Path(xdg_config_home).expanduser()
+        candidate_base_dir = pathlib.Path(xdg_config_home).expanduser()
+        if candidate_base_dir.is_absolute():
+            base_dir = candidate_base_dir
+        else:
+            base_dir = pathlib.Path.home() / ".config"
     else:
         base_dir = pathlib.Path.home() / ".config"
     return base_dir / "taurworks" / "config.toml"

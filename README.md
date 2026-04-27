@@ -52,7 +52,7 @@ The output reports:
 - current working directory
 - nearest discovered project root candidate (based on `.taurworks/` metadata)
 - discovery source
-- XDG-style config path candidate and whether it currently exists
+- XDG-style config path candidate and whether it currently exists (relative `XDG_CONFIG_HOME` values are ignored)
 - whether project metadata was found
 - current resolution limitations in plain language
 
