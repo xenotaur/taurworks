@@ -1,0 +1,11 @@
+#!/bin/bash
+echo "Running lint checks..."
+set -x
+
+python -m compileall taurworks
+EXIT_CODE=$?
+
+{ set +x; } 2>/dev/null
+echo
+
+exit $EXIT_CODE

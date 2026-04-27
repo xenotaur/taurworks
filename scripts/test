@@ -1,14 +1,15 @@
 #!/bin/bash
-echo "Running tests..."
+echo "Running unit/regression tests (excluding smoke tests)..."
 set -x
 
-# Run the tests and capture the exit code
-python -m unittest discover tests "*_test.py"
+if [ -d "tests" ]; then
+    python -m unittest discover tests "*_test.py"
+else
+    python -m unittest discover . "*_test.py"
+fi
 EXIT_CODE=$?
 
-# Turn off logging and print a blank line
 { set +x; } 2>/dev/null
 echo
 
-# If the command failed, exit with the exit code
 exit $EXIT_CODE

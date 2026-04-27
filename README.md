@@ -76,3 +76,18 @@ To retire
 * logged
 * group_logged.py
 
+
+## CI Validation
+
+This repository separates fast pull-request validation from smoke validation.
+
+- Fast CI (`.github/workflows/ci.yml`) runs on pull requests and pushes to `main`:
+  - `scripts/test`
+  - `scripts/lint`
+  - `scripts/format --check`
+- Smoke CI (`.github/workflows/smoke.yml`) runs as an explicit confidence check via:
+  - manual dispatch (`workflow_dispatch`)
+  - published releases
+  - a weekly schedule
+
+Smoke CI runs `scripts/smoke` and is intentionally isolated from normal PR feedback.

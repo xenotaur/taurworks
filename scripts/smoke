@@ -1,0 +1,11 @@
+#!/bin/bash
+echo "Running smoke tests..."
+set -x
+
+python -m unittest discover tests/smoke "*_smoke.py"
+EXIT_CODE=$?
+
+{ set +x; } 2>/dev/null
+echo
+
+exit $EXIT_CODE

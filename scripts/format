@@ -1,0 +1,21 @@
+#!/bin/bash
+echo "Running formatting checks..."
+set -x
+
+MODE="${1:-}"
+if [ "$MODE" != "--check" ]; then
+    echo "Usage: scripts/format --check"
+    exit 2
+fi
+
+if rg -n "[[:blank:]]+$" taurworks --glob "*.py"; then
+    echo "Formatting check failed: trailing whitespace found."
+    EXIT_CODE=1
+else
+    EXIT_CODE=0
+fi
+
+{ set +x; } 2>/dev/null
+echo
+
+exit $EXIT_CODE

@@ -1,0 +1,28 @@
+#!/bin/bash
+set -euo pipefail
+
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+  echo "Usage: scripts/prompts/record-execution <prompt-id> <status> [notes]" >&2
+  exit 2
+fi
+
+PROMPT_ID="$1"
+STATUS="$2"
+NOTES="${3:-}" 
+STAMP="$(date -u +"%Y%m%dT%H%M%SZ")"
+OUT="project/executions/${STAMP}-ad_hoc-smoke_ci_integration.md"
+
+cat > "$OUT" <<RECORD
+# Execution Record
+
+- Prompt: ${PROMPT_ID}
+- Status: ${STATUS}
+- Recorded At (UTC): $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+- Branch: $(git rev-parse --abbrev-ref HEAD)
+- Commit: $(git rev-parse --short HEAD)
+
+## Notes
+${NOTES:-N/A}
+RECORD
+
+echo "$OUT"

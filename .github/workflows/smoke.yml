@@ -1,0 +1,28 @@
+name: smoke
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  schedule:
+    - cron: '0 8 * * 1'
+
+jobs:
+  smoke-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Run smoke tests
+        run: scripts/smoke
