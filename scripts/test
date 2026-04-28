@@ -3,7 +3,7 @@ echo "Running tests..."
 set -x
 
 # Run the tests and capture the exit code
-python -m unittest discover tests "*_test.py"
+PYTHONPATH=src python -m unittest discover tests "*_test.py"
 EXIT_CODE=$?
 
 # Turn off logging and print a blank line
