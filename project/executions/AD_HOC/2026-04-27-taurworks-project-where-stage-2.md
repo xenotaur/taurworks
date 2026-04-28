@@ -16,7 +16,7 @@ Implemented `taurworks project where` as a read-only diagnostics command that re
 - Updated/added tests for command output labels, unresolved state handling, metadata detection, and XDG config-path behavior.
 
 # Validation
-- Attempted `python -m pip install -e .` (failed due network/proxy restrictions resolving `setuptools>=64`).
+- Attempted `python -m pip install -e .` (failed due to network/proxy restrictions resolving `setuptools>=64`).
 - Attempted `taurworks project where` (failed because editable install did not complete, so `taurworks` command was unavailable).
 - Ran `PYTHONPATH=src python -m taurworks.cli project where`.
 - Ran `PYTHONPATH=src python -m unittest discover tests '*_test.py'`.

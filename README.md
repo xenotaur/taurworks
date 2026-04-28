@@ -28,7 +28,7 @@ The namespaced model is the active design direction. The currently shipped CLI r
 - `taurworks activate`
 - `taurworks projects`
 
-The scaffolded `project` namespace currently advertises planned read-only commands:
+The scaffolded `project` namespace currently includes an implemented read-only diagnostic command and a planned read-only placeholder:
 
 - `taurworks project where` (implemented, read-only diagnostics)
 - `taurworks project list` (placeholder)
