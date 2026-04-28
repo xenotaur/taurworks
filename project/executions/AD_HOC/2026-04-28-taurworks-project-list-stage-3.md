@@ -17,6 +17,8 @@ Updated repository scripts to make local validation reliable in offline/proxy-re
 - Updated user-facing README and unified command-model design docs to document the now-implemented read-only `project list` command and its current discovery limitations.
 - Updated `scripts/develop` to use `python -m pip install --no-build-isolation -e .` so editable install can succeed without downloading build requirements that are already available locally.
 - Updated `scripts/test` to run unit tests with `PYTHONPATH=src` so source-layout imports are deterministic even when editable install is unavailable.
+- Deduplicated project command subprocess test helpers by adding `tests/project_tests/subprocess_helpers.py` and switching both `project_where_test.py` and `project_list_test.py` to use it.
+- Updated CLI/docs wording for consistency now that both `project where` and `project list` are implemented read-only commands.
 
 # Validation
 - Attempted `python -m pip install -e .` (failed due to proxy/network restriction fetching build dependency `setuptools>=64`).

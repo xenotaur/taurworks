@@ -1,7 +1,7 @@
 # Unified Command Model
 
 ## Status note
-The command model below is current design direction and roadmap intent. The shipped CLI now includes `taurworks project ...` scaffolding plus an implemented read-only diagnostic command: `taurworks project where`.
+The command model below is current design direction and roadmap intent. The shipped CLI now includes `taurworks project ...` read-only commands: `taurworks project where` and `taurworks project list`.
 
 ## Why one primary executable: `taurworks`
 A single primary executable keeps command discovery simple, avoids duplicated initialization paths, and reduces user confusion around which binary owns workspace vs development behavior.

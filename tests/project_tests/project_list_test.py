@@ -1,24 +1,10 @@
-import os
 import pathlib
 import subprocess
 import sys
 import tempfile
 import unittest
 
-
-PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
-SOURCE_ROOT = PROJECT_ROOT / "src"
-
-
-def _subprocess_env() -> dict[str, str]:
-    env = dict(os.environ)
-    existing_pythonpath = env.get("PYTHONPATH")
-    source_value = str(SOURCE_ROOT)
-    if existing_pythonpath:
-        env["PYTHONPATH"] = f"{source_value}{os.pathsep}{existing_pythonpath}"
-    else:
-        env["PYTHONPATH"] = source_value
-    return env
+from tests.project_tests import subprocess_helpers
 
 
 class ProjectListCommandTest(unittest.TestCase):
@@ -32,7 +18,7 @@ class ProjectListCommandTest(unittest.TestCase):
                 text=True,
                 check=False,
                 timeout=10,
-                env=_subprocess_env(),
+                env=subprocess_helpers.subprocess_env(),
             )
 
         failure_message = (
@@ -62,7 +48,7 @@ class ProjectListCommandTest(unittest.TestCase):
                 text=True,
                 check=False,
                 timeout=10,
-                env=_subprocess_env(),
+                env=subprocess_helpers.subprocess_env(),
             )
 
         failure_message = (
@@ -96,7 +82,7 @@ class ProjectListCommandTest(unittest.TestCase):
                 text=True,
                 check=False,
                 timeout=10,
-                env=_subprocess_env(),
+                env=subprocess_helpers.subprocess_env(),
             )
 
         failure_message = (

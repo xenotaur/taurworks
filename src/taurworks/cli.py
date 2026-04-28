@@ -61,13 +61,13 @@ def main():
     parser_activate.add_argument(
         "project_name", type=str, help="Name of the project to activate.")
 
-    # Scaffolded `project` namespace
+    # `project` namespace
     parser_project = subparsers.add_parser(
         "project",
-        help="Project command namespace scaffold (read-only planning stage).",
+        help="Project discovery and diagnostics commands.",
         description=(
-            "Scaffolded namespace for planned project lifecycle commands. "
-            "This stage exposes help and command shape only."
+            "Project namespace for implemented read-only discovery/diagnostics "
+            "commands and planned lifecycle commands."
         ),
     )
     project_subparsers = parser_project.add_subparsers(
