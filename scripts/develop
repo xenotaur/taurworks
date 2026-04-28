@@ -2,7 +2,7 @@
 echo "Installing taurworks in develop mode..."
 set -x
 
-pip install -e .
+python -m pip install --no-build-isolation -e .
 EXIT_CODE=$?
 
 # Turn off logging and print a blank line

@@ -19,7 +19,7 @@ Both namespaces are expected to share a common configuration/discovery core.
 
 ### Implementation status and compatibility
 
-Status note: `taurworks project ...` is now scaffolded in the shipped CLI as a safe help/placeholder namespace. `taurworks dev ...` remains planned and is not implemented yet.
+Status note: `taurworks project ...` now includes implemented read-only discovery/diagnostic commands (`where`, `list`) while additional project lifecycle commands remain planned. `taurworks dev ...` remains planned and is not implemented yet.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 
@@ -28,13 +28,13 @@ The namespaced model is the active design direction. The currently shipped CLI r
 - `taurworks activate`
 - `taurworks projects`
 
-The scaffolded `project` namespace currently includes an implemented read-only diagnostic command and a planned read-only placeholder:
+The scaffolded `project` namespace currently includes two implemented read-only commands:
 
 - `taurworks project where` (implemented, read-only diagnostics)
-- `taurworks project list` (placeholder)
+- `taurworks project list` (implemented, read-only discovery listing)
 
 `taurworks project where` intentionally does not mutate files, environments, or shell state.
-The `project list` placeholder remains non-mutating and returns scaffold guidance.
+`taurworks project list` is also non-mutating and reports discoverable projects plus discovery limitations.
 
 Breaking command removals/renames are intentionally deferred until a migration path is explicitly documented and implemented.
 
@@ -55,6 +55,28 @@ The output reports:
 - XDG-style config path candidate and whether it currently exists (relative `XDG_CONFIG_HOME` values are ignored)
 - whether project metadata was found
 - current resolution limitations in plain language
+
+## `taurworks project list`
+
+Use this command to list discoverable Taurworks projects without mutating anything:
+
+```bash
+taurworks project list
+```
+
+Current output reports:
+
+- current working directory
+- discovery source used for this run
+- number of discovered projects
+- each discovered project name/path
+- limitations of the current discovery stage
+
+Current stage behavior:
+
+- if the current directory (or one of its parents) contains `.taurworks/`, list that resolved project root
+- otherwise, scan only direct child directories of the current working directory for `.taurworks/`
+- if none are found, report zero projects with a clear no-projects-found line
 
 ## Safety and shell-integration guardrails
 
