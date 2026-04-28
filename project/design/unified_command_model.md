@@ -58,7 +58,7 @@ These aliases are opt-in and user-controlled.
 
 ## Compatibility and migration notes
 - Existing top-level commands (`create`, `refresh`, `activate`, `projects`) are retained as compatibility commands.
-- The `project` namespace now implements `where` as a read-only diagnostic command, while `list` remains a placeholder path.
+- The `project` namespace now implements `where` and `list` as read-only commands. `list` currently supports conservative local metadata discovery and reports its limitations.
 - Migration to namespaced forms should be incremental and documented.
 - Deprecation planning should only begin after namespaced behavior is stable and compatibility coverage is verified.
 - Breaking removals/renames are out of scope for the current documentation-alignment phase.

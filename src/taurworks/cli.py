@@ -1,14 +1,7 @@
 import argparse
-import sys
 
 from taurworks import manager
 from taurworks import project_resolution
-
-
-PROJECT_NOT_IMPLEMENTED_MESSAGE = (
-    "The 'taurworks project {command}' command is a scaffold placeholder and is "
-    "not implemented yet."
-)
 
 
 def _handle_project_command(args):
@@ -19,14 +12,8 @@ def _handle_project_command(args):
         return
 
     if args.project_command == "list":
-        print(
-            PROJECT_NOT_IMPLEMENTED_MESSAGE.format(command=args.project_command),
-            file=sys.stderr,
-        )
-        print(
-            "Use `taurworks project --help` to view planned read-only commands.",
-            file=sys.stderr,
-        )
+        diagnostics = project_resolution.gather_project_list_diagnostics()
+        print(project_resolution.format_project_list_output(diagnostics))
         return
 
     args.project_parser.print_help()
@@ -100,10 +87,9 @@ def main():
 
     parser_project_list = project_subparsers.add_parser(
         "list",
-        help="(Planned) List registered projects (placeholder).",
+        help="List discoverable Taurworks projects (read-only).",
         description=(
-            "Placeholder command. Planned to list registered projects in a "
-            "read-only way."
+            "List discoverable Taurworks projects in a read-only way."
         ),
     )
     parser_project_list.set_defaults(project_parser=parser_project)
