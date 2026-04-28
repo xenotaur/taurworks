@@ -76,7 +76,7 @@ class SrcLayoutSmokeTest(unittest.TestCase):
         self.assertIn("where", result.stdout, msg=failure_message)
         self.assertIn("list", result.stdout, msg=failure_message)
 
-    def test_module_cli_project_where_placeholder(self):
+    def test_module_cli_project_where(self):
         cmd = [sys.executable, "-m", "taurworks.cli", "project", "where"]
         try:
             result = subprocess.run(
@@ -88,7 +88,7 @@ class SrcLayoutSmokeTest(unittest.TestCase):
             )
         except subprocess.TimeoutExpired as exc:
             self.fail(
-                "CLI placeholder command timed out after "
+                "CLI project where command timed out after "
                 f"{exc.timeout} seconds: {cmd}\n"
                 f"stdout:\n{exc.stdout or ''}\n"
                 f"stderr:\n{exc.stderr or ''}"
@@ -100,8 +100,10 @@ class SrcLayoutSmokeTest(unittest.TestCase):
             f"stderr:\n{result.stderr}"
         )
         self.assertEqual(result.returncode, 0, msg=failure_message)
-        self.assertEqual(result.stdout.strip(), "", msg=failure_message)
-        self.assertIn("scaffold placeholder", result.stderr, msg=failure_message)
+        self.assertIn("Taurworks project resolution diagnostics", result.stdout, msg=failure_message)
+        self.assertIn("project_root_candidate:", result.stdout, msg=failure_message)
+        self.assertIn("config_path_candidate:", result.stdout, msg=failure_message)
+        self.assertEqual(result.stderr.strip(), "", msg=failure_message)
 
 
 if __name__ == "__main__":
