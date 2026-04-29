@@ -93,10 +93,10 @@ def main():
     # `project` namespace
     parser_project = subparsers.add_parser(
         "project",
-        help="Project discovery and diagnostics commands.",
+        help="Project discovery and safe lifecycle commands.",
         description=(
-            "Project namespace for implemented read-only discovery/diagnostics "
-            "commands and planned lifecycle commands."
+            "Project namespace for implemented discovery diagnostics and safe "
+            "metadata lifecycle commands."
         ),
     )
     project_subparsers = parser_project.add_subparsers(

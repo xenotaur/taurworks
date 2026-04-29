@@ -185,7 +185,12 @@ def gather_project_refresh_diagnostics(
         created.append(f"directory: {target_dir}")
 
     if metadata_dir.exists():
-        if metadata_dir.is_dir():
+        if metadata_dir.is_symlink():
+            warnings.append(
+                f"metadata path is a symlink and is not modified for safety: {metadata_dir}"
+            )
+            skipped.append(f"metadata directory creation skipped: {metadata_dir}")
+        elif metadata_dir.is_dir():
             found.append(f"metadata directory exists: {metadata_dir}")
         else:
             warnings.append(
@@ -198,8 +203,19 @@ def gather_project_refresh_diagnostics(
         created.append(f"directory: {metadata_dir}")
 
     if config_path.exists():
-        found.append(f"config exists: {config_path}")
-        skipped.append(f"config file retained without changes: {config_path}")
+        if config_path.is_symlink():
+            warnings.append(
+                f"config path is a symlink and is not modified for safety: {config_path}"
+            )
+            skipped.append(f"config file update skipped: {config_path}")
+        elif config_path.is_file():
+            found.append(f"config exists: {config_path}")
+            skipped.append(f"config file retained without changes: {config_path}")
+        else:
+            warnings.append(
+                f"config path exists but is not a regular file: {config_path}"
+            )
+            skipped.append(f"config file update skipped: {config_path}")
     elif metadata_dir.is_dir():
         missing.append(f"config missing: {config_path}")
         config_path.write_text(

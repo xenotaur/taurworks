@@ -209,6 +209,46 @@ class ProjectRefreshCommandTest(unittest.TestCase):
         self.assertIn("warnings present; review skipped items", result.stdout)
         self.assertNotIn("result: no changes needed", result.stdout)
 
+    def test_project_refresh_warns_when_config_path_is_directory(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "project-with-bad-config"
+            metadata_dir = target_dir / ".taurworks"
+            config_dir = metadata_dir / "config.toml"
+            config_dir.mkdir(parents=True)
+
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "refresh",
+                str(target_dir),
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=subprocess_helpers.subprocess_env(),
+            )
+
+        failure_message = (
+            f"Command failed: {cmd}\n"
+            f"return code: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn(
+            "config path exists but is not a regular file",
+            result.stdout,
+            msg=failure_message,
+        )
+        self.assertIn("warnings present; review skipped items", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

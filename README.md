@@ -100,7 +100,8 @@ Behavior:
 
 - with no argument, refreshes the current working directory
 - with an argument, treats it as a path (or path-like name) rooted in the current directory when not already existing
-- creates only missing Taurworks-owned scaffolding (`.taurworks/` and `.taurworks/config.toml`)
+- if the target directory does not exist, creates it so Taurworks metadata can be scaffolded there
+- creates only missing Taurworks-owned scaffolding within the target (`.taurworks/` and `.taurworks/config.toml`)
 - never overwrites existing files
 - prints a truth-first summary of found, missing, created, skipped, and warnings
 
