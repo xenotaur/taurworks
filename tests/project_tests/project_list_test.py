@@ -47,6 +47,7 @@ class ProjectListCommandTest(unittest.TestCase):
                 env=env,
             )
             post_entries = sorted(pathlib.Path(temp_dir).iterdir())
+            xdg_home_exists = xdg_home.exists()
 
         failure_message = (
             f"Command failed: {cmd}\n"
@@ -63,7 +64,7 @@ class ProjectListCommandTest(unittest.TestCase):
             msg=failure_message,
         )
         self.assertEqual(pre_entries, post_entries, msg=failure_message)
-        self.assertFalse(xdg_home.exists(), msg=failure_message)
+        self.assertFalse(xdg_home_exists, msg=failure_message)
 
     def test_project_list_discovers_project_from_current_context(self):
         with tempfile.TemporaryDirectory() as temp_dir:

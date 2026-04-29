@@ -19,7 +19,7 @@ Hardened the minimal read-only `taurworks project` slice with targeted test upda
   - `taurworks project list`
 
 # Validation
-- Attempted `python -m pip install -e .` (failed in environment due inability to fetch build dependency `setuptools>=64`).
+- Attempted `python -m pip install -e .` (failed in environment due to inability to fetch build dependency `setuptools>=64`).
 - Ran `python -m taurworks.cli --help` (pass).
 - Ran `python -m taurworks.cli project --help` (pass).
 - Ran `python -m taurworks.cli project where` (pass).
