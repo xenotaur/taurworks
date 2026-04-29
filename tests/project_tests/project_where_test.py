@@ -30,7 +30,6 @@ class ProjectWhereCommandTest(unittest.TestCase):
 
     def test_project_where_succeeds_without_project_metadata(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            pre_entries = sorted(pathlib.Path(temp_dir).iterdir())
             cmd = [sys.executable, "-m", "taurworks.cli", "project", "where"]
             result = subprocess.run(
                 cmd,
@@ -41,7 +40,6 @@ class ProjectWhereCommandTest(unittest.TestCase):
                 timeout=10,
                 env=subprocess_helpers.subprocess_env(),
             )
-            post_entries = sorted(pathlib.Path(temp_dir).iterdir())
 
         failure_message = (
             f"Command failed: {cmd}\n"
