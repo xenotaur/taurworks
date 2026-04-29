@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "Running smoke tests..."
+set -x
+if [ -d tests/smoke ]; then
+  PYTHONPATH=src python -m unittest discover tests/smoke "*_smoke_test.py"
+else
+  PYTHONPATH=src python -m unittest discover tests "*_smoke_test.py"
+fi
