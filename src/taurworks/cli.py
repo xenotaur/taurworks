@@ -22,6 +22,12 @@ def _handle_project_command(args):
         )
         print(project_resolution.format_project_refresh_output(diagnostics))
         return
+    if args.project_command == "create":
+        diagnostics = project_resolution.gather_project_create_diagnostics(
+            args.path_or_name
+        )
+        print(project_resolution.format_project_create_output(diagnostics))
+        return
 
     args.project_parser.print_help()
 
@@ -141,6 +147,27 @@ def main():
         ),
     )
     parser_project_refresh.set_defaults(project_parser=parser_project)
+
+    parser_project_create = project_subparsers.add_parser(
+        "create",
+        help=(
+            "Ensure target directory exists, then safely refresh Taurworks "
+            "project scaffolding without overwriting files."
+        ),
+        description=(
+            "Create a target directory when needed, then delegate to project "
+            "refresh for safe, idempotent Taurworks metadata scaffolding."
+        ),
+    )
+    parser_project_create.add_argument(
+        "path_or_name",
+        nargs="?",
+        help=(
+            "Optional project path or name. Defaults to current working "
+            "directory when omitted."
+        ),
+    )
+    parser_project_create.set_defaults(project_parser=parser_project)
 
     parser_project.set_defaults(project_parser=parser_project)
 

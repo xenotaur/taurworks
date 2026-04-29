@@ -33,6 +33,7 @@ The scaffolded `project` namespace currently includes implemented discovery and 
 - `taurworks project where` (implemented, read-only diagnostics)
 - `taurworks project list` (implemented, read-only discovery listing)
 - `taurworks project refresh [PATH_OR_NAME]` (implemented, safe idempotent metadata scaffolding repair)
+- `taurworks project create [PATH_OR_NAME]` (implemented, safe idempotent create wrapper around refresh)
 
 Quick namespace help:
 
@@ -106,6 +107,25 @@ Behavior:
 - prints a truth-first summary of found, missing, created, skipped, and warnings
 
 This command is intentionally safe and idempotent: repeated runs should report no changes needed once minimal scaffolding exists.
+
+## `taurworks project create`
+
+Use this command to ensure a target directory exists and then delegate to refresh:
+
+```bash
+taurworks project create [PATH_OR_NAME]
+```
+
+Behavior:
+
+- with no argument, creates/refreshes in the current working directory
+- with an argument, treats it as a path (or path-like name) rooted in the current directory when not already existing
+- creates the target directory when missing
+- delegates scaffolding work to `taurworks project refresh`
+- never overwrites existing files
+- prints a summary including delegation details and created/skipped/warning items
+
+This command is intentionally safe and idempotent: after first successful scaffolding, repeated runs behave like refresh and report no changes needed.
 
 ## Safety and shell-integration guardrails
 
