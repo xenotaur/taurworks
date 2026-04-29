@@ -171,24 +171,10 @@ def format_project_create_output(
         f"- target_dir: {diagnostics['target_dir']}",
         f"- delegated_command: {diagnostics['delegated_command']}",
         f"- delegated_target_dir: {diagnostics['delegated_target_dir']}",
-        f"- changed: {diagnostics['changed']}",
     ]
-
-    for key in ["found", "missing", "created", "skipped", "warnings"]:
-        entries = diagnostics[key]
-        if entries:
-            lines.append(f"- {key}:")
-            for entry in entries:
-                lines.append(f"  - {entry}")
-        else:
-            lines.append(f"- {key}: none")
-
-    if not diagnostics["changed"] and not diagnostics["warnings"]:
-        lines.append("- result: no changes needed")
-    elif diagnostics["warnings"]:
-        lines.append("- result: warnings present; review skipped items")
-
-    return "\n".join(lines)
+    refresh_output = format_project_refresh_output(diagnostics)
+    refresh_lines = refresh_output.splitlines()
+    return "\n".join(lines + refresh_lines[2:])
 
 
 def gather_project_refresh_diagnostics(

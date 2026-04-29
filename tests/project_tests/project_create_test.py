@@ -74,10 +74,20 @@ class ProjectCreateCommandTest(unittest.TestCase):
 
             refreshed_content = config_path.read_text(encoding="utf-8")
 
-        self.assertEqual(result.returncode, 0)
-        self.assertEqual(refreshed_content, original_content)
-        self.assertIn("changed: False", result.stdout)
-        self.assertIn("config file retained without changes", result.stdout)
+        failure_message = (
+            f"Command failed: {cmd}\n"
+            f"return code: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertEqual(refreshed_content, original_content, msg=failure_message)
+        self.assertIn("changed: False", result.stdout, msg=failure_message)
+        self.assertIn(
+            "config file retained without changes",
+            result.stdout,
+            msg=failure_message,
+        )
 
     def test_project_create_is_idempotent(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -110,11 +120,23 @@ class ProjectCreateCommandTest(unittest.TestCase):
                 env=subprocess_helpers.subprocess_env(),
             )
 
-        self.assertEqual(first.returncode, 0)
-        self.assertEqual(second.returncode, 0)
-        self.assertIn("changed: True", first.stdout)
-        self.assertIn("changed: False", second.stdout)
-        self.assertIn("no changes needed", second.stdout)
+        first_message = (
+            f"First command failed: {cmd}\n"
+            f"return code: {first.returncode}\n"
+            f"stdout:\n{first.stdout}\n"
+            f"stderr:\n{first.stderr}"
+        )
+        second_message = (
+            f"Second command failed: {cmd}\n"
+            f"return code: {second.returncode}\n"
+            f"stdout:\n{second.stdout}\n"
+            f"stderr:\n{second.stderr}"
+        )
+        self.assertEqual(first.returncode, 0, msg=first_message)
+        self.assertEqual(second.returncode, 0, msg=second_message)
+        self.assertIn("changed: True", first.stdout, msg=first_message)
+        self.assertIn("changed: False", second.stdout, msg=second_message)
+        self.assertIn("no changes needed", second.stdout, msg=second_message)
 
 
 if __name__ == "__main__":
