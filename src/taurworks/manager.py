@@ -97,13 +97,15 @@ def refresh_project(project_name, python_version="3.11", packages=None, env_file
     if not os.path.exists(setup_script):
         print(f"Creating setup script: {setup_script}")
         with open(setup_script, "w") as f:
-            f.write(f"""#!/bin/bash
+            f.write(
+                f"""#!/bin/bash
 # Activate Conda environment
 source $(conda info --base)/etc/profile.d/conda.sh
 conda activate {env_name}
 # Change to repository directory
 cd "{repo_dir}"
-""")
+"""
+            )
         os.chmod(setup_script, 0o755)  # Make executable
     else:
         print("✔ Setup script already exists.")
@@ -214,13 +216,15 @@ def create_project(project_name, python_version="3.11", packages=None, env_file=
     # Generate the project-setup.source script
     setup_script = os.path.join(admin_dir, "project-setup.source")
     with open(setup_script, "w") as f:
-        f.write(f"""#!/bin/bash
+        f.write(
+            f"""#!/bin/bash
 # Activate Conda environment
 source $(conda info --base)/etc/profile.d/conda.sh
 conda activate {env_name}
 # Change to repository directory
 cd "{repo_dir}"
-""")
+"""
+        )
     os.chmod(setup_script, 0o755)  # Make executable
 
     print(f"✔ Project '{project_name}' created successfully.")
