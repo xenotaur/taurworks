@@ -126,3 +126,16 @@ The import package is provided from `src/taurworks/` using a standard `src/` lay
 ## Legacy shell utility inventory (historical)
 
 The repository still contains historical shell utilities under `bin/` and `sourceme/`. These artifacts remain available, but the command model and roadmap focus for Taurworks development is the `taurworks` executable and the documented namespaced direction above.
+
+## Local quality commands
+
+Use the repository scripts as CI entry points:
+
+```bash
+./scripts/format
+./scripts/lint
+./scripts/test
+./scripts/smoke
+```
+
+These same commands are used by GitHub Actions in `.github/workflows/python-ci.yml`.
