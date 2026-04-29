@@ -100,7 +100,11 @@ class SrcLayoutSmokeTest(unittest.TestCase):
             f"stderr:\n{result.stderr}"
         )
         self.assertEqual(result.returncode, 0, msg=failure_message)
-        self.assertIn("Taurworks project resolution diagnostics", result.stdout, msg=failure_message)
+        self.assertIn(
+            "Taurworks project resolution diagnostics",
+            result.stdout,
+            msg=failure_message,
+        )
         self.assertIn("project_root_candidate:", result.stdout, msg=failure_message)
         self.assertIn("config_path_candidate:", result.stdout, msg=failure_message)
         self.assertEqual(result.stderr.strip(), "", msg=failure_message)

@@ -28,8 +28,12 @@ class ProjectWhereCommandTest(unittest.TestCase):
             f"stderr:\n{result.stderr}"
         )
         self.assertEqual(result.returncode, 0, msg=failure_message)
-        self.assertIn("project_metadata_found: False", result.stdout, msg=failure_message)
-        self.assertIn("project_root_candidate: unresolved", result.stdout, msg=failure_message)
+        self.assertIn(
+            "project_metadata_found: False", result.stdout, msg=failure_message
+        )
+        self.assertIn(
+            "project_root_candidate: unresolved", result.stdout, msg=failure_message
+        )
 
     def test_project_where_detects_project_root_metadata(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -58,9 +62,14 @@ class ProjectWhereCommandTest(unittest.TestCase):
             f"stderr:\n{result.stderr}"
         )
         self.assertEqual(result.returncode, 0, msg=failure_message)
-        self.assertIn("project_metadata_found: True", result.stdout, msg=failure_message)
-        self.assertIn(f"project_root_candidate: {project_root}", result.stdout, msg=failure_message)
-
+        self.assertIn(
+            "project_metadata_found: True", result.stdout, msg=failure_message
+        )
+        self.assertIn(
+            f"project_root_candidate: {project_root}",
+            result.stdout,
+            msg=failure_message,
+        )
 
     def test_project_where_ignores_relative_xdg_config_home(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -85,7 +94,9 @@ class ProjectWhereCommandTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, msg=failure_message)
         fallback = pathlib.Path.home() / ".config" / "taurworks" / "config.toml"
-        self.assertIn(f"config_path_candidate: {fallback}", result.stdout, msg=failure_message)
+        self.assertIn(
+            f"config_path_candidate: {fallback}", result.stdout, msg=failure_message
+        )
 
     def test_project_where_uses_xdg_config_home_when_set(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -109,7 +120,9 @@ class ProjectWhereCommandTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, msg=failure_message)
         expected = pathlib.Path(temp_dir) / "taurworks" / "config.toml"
-        self.assertIn(f"config_path_candidate: {expected}", result.stdout, msg=failure_message)
+        self.assertIn(
+            f"config_path_candidate: {expected}", result.stdout, msg=failure_message
+        )
 
 
 if __name__ == "__main__":

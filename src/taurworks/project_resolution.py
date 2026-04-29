@@ -42,9 +42,7 @@ def gather_project_where_diagnostics() -> dict[str, str | bool | None]:
         limitation = "No workspace registry resolution is implemented yet."
     else:
         discovery_source = "none"
-        limitation = (
-            "No `.taurworks` metadata directory found from current directory to filesystem root."
-        )
+        limitation = "No `.taurworks` metadata directory found from current directory to filesystem root."
 
     return {
         "cwd": str(cwd),
@@ -68,15 +66,11 @@ def gather_project_list_diagnostics() -> dict[str, str | int | list[dict[str, st
 
     if project_root is not None:
         discovery_source = "current context (.taurworks found in current/parent path)"
-        limitation = (
-            "Global registry/workspace scanning is not implemented yet; reporting current context."
-        )
+        limitation = "Global registry/workspace scanning is not implemented yet; reporting current context."
         discovered_projects.append(project_root)
     else:
         discovery_source = "cwd child-directory scan for .taurworks metadata"
-        limitation = (
-            "Only current working directory and direct children are scanned in this stage."
-        )
+        limitation = "Only current working directory and direct children are scanned in this stage."
         discovered_projects.extend(
             sorted(
                 (

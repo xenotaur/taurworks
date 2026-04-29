@@ -4,14 +4,16 @@ import sys
 import subprocess
 
 TAURWORKS_WORKSPACE = os.getenv(
-    "TAURWORKS_WORKSPACE", os.path.expanduser("~/Workspace"))
+    "TAURWORKS_WORKSPACE", os.path.expanduser("~/Workspace")
+)
 
 
 def get_conda_environments():
     """Returns a set of existing Conda environment names."""
     try:
         result = subprocess.run(
-            ["conda", "env", "list"], capture_output=True, text=True, check=True)
+            ["conda", "env", "list"], capture_output=True, text=True, check=True
+        )
         envs = set()
         for line in result.stdout.split("\n"):
             if line and not line.startswith("#") and " " in line:
@@ -24,7 +26,9 @@ def get_conda_environments():
         return set()
 
 
-def create_conda_environment(env_name, python_version="3.11", packages=None, env_file=None):
+def create_conda_environment(
+    env_name, python_version="3.11", packages=None, env_file=None
+):
     """Creates a Conda environment if it does not exist."""
     if env_name in get_conda_environments():
         print(f"✔ Conda environment {env_name} already exists.")
@@ -33,9 +37,19 @@ def create_conda_environment(env_name, python_version="3.11", packages=None, env
     print(f"Creating Conda environment: {env_name} ...")
     if env_file:
         print(f"Using environment file: {env_file}")
-        subprocess.run(["conda", "env", "create", "--name", env_name, "--file", env_file], check=True)
+        subprocess.run(
+            ["conda", "env", "create", "--name", env_name, "--file", env_file],
+            check=True,
+        )
     else:
-        conda_cmd = ["conda", "create", "--name", env_name, f"python={python_version}", "-y"]
+        conda_cmd = [
+            "conda",
+            "create",
+            "--name",
+            env_name,
+            f"python={python_version}",
+            "-y",
+        ]
         if packages:
             package_list = packages.split(",")
             conda_cmd.extend(package_list)
@@ -43,9 +57,10 @@ def create_conda_environment(env_name, python_version="3.11", packages=None, env
 
         subprocess.run(conda_cmd, check=True)
 
+
 def camel_to_snake(name):
     """Convert CamelCase to snake_case."""
-    return re.sub(r'(?<!^)([A-Z])', r'_\1', name).lower()
+    return re.sub(r"(?<!^)([A-Z])", r"_\1", name).lower()
 
 
 def refresh_project(project_name, python_version="3.11", packages=None, env_file=None):
@@ -91,10 +106,11 @@ cd "{repo_dir}"
 """)
         os.chmod(setup_script, 0o755)  # Make executable
     else:
-        print(f"✔ Setup script already exists.")
+        print("✔ Setup script already exists.")
 
     print(f"✔ Project {project_name} is fully set up.")
     print(f"To activate, run: source {setup_script}")
+
 
 def get_directory_info(path):
     """Returns the total size and number of files in a directory."""
@@ -115,8 +131,11 @@ def list_projects(show_details=False):
         print(f"No workspace found at {TAURWORKS_WORKSPACE}.")
         return
 
-    projects = [p for p in os.listdir(TAURWORKS_WORKSPACE) if os.path.isdir(
-        os.path.join(TAURWORKS_WORKSPACE, p))]
+    projects = [
+        p
+        for p in os.listdir(TAURWORKS_WORKSPACE)
+        if os.path.isdir(os.path.join(TAURWORKS_WORKSPACE, p))
+    ]
     if not projects:
         print("No projects found.")
         return
@@ -136,7 +155,8 @@ def list_projects(show_details=False):
             print(f"- {project}")
             print(f"  ├── .taurworks Exists: {'✔' if has_admin else '✘'}")
             print(
-                f"  ├── Conda Env Exists: {'✔' if has_env else '✘'} ({'active' if has_env else 'missing'})")
+                f"  ├── Conda Env Exists: {'✔' if has_env else '✘'} ({'active' if has_env else 'missing'})"
+            )
             print(f"  ├── Files: {file_count}, Size: {size_str}\n")
         else:
             print(f"- {project}")
@@ -148,7 +168,10 @@ def create_project(project_name, python_version="3.11", packages=None, env_file=
 
     # Check if the project already exists
     if os.path.exists(project_dir):
-        print(f"❌ Error: Project '{project_name}' already exists at {project_dir}.", file=sys.stderr)
+        print(
+            f"❌ Error: Project '{project_name}' already exists at {project_dir}.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     admin_dir = os.path.join(project_dir, ".taurworks")
@@ -165,9 +188,19 @@ def create_project(project_name, python_version="3.11", packages=None, env_file=
 
     if env_file:
         print(f"Using environment file: {env_file}")
-        subprocess.run(["conda", "env", "create", "--name", env_name, "--file", env_file], check=True)
+        subprocess.run(
+            ["conda", "env", "create", "--name", env_name, "--file", env_file],
+            check=True,
+        )
     else:
-        conda_cmd = ["conda", "create", "--name", env_name, f"python={python_version}", "-y"]
+        conda_cmd = [
+            "conda",
+            "create",
+            "--name",
+            env_name,
+            f"python={python_version}",
+            "-y",
+        ]
         if packages:
             package_list = packages.split(",")
             conda_cmd.extend(package_list)
@@ -202,8 +235,9 @@ def activate_project(project_name):
 
     if not os.path.exists(setup_script):
         print(
-            f"Error: No setup script found for project {project_name} at {setup_script}")
+            f"Error: No setup script found for project {project_name} at {setup_script}"
+        )
         return
 
-    print(f"Run the following command to activate:\n")
+    print("Run the following command to activate:\n")
     print(f"source {setup_script}")

@@ -1,7 +1,6 @@
 import os
 import pathlib
 
-
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
 SOURCE_ROOT = PROJECT_ROOT / "src"
 
