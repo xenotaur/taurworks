@@ -8,8 +8,29 @@ from tests.project_tests import subprocess_helpers
 
 
 class ProjectWhereCommandTest(unittest.TestCase):
+    def test_project_where_help_mentions_read_only_behavior(self):
+        cmd = [sys.executable, "-m", "taurworks.cli", "project", "where", "--help"]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=subprocess_helpers.subprocess_env(),
+        )
+
+        failure_message = (
+            f"Command failed: {cmd}\n"
+            f"return code: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("read-only", result.stdout, msg=failure_message)
+
     def test_project_where_succeeds_without_project_metadata(self):
         with tempfile.TemporaryDirectory() as temp_dir:
+            pre_entries = sorted(pathlib.Path(temp_dir).iterdir())
             cmd = [sys.executable, "-m", "taurworks.cli", "project", "where"]
             result = subprocess.run(
                 cmd,
@@ -20,6 +41,7 @@ class ProjectWhereCommandTest(unittest.TestCase):
                 timeout=10,
                 env=subprocess_helpers.subprocess_env(),
             )
+            post_entries = sorted(pathlib.Path(temp_dir).iterdir())
 
         failure_message = (
             f"Command failed: {cmd}\n"
@@ -30,6 +52,7 @@ class ProjectWhereCommandTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("project_metadata_found: False", result.stdout, msg=failure_message)
         self.assertIn("project_root_candidate: unresolved", result.stdout, msg=failure_message)
+        self.assertEqual(pre_entries, post_entries, msg=failure_message)
 
     def test_project_where_detects_project_root_metadata(self):
         with tempfile.TemporaryDirectory() as temp_dir:

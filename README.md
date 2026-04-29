@@ -33,6 +33,12 @@ The scaffolded `project` namespace currently includes two implemented read-only 
 - `taurworks project where` (implemented, read-only diagnostics)
 - `taurworks project list` (implemented, read-only discovery listing)
 
+Quick namespace help:
+
+```bash
+taurworks project --help
+```
+
 `taurworks project where` intentionally does not mutate files, environments, or shell state.
 `taurworks project list` is also non-mutating and reports discoverable projects plus discovery limitations.
 
@@ -77,6 +83,8 @@ Current stage behavior:
 - if the current directory (or one of its parents) contains `.taurworks/`, list that resolved project root
 - otherwise, scan only direct child directories of the current working directory for `.taurworks/`
 - if none are found, report zero projects with a clear no-projects-found line
+
+This slice is intentionally minimal for now: these commands are diagnostics/discovery only and do not create, refresh, activate, or otherwise mutate projects.
 
 ## Safety and shell-integration guardrails
 

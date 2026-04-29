@@ -8,8 +8,30 @@ from tests.project_tests import subprocess_helpers
 
 
 class ProjectListCommandTest(unittest.TestCase):
+    def test_project_namespace_help_lists_read_only_commands(self):
+        cmd = [sys.executable, "-m", "taurworks.cli", "project", "--help"]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=subprocess_helpers.subprocess_env(),
+        )
+
+        failure_message = (
+            f"Command failed: {cmd}\n"
+            f"return code: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("where", result.stdout, msg=failure_message)
+        self.assertIn("list", result.stdout, msg=failure_message)
+
     def test_project_list_succeeds_without_discovered_projects(self):
         with tempfile.TemporaryDirectory() as temp_dir:
+            pre_entries = sorted(pathlib.Path(temp_dir).iterdir())
             cmd = [sys.executable, "-m", "taurworks.cli", "project", "list"]
             result = subprocess.run(
                 cmd,
@@ -20,6 +42,7 @@ class ProjectListCommandTest(unittest.TestCase):
                 timeout=10,
                 env=subprocess_helpers.subprocess_env(),
             )
+            post_entries = sorted(pathlib.Path(temp_dir).iterdir())
 
         failure_message = (
             f"Command failed: {cmd}\n"
@@ -30,6 +53,7 @@ class ProjectListCommandTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("project_count: 0", result.stdout, msg=failure_message)
         self.assertIn("projects: none", result.stdout, msg=failure_message)
+        self.assertEqual(pre_entries, post_entries, msg=failure_message)
 
     def test_project_list_discovers_project_from_current_context(self):
         with tempfile.TemporaryDirectory() as temp_dir:
