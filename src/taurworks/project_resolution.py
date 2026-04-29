@@ -147,6 +147,36 @@ def resolve_project_refresh_target(path_or_name: str | None) -> pathlib.Path:
     return (pathlib.Path.cwd() / candidate).resolve()
 
 
+def gather_project_create_diagnostics(
+    path_or_name: str | None,
+) -> dict[str, str | bool | list[str]]:
+    """Collect safe create actions by delegating to refresh scaffolding logic."""
+    diagnostics = gather_project_refresh_diagnostics(path_or_name)
+    delegated_target = diagnostics["target_dir"]
+    delegated_changed = diagnostics["changed"]
+
+    diagnostics = dict(diagnostics)
+    diagnostics["delegated_command"] = "project refresh"
+    diagnostics["delegated_target_dir"] = delegated_target
+    diagnostics["delegated_changed"] = delegated_changed
+    return diagnostics
+
+
+def format_project_create_output(
+    diagnostics: dict[str, str | bool | list[str]],
+) -> str:
+    """Format create summary output for the refresh-backed lifecycle command."""
+    lines = [
+        "Taurworks project create summary",
+        f"- target_dir: {diagnostics['target_dir']}",
+        f"- delegated_command: {diagnostics['delegated_command']}",
+        f"- delegated_target_dir: {diagnostics['delegated_target_dir']}",
+    ]
+    refresh_output = format_project_refresh_output(diagnostics)
+    refresh_lines = refresh_output.splitlines()
+    return "\n".join(lines + refresh_lines[2:])
+
+
 def gather_project_refresh_diagnostics(
     path_or_name: str | None,
 ) -> dict[str, str | bool | list[str]]:
