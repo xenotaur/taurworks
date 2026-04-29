@@ -135,6 +135,80 @@ class ProjectRefreshCommandTest(unittest.TestCase):
         self.assertIn("changed: False", second.stdout, msg=second_message)
         self.assertIn("no changes needed", second.stdout, msg=second_message)
 
+    def test_project_refresh_reports_warning_for_file_target(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            file_target = root_path / "not-a-directory.txt"
+            file_target.write_text("content", encoding="utf-8")
+
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "refresh",
+                str(file_target),
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=subprocess_helpers.subprocess_env(),
+            )
+
+        failure_message = (
+            f"Command failed: {cmd}\n"
+            f"return code: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("changed: False", result.stdout, msg=failure_message)
+        self.assertIn("warnings:", result.stdout, msg=failure_message)
+        self.assertIn("target path exists but is not a directory", result.stdout)
+        self.assertIn("warnings present; review skipped items", result.stdout)
+        self.assertFalse((file_target / ".taurworks").exists(), msg=failure_message)
+
+    def test_project_refresh_warns_when_metadata_path_is_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "project-with-bad-metadata"
+            target_dir.mkdir()
+            metadata_path = target_dir / ".taurworks"
+            metadata_path.write_text("file-instead-of-directory", encoding="utf-8")
+
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "refresh",
+                str(target_dir),
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=subprocess_helpers.subprocess_env(),
+            )
+
+        failure_message = (
+            f"Command failed: {cmd}\n"
+            f"return code: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("metadata path exists but is not a directory", result.stdout)
+        self.assertIn("warnings present; review skipped items", result.stdout)
+        self.assertNotIn("result: no changes needed", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

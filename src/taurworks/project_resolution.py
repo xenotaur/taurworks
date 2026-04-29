@@ -161,6 +161,22 @@ def gather_project_refresh_diagnostics(
     skipped: list[str] = []
     found: list[str] = []
 
+    if target_dir.exists() and not target_dir.is_dir():
+        warnings.append(f"target path exists but is not a directory: {target_dir}")
+        skipped.append(
+            "refresh scaffolding skipped because target is not a directory: "
+            f"{target_dir}"
+        )
+        return {
+            "target_dir": str(target_dir),
+            "changed": False,
+            "found": found,
+            "missing": missing,
+            "created": created,
+            "skipped": skipped,
+            "warnings": warnings,
+        }
+
     if target_dir.exists():
         found.append(f"target directory exists: {target_dir}")
     else:
@@ -224,7 +240,9 @@ def format_project_refresh_output(
         else:
             lines.append(f"- {key}: none")
 
-    if not diagnostics["changed"]:
+    if not diagnostics["changed"] and not diagnostics["warnings"]:
         lines.append("- result: no changes needed")
+    elif diagnostics["warnings"]:
+        lines.append("- result: warnings present; review skipped items")
 
     return "\n".join(lines)
