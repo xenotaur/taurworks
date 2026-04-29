@@ -133,3 +133,132 @@ def format_project_list_output(
 
     lines.append(f"- limitations: {diagnostics['limitations']}")
     return "\n".join(lines)
+
+
+def resolve_project_refresh_target(path_or_name: str | None) -> pathlib.Path:
+    """Resolve refresh target path using simple where-compatible rules."""
+    if path_or_name is None:
+        return pathlib.Path.cwd().resolve()
+
+    candidate = pathlib.Path(path_or_name).expanduser()
+    if candidate.exists():
+        return candidate.resolve()
+
+    return (pathlib.Path.cwd() / candidate).resolve()
+
+
+def gather_project_refresh_diagnostics(
+    path_or_name: str | None,
+) -> dict[str, str | bool | list[str]]:
+    """Collect safe refresh actions for Taurworks metadata scaffolding."""
+    target_dir = resolve_project_refresh_target(path_or_name)
+    metadata_dir = target_dir / ".taurworks"
+    config_path = metadata_dir / "config.toml"
+
+    warnings: list[str] = []
+    missing: list[str] = []
+    created: list[str] = []
+    skipped: list[str] = []
+    found: list[str] = []
+
+    if target_dir.exists() and not target_dir.is_dir():
+        warnings.append(f"target path exists but is not a directory: {target_dir}")
+        skipped.append(
+            "refresh scaffolding skipped because target is not a directory: "
+            f"{target_dir}"
+        )
+        return {
+            "target_dir": str(target_dir),
+            "changed": False,
+            "found": found,
+            "missing": missing,
+            "created": created,
+            "skipped": skipped,
+            "warnings": warnings,
+        }
+
+    if target_dir.exists():
+        found.append(f"target directory exists: {target_dir}")
+    else:
+        missing.append(f"target directory missing: {target_dir}")
+        target_dir.mkdir(parents=True, exist_ok=True)
+        created.append(f"directory: {target_dir}")
+
+    if metadata_dir.exists():
+        if metadata_dir.is_symlink():
+            warnings.append(
+                f"metadata path is a symlink and is not modified for safety: {metadata_dir}"
+            )
+            skipped.append(f"metadata directory creation skipped: {metadata_dir}")
+        elif metadata_dir.is_dir():
+            found.append(f"metadata directory exists: {metadata_dir}")
+        else:
+            warnings.append(
+                f"metadata path exists but is not a directory: {metadata_dir}"
+            )
+            skipped.append(f"metadata directory creation skipped: {metadata_dir}")
+    else:
+        missing.append(f"metadata directory missing: {metadata_dir}")
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+        created.append(f"directory: {metadata_dir}")
+
+    if config_path.exists():
+        if config_path.is_symlink():
+            warnings.append(
+                f"config path is a symlink and is not modified for safety: {config_path}"
+            )
+            skipped.append(f"config file update skipped: {config_path}")
+        elif config_path.is_file():
+            found.append(f"config exists: {config_path}")
+            skipped.append(f"config file retained without changes: {config_path}")
+        else:
+            warnings.append(
+                f"config path exists but is not a regular file: {config_path}"
+            )
+            skipped.append(f"config file update skipped: {config_path}")
+    elif metadata_dir.is_dir():
+        missing.append(f"config missing: {config_path}")
+        config_path.write_text(
+            '# Taurworks project metadata\n[project]\nname = ""\n',
+            encoding="utf-8",
+        )
+        created.append(f"file: {config_path}")
+
+    changed = bool(created)
+
+    return {
+        "target_dir": str(target_dir),
+        "changed": changed,
+        "found": found,
+        "missing": missing,
+        "created": created,
+        "skipped": skipped,
+        "warnings": warnings,
+    }
+
+
+def format_project_refresh_output(
+    diagnostics: dict[str, str | bool | list[str]],
+) -> str:
+    """Format refresh summary output with safety/idempotence signals."""
+    lines = [
+        "Taurworks project refresh summary",
+        f"- target_dir: {diagnostics['target_dir']}",
+        f"- changed: {diagnostics['changed']}",
+    ]
+
+    for key in ["found", "missing", "created", "skipped", "warnings"]:
+        entries = diagnostics[key]
+        if entries:
+            lines.append(f"- {key}:")
+            for entry in entries:
+                lines.append(f"  - {entry}")
+        else:
+            lines.append(f"- {key}: none")
+
+    if not diagnostics["changed"] and not diagnostics["warnings"]:
+        lines.append("- result: no changes needed")
+    elif diagnostics["warnings"]:
+        lines.append("- result: warnings present; review skipped items")
+
+    return "\n".join(lines)

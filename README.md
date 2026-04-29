@@ -28,10 +28,11 @@ The namespaced model is the active design direction. The currently shipped CLI r
 - `taurworks activate`
 - `taurworks projects`
 
-The scaffolded `project` namespace currently includes two implemented read-only commands:
+The scaffolded `project` namespace currently includes implemented discovery and safe scaffold commands:
 
 - `taurworks project where` (implemented, read-only diagnostics)
 - `taurworks project list` (implemented, read-only discovery listing)
+- `taurworks project refresh [PATH_OR_NAME]` (implemented, safe idempotent metadata scaffolding repair)
 
 Quick namespace help:
 
@@ -84,7 +85,27 @@ Current stage behavior:
 - otherwise, scan only direct child directories of the current working directory for `.taurworks/`
 - if none are found, report zero projects with a clear no-projects-found line
 
-This slice is intentionally minimal for now: these commands are diagnostics/discovery only and do not create, refresh, activate, or otherwise mutate projects.
+This slice is intentionally minimal for now: it provides read-only diagnostics/discovery plus a safe repair/initialization refresh for Taurworks-owned metadata only.
+
+
+## `taurworks project refresh`
+
+Use this command to safely create missing Taurworks-owned project scaffolding:
+
+```bash
+taurworks project refresh [PATH_OR_NAME]
+```
+
+Behavior:
+
+- with no argument, refreshes the current working directory
+- with an argument, treats it as a path (or path-like name) rooted in the current directory when not already existing
+- if the target directory does not exist, creates it so Taurworks metadata can be scaffolded there
+- creates only missing Taurworks-owned scaffolding within the target (`.taurworks/` and `.taurworks/config.toml`)
+- never overwrites existing files
+- prints a truth-first summary of found, missing, created, skipped, and warnings
+
+This command is intentionally safe and idempotent: repeated runs should report no changes needed once minimal scaffolding exists.
 
 ## Safety and shell-integration guardrails
 
