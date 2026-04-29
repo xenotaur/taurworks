@@ -16,6 +16,13 @@ def _handle_project_command(args):
         print(project_resolution.format_project_list_output(diagnostics))
         return
 
+    if args.project_command == "refresh":
+        diagnostics = project_resolution.gather_project_refresh_diagnostics(
+            args.path_or_name
+        )
+        print(project_resolution.format_project_refresh_output(diagnostics))
+        return
+
     args.project_parser.print_help()
 
 
@@ -113,6 +120,27 @@ def main():
         description=("List discoverable Taurworks projects in a read-only way."),
     )
     parser_project_list.set_defaults(project_parser=parser_project)
+
+    parser_project_refresh = project_subparsers.add_parser(
+        "refresh",
+        help=(
+            "Safely create missing Taurworks project scaffolding "
+            "without overwriting existing files."
+        ),
+        description=(
+            "Repair/initialize minimal Taurworks-owned metadata in a safe, "
+            "idempotent way."
+        ),
+    )
+    parser_project_refresh.add_argument(
+        "path_or_name",
+        nargs="?",
+        help=(
+            "Optional project path or name. Defaults to current working "
+            "directory when omitted."
+        ),
+    )
+    parser_project_refresh.set_defaults(project_parser=parser_project)
 
     parser_project.set_defaults(project_parser=parser_project)
 
