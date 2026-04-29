@@ -28,11 +28,15 @@ class ProjectListCommandTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("where", result.stdout, msg=failure_message)
         self.assertIn("list", result.stdout, msg=failure_message)
+        self.assertIn("read-only", result.stdout, msg=failure_message)
 
     def test_project_list_succeeds_without_discovered_projects(self):
         with tempfile.TemporaryDirectory() as temp_dir:
+            xdg_home = pathlib.Path(temp_dir) / "xdg-config"
             pre_entries = sorted(pathlib.Path(temp_dir).iterdir())
             cmd = [sys.executable, "-m", "taurworks.cli", "project", "list"]
+            env = subprocess_helpers.subprocess_env()
+            env["XDG_CONFIG_HOME"] = str(xdg_home)
             result = subprocess.run(
                 cmd,
                 cwd=temp_dir,
@@ -40,9 +44,10 @@ class ProjectListCommandTest(unittest.TestCase):
                 text=True,
                 check=False,
                 timeout=10,
-                env=subprocess_helpers.subprocess_env(),
+                env=env,
             )
             post_entries = sorted(pathlib.Path(temp_dir).iterdir())
+            xdg_home_exists = xdg_home.exists()
 
         failure_message = (
             f"Command failed: {cmd}\n"
@@ -53,7 +58,13 @@ class ProjectListCommandTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("project_count: 0", result.stdout, msg=failure_message)
         self.assertIn("projects: none", result.stdout, msg=failure_message)
+        self.assertIn(
+            "limitations: Only current working directory and direct children are scanned in this stage.",
+            result.stdout,
+            msg=failure_message,
+        )
         self.assertEqual(pre_entries, post_entries, msg=failure_message)
+        self.assertFalse(xdg_home_exists, msg=failure_message)
 
     def test_project_list_discovers_project_from_current_context(self):
         with tempfile.TemporaryDirectory() as temp_dir:
