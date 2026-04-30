@@ -1,3 +1,4 @@
+import os
 import pathlib
 import subprocess
 import sys
@@ -8,10 +9,10 @@ import unittest
 def _subprocess_env() -> dict[str, str]:
     repo_root = pathlib.Path(__file__).resolve().parents[1]
     src_path = repo_root / "src"
-    env = dict(__import__("os").environ)
+    env = dict(os.environ)
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = (
-        f"{src_path}{__import__('os').pathsep}{existing}" if existing else str(src_path)
+        f"{src_path}{os.pathsep}{existing}" if existing else str(src_path)
     )
     return env
 
@@ -27,10 +28,11 @@ class CliCommandTest(unittest.TestCase):
             timeout=10,
             env=_subprocess_env(),
         )
-        self.assertEqual(result.returncode, 0)
-        self.assertIn("where", result.stdout)
-        self.assertIn("list", result.stdout)
-        self.assertIn("read-only", result.stdout)
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("where", result.stdout, msg=failure_message)
+        self.assertIn("list", result.stdout, msg=failure_message)
+        self.assertIn("read-only", result.stdout, msg=failure_message)
 
     def test_project_where_help_mentions_read_only_behavior(self):
         cmd = [sys.executable, "-m", "taurworks.cli", "project", "where", "--help"]
@@ -42,15 +44,15 @@ class CliCommandTest(unittest.TestCase):
             timeout=10,
             env=_subprocess_env(),
         )
-        self.assertEqual(result.returncode, 0)
-        self.assertIn("read-only", result.stdout)
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("read-only", result.stdout, msg=failure_message)
 
     def test_project_list_succeeds_without_discovered_projects(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            xdg_home = pathlib.Path(temp_dir) / "xdg-config"
             cmd = [sys.executable, "-m", "taurworks.cli", "project", "list"]
             env = _subprocess_env()
-            env["XDG_CONFIG_HOME"] = str(xdg_home)
+            env["XDG_CONFIG_HOME"] = str(pathlib.Path(temp_dir) / "xdg-config")
             result = subprocess.run(
                 cmd,
                 cwd=temp_dir,
@@ -60,8 +62,112 @@ class CliCommandTest(unittest.TestCase):
                 timeout=10,
                 env=env,
             )
-        self.assertEqual(result.returncode, 0)
-        self.assertIn("project_count: 0", result.stdout)
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("project_count: 0", result.stdout, msg=failure_message)
+
+    def test_project_create_creates_directory_and_scaffolding(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "created-project"
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "create",
+                str(target_dir),
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            self.assertTrue((target_dir / ".taurworks").is_dir(), msg=failure_message)
+            self.assertTrue(
+                (target_dir / ".taurworks" / "config.toml").is_file(),
+                msg=failure_message,
+            )
+            self.assertIn(
+                "delegated_command: project refresh", result.stdout, msg=failure_message
+            )
+
+    def test_project_create_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "idempotent-project"
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "create",
+                str(target_dir),
+            ]
+            first = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            second = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+        first_message = f"First command failed: {cmd}\nreturn code: {first.returncode}\nstdout:\n{first.stdout}\nstderr:\n{first.stderr}"
+        second_message = f"Second command failed: {cmd}\nreturn code: {second.returncode}\nstdout:\n{second.stdout}\nstderr:\n{second.stderr}"
+        self.assertEqual(first.returncode, 0, msg=first_message)
+        self.assertEqual(second.returncode, 0, msg=second_message)
+        self.assertIn("changed: True", first.stdout, msg=first_message)
+        self.assertIn("changed: False", second.stdout, msg=second_message)
+
+    def test_project_refresh_warns_when_metadata_path_is_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "project-with-bad-metadata"
+            target_dir.mkdir()
+            (target_dir / ".taurworks").write_text("file", encoding="utf-8")
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "refresh",
+                str(target_dir),
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn(
+            "metadata path exists but is not a directory",
+            result.stdout,
+            msg=failure_message,
+        )
+        self.assertIn(
+            "warnings present; review skipped items", result.stdout, msg=failure_message
+        )
 
 
 if __name__ == "__main__":
