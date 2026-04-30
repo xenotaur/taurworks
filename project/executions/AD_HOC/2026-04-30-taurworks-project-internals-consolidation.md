@@ -16,7 +16,7 @@ Consolidated shared internal logic for `taurworks project where|list|refresh|cre
 - Updated README with a concise implementation note that these commands now share one consolidated internal model.
 
 # Validation
-- Attempted `python -m pip install -e .` (failed: environment package index could not provide `setuptools>=64` due repeated 403 tunnel failures).
+- Attempted `python -m pip install -e .` (failed: environment package index could not provide `setuptools>=64` due to repeated 403 tunnel failures).
 - Ran `taurworks project where` (pass).
 - Ran `taurworks project list` (pass).
 - Ran `taurworks project refresh` (pass).

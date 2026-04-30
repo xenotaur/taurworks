@@ -80,6 +80,7 @@ def scaffold_project_metadata(
     created: list[str] = []
     skipped: list[str] = []
     found: list[str] = []
+    metadata_is_safe_directory = False
 
     if target_dir.exists() and not target_dir.is_dir():
         warnings.append(f"target path exists but is not a directory: {target_dir}")
@@ -112,6 +113,7 @@ def scaffold_project_metadata(
             skipped.append(f"metadata directory creation skipped: {metadata_dir}")
         elif metadata_dir.is_dir():
             found.append(f"metadata directory exists: {metadata_dir}")
+            metadata_is_safe_directory = True
         else:
             warnings.append(
                 f"metadata path exists but is not a directory: {metadata_dir}"
@@ -121,6 +123,7 @@ def scaffold_project_metadata(
         missing.append(f"metadata directory missing: {metadata_dir}")
         metadata_dir.mkdir(parents=True, exist_ok=True)
         created.append(f"directory: {metadata_dir}")
+        metadata_is_safe_directory = True
 
     if config_path.exists():
         if config_path.is_symlink():
@@ -136,13 +139,15 @@ def scaffold_project_metadata(
                 f"config path exists but is not a regular file: {config_path}"
             )
             skipped.append(f"config file update skipped: {config_path}")
-    elif metadata_dir.is_dir():
+    elif metadata_is_safe_directory:
         missing.append(f"config missing: {config_path}")
         config_path.write_text(
             '# Taurworks project metadata\n[project]\nname = ""\n',
             encoding="utf-8",
         )
         created.append(f"file: {config_path}")
+    else:
+        skipped.append(f"config file update skipped: {config_path}")
 
     changed = bool(created)
 
