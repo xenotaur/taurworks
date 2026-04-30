@@ -328,8 +328,9 @@ Prefer a package-specific test directory instead.
 
 Exceptions are allowed for tests whose scope is intentionally broader than one
 module, but their names should say so clearly. Use suffixes such as
-`_integration_test.py` or `_smoke_test.py` for integration flows and smoke
-coverage.
+`_integration.py` or `_smoke.py` for integration flows and smoke
+coverage. Never end integration or smoke tests with `_test.py` so they are
+not picked up as regular unit tests, and place smoke tests in `tests/smoke`.
 
 ### Testing Changes
 
