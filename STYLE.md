@@ -303,6 +303,19 @@ Tests should mirror the package module they cover. For a source module under
 tests/<package>_tests/<module>_test.py
 ```
 
+For top-level modules under `src/taurworks/*.py`, place tests directly under
+`tests/` as:
+
+```text
+tests/<module>_test.py
+```
+
+Smoke tests live under:
+
+```text
+tests/smoke/
+```
+
 Examples:
 
 - `src/taurworks/cli/taurworks.py` -> `tests/cli_tests/taurworks_test.py`
