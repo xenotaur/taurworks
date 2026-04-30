@@ -1,39 +1,13 @@
-import os
 import pathlib
 
-
-def _project_name_from_path(project_root: pathlib.Path) -> str:
-    """Return a stable project display name from a project root path."""
-    return project_root.name
-
-
-def _find_project_root_candidate(cwd: pathlib.Path) -> pathlib.Path | None:
-    """Find the nearest directory that contains `.taurworks`."""
-    for candidate in [cwd, *cwd.parents]:
-        if (candidate / ".taurworks").is_dir():
-            return candidate
-    return None
-
-
-def _config_path_candidate() -> pathlib.Path:
-    """Return the XDG-style Taurworks config path candidate."""
-    xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
-    if xdg_config_home:
-        candidate_base_dir = pathlib.Path(xdg_config_home).expanduser()
-        if candidate_base_dir.is_absolute():
-            base_dir = candidate_base_dir
-        else:
-            base_dir = pathlib.Path.home() / ".config"
-    else:
-        base_dir = pathlib.Path.home() / ".config"
-    return base_dir / "taurworks" / "config.toml"
+from taurworks import project_internals
 
 
 def gather_project_where_diagnostics() -> dict[str, str | bool | None]:
     """Collect read-only diagnostics for `taurworks project where`."""
     cwd = pathlib.Path.cwd().resolve()
-    project_root = _find_project_root_candidate(cwd)
-    config_candidate = _config_path_candidate().resolve()
+    project_root = project_internals.find_project_root_candidate(cwd)
+    config_candidate = project_internals.config_path_candidate().resolve()
 
     metadata_found = project_root is not None
 
@@ -58,32 +32,15 @@ def gather_project_where_diagnostics() -> dict[str, str | bool | None]:
 def gather_project_list_diagnostics() -> dict[str, str | int | list[dict[str, str]]]:
     """Collect read-only diagnostics for `taurworks project list`."""
     cwd = pathlib.Path.cwd().resolve()
-    project_root = _find_project_root_candidate(cwd)
-
-    discovered_projects: list[pathlib.Path] = []
-    discovery_source: str
-    limitation: str
-
-    if project_root is not None:
-        discovery_source = "current context (.taurworks found in current/parent path)"
-        limitation = "Global registry/workspace scanning is not implemented yet; reporting current context."
-        discovered_projects.append(project_root)
-    else:
-        discovery_source = "cwd child-directory scan for .taurworks metadata"
-        limitation = "Only current working directory and direct children are scanned in this stage."
-        discovered_projects.extend(
-            sorted(
-                (
-                    child
-                    for child in cwd.iterdir()
-                    if child.is_dir() and (child / ".taurworks").is_dir()
-                ),
-                key=lambda path: path.name,
-            )
-        )
+    discovered_projects, discovery_source, limitation = (
+        project_internals.discover_projects_from_context(cwd)
+    )
 
     projects = [
-        {"name": _project_name_from_path(project), "path": str(project)}
+        {
+            "name": project_internals.project_name_from_path(project),
+            "path": str(project),
+        }
         for project in discovered_projects
     ]
 
@@ -137,14 +94,7 @@ def format_project_list_output(
 
 def resolve_project_refresh_target(path_or_name: str | None) -> pathlib.Path:
     """Resolve refresh target path using simple where-compatible rules."""
-    if path_or_name is None:
-        return pathlib.Path.cwd().resolve()
-
-    candidate = pathlib.Path(path_or_name).expanduser()
-    if candidate.exists():
-        return candidate.resolve()
-
-    return (pathlib.Path.cwd() / candidate).resolve()
+    return project_internals.resolve_project_target(path_or_name, pathlib.Path.cwd())
 
 
 def gather_project_create_diagnostics(
@@ -182,89 +132,7 @@ def gather_project_refresh_diagnostics(
 ) -> dict[str, str | bool | list[str]]:
     """Collect safe refresh actions for Taurworks metadata scaffolding."""
     target_dir = resolve_project_refresh_target(path_or_name)
-    metadata_dir = target_dir / ".taurworks"
-    config_path = metadata_dir / "config.toml"
-
-    warnings: list[str] = []
-    missing: list[str] = []
-    created: list[str] = []
-    skipped: list[str] = []
-    found: list[str] = []
-
-    if target_dir.exists() and not target_dir.is_dir():
-        warnings.append(f"target path exists but is not a directory: {target_dir}")
-        skipped.append(
-            "refresh scaffolding skipped because target is not a directory: "
-            f"{target_dir}"
-        )
-        return {
-            "target_dir": str(target_dir),
-            "changed": False,
-            "found": found,
-            "missing": missing,
-            "created": created,
-            "skipped": skipped,
-            "warnings": warnings,
-        }
-
-    if target_dir.exists():
-        found.append(f"target directory exists: {target_dir}")
-    else:
-        missing.append(f"target directory missing: {target_dir}")
-        target_dir.mkdir(parents=True, exist_ok=True)
-        created.append(f"directory: {target_dir}")
-
-    if metadata_dir.exists():
-        if metadata_dir.is_symlink():
-            warnings.append(
-                f"metadata path is a symlink and is not modified for safety: {metadata_dir}"
-            )
-            skipped.append(f"metadata directory creation skipped: {metadata_dir}")
-        elif metadata_dir.is_dir():
-            found.append(f"metadata directory exists: {metadata_dir}")
-        else:
-            warnings.append(
-                f"metadata path exists but is not a directory: {metadata_dir}"
-            )
-            skipped.append(f"metadata directory creation skipped: {metadata_dir}")
-    else:
-        missing.append(f"metadata directory missing: {metadata_dir}")
-        metadata_dir.mkdir(parents=True, exist_ok=True)
-        created.append(f"directory: {metadata_dir}")
-
-    if config_path.exists():
-        if config_path.is_symlink():
-            warnings.append(
-                f"config path is a symlink and is not modified for safety: {config_path}"
-            )
-            skipped.append(f"config file update skipped: {config_path}")
-        elif config_path.is_file():
-            found.append(f"config exists: {config_path}")
-            skipped.append(f"config file retained without changes: {config_path}")
-        else:
-            warnings.append(
-                f"config path exists but is not a regular file: {config_path}"
-            )
-            skipped.append(f"config file update skipped: {config_path}")
-    elif metadata_dir.is_dir():
-        missing.append(f"config missing: {config_path}")
-        config_path.write_text(
-            '# Taurworks project metadata\n[project]\nname = ""\n',
-            encoding="utf-8",
-        )
-        created.append(f"file: {config_path}")
-
-    changed = bool(created)
-
-    return {
-        "target_dir": str(target_dir),
-        "changed": changed,
-        "found": found,
-        "missing": missing,
-        "created": created,
-        "skipped": skipped,
-        "warnings": warnings,
-    }
+    return project_internals.scaffold_project_metadata(target_dir)
 
 
 def format_project_refresh_output(

@@ -20,6 +20,7 @@ Both namespaces are expected to share a common configuration/discovery core.
 ### Implementation status and compatibility
 
 Status note: `taurworks project ...` now includes implemented read-only discovery/diagnostic commands (`where`, `list`) while additional project lifecycle commands remain planned. `taurworks dev ...` remains planned and is not implemented yet.
+Implementation note: `where`, `list`, `refresh`, and `create` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 
