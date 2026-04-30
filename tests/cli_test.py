@@ -169,6 +169,62 @@ class CliCommandTest(unittest.TestCase):
             "warnings present; review skipped items", result.stdout, msg=failure_message
         )
 
+    def test_project_activate_print_reports_read_only_guidance(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "project-a"
+            (target_dir / ".taurworks").mkdir(parents=True)
+            (target_dir / ".taurworks" / "config.toml").write_text(
+                '[project]\nname = "project-a"\n', encoding="utf-8"
+            )
+            files_before = sorted(
+                str(path.relative_to(root_path)) for path in root_path.rglob("*")
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "activate",
+                str(target_dir),
+                "--print",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            files_after = sorted(
+                str(path.relative_to(root_path)) for path in root_path.rglob("*")
+            )
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn(
+            "activation guidance (read-only)", result.stdout, msg=failure_message
+        )
+        self.assertIn(
+            "shell_mutation: not performed", result.stdout, msg=failure_message
+        )
+        self.assertIn("activation_command:", result.stdout, msg=failure_message)
+        self.assertEqual(files_before, files_after, msg=failure_message)
+
+    def test_project_activate_requires_print_flag(self):
+        cmd = [sys.executable, "-m", "taurworks.cli", "project", "activate"]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_subprocess_env(),
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("requires --print", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
