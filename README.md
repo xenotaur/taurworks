@@ -35,6 +35,7 @@ The scaffolded `project` namespace currently includes implemented discovery and 
 - `taurworks project list` (implemented, read-only discovery listing)
 - `taurworks project refresh [PATH_OR_NAME]` (implemented, safe idempotent metadata scaffolding repair)
 - `taurworks project create [PATH_OR_NAME]` (implemented, safe idempotent create wrapper around refresh)
+- `taurworks project activate [PATH_OR_NAME] --print` (implemented, read-only activation guidance output)
 
 Quick namespace help:
 
@@ -127,6 +128,26 @@ Behavior:
 - prints a summary including delegation details and created/skipped/warning items
 
 This command is intentionally safe and idempotent: after first successful scaffolding, repeated runs behave like refresh and report no changes needed.
+
+## `taurworks project activate --print`
+
+Use this command to resolve a project and print activation guidance only:
+
+```bash
+taurworks project activate [PATH_OR_NAME] --print
+```
+
+Behavior:
+
+- with no argument, resolves from the current working directory
+- with an argument, resolves the path/name using the same shared project-resolution internals as other `project` lifecycle commands
+- prints read-only activation diagnostics and (when available) a manual command hint
+- does not source scripts
+- does not activate conda/virtualenv
+- does not change your parent shell state
+- does not write, refresh, create, or delete project files
+
+This slice is intentionally non-mutating. Actual shell mutation will require an explicit shell wrapper/function in a later slice. Inspect printed output before running any command manually.
 
 ## Safety and shell-integration guardrails
 

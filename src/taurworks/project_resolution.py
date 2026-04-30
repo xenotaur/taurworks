@@ -135,6 +135,72 @@ def gather_project_refresh_diagnostics(
     return project_internals.scaffold_project_metadata(target_dir)
 
 
+def gather_project_activate_print_diagnostics(
+    path_or_name: str | None,
+) -> dict[str, str | bool]:
+    """Collect read-only activation-print diagnostics for a resolved project."""
+    cwd = pathlib.Path.cwd().resolve()
+    target = project_internals.resolve_project_target(path_or_name, cwd)
+    resolved_project = target
+    project_root = None
+    if path_or_name is None:
+        project_root = project_internals.find_project_root_candidate(target)
+        if project_root is not None:
+            resolved_project = project_root
+
+    config_path = resolved_project / ".taurworks" / "config.toml"
+    config_exists = config_path.is_file()
+
+    if config_exists:
+        activation_command = (
+            f'cd "{resolved_project}"'
+            "  # then run your environment activation command manually"
+        )
+        guidance = (
+            "Activation hint: project metadata exists. Taurworks only prints guidance "
+            "in this slice and does not activate shells automatically."
+        )
+    else:
+        activation_command = ""
+        guidance = "No activation target is currently configured for this project."
+
+    return {
+        "cwd": str(cwd),
+        "input": path_or_name or "(current working directory)",
+        "resolved_project": str(resolved_project),
+        "project_metadata_found": project_root is not None,
+        "activation_config_exists": config_exists,
+        "activation_command": activation_command,
+        "guidance": guidance,
+        "read_only": True,
+    }
+
+
+def format_project_activate_print_output(
+    diagnostics: dict[str, str | bool],
+) -> str:
+    """Format read-only `project activate --print` diagnostics as stable text."""
+    lines = [
+        "Taurworks project activation guidance (read-only)",
+        f"- cwd: {diagnostics['cwd']}",
+        f"- input: {diagnostics['input']}",
+        f"- resolved_project: {diagnostics['resolved_project']}",
+        f"- project_metadata_found: {diagnostics['project_metadata_found']}",
+        f"- activation_config_exists: {diagnostics['activation_config_exists']}",
+        f"- guidance: {diagnostics['guidance']}",
+    ]
+    if diagnostics["activation_command"]:
+        lines.append(f"- activation_command: {diagnostics['activation_command']}")
+    else:
+        lines.append("- activation_command: none")
+
+    lines.append("- shell_mutation: not performed")
+    lines.append(
+        "- note: real shell mutation will require an explicit shell wrapper/function in a later slice"
+    )
+    return "\n".join(lines)
+
+
 def format_project_refresh_output(
     diagnostics: dict[str, str | bool | list[str]],
 ) -> str:

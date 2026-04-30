@@ -28,6 +28,12 @@ def _handle_project_command(args):
         )
         print(project_resolution.format_project_create_output(diagnostics))
         return
+    if args.project_command == "activate":
+        diagnostics = project_resolution.gather_project_activate_print_diagnostics(
+            args.path_or_name
+        )
+        print(project_resolution.format_project_activate_print_output(diagnostics))
+        return
 
     args.project_parser.print_help()
 
@@ -169,6 +175,34 @@ def main():
     )
     parser_project_create.set_defaults(project_parser=parser_project)
 
+    parser_project_activate = project_subparsers.add_parser(
+        "activate",
+        help=(
+            "Resolve a project and print read-only shell activation guidance "
+            "without mutating the shell."
+        ),
+        description=(
+            "Resolve a project and print activation instructions. This command "
+            "is read-only and does not source scripts, activate environments, "
+            "or change the current shell."
+        ),
+    )
+    parser_project_activate.add_argument(
+        "path_or_name",
+        nargs="?",
+        help=(
+            "Optional project path or name. Defaults to current working "
+            "directory when omitted."
+        ),
+    )
+    parser_project_activate.add_argument(
+        "--print",
+        dest="print_only",
+        action="store_true",
+        help="Print activation guidance (required in this non-mutating slice).",
+    )
+    parser_project_activate.set_defaults(project_parser=parser_project)
+
     parser_project.set_defaults(project_parser=parser_project)
 
     args = parser.parse_args()
@@ -192,6 +226,10 @@ def main():
     elif args.command == "activate":
         manager.activate_project(args.project_name)
     elif args.command == "project":
+        if args.project_command == "activate" and not args.print_only:
+            parser_project.error(
+                "project activate currently requires --print and is read-only."
+            )
         _handle_project_command(args)
 
 
