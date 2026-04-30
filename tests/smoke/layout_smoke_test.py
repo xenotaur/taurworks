@@ -13,7 +13,7 @@ class SrcLayoutSmokeTest(unittest.TestCase):
 
         module_path = pathlib.Path(module.__file__).resolve()
         expected_package_dir = (
-            pathlib.Path(__file__).resolve().parents[1] / "src" / "taurworks"
+            pathlib.Path(__file__).resolve().parents[2] / "src" / "taurworks"
         ).resolve()
 
         self.assertTrue(
