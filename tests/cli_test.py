@@ -225,6 +225,41 @@ class CliCommandTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("requires --print", result.stderr)
 
+    def test_project_activate_explicit_path_does_not_collapse_to_parent_project(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            parent_project = root_path / "parent-project"
+            (parent_project / ".taurworks").mkdir(parents=True)
+            (parent_project / ".taurworks" / "config.toml").write_text(
+                '[project]\nname = "parent-project"\n', encoding="utf-8"
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "activate",
+                "child-project",
+                "--print",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=parent_project,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn(
+            f"resolved_project: {parent_project / 'child-project'}",
+            result.stdout,
+            msg=failure_message,
+        )
+        self.assertIn("activation_command: none", result.stdout, msg=failure_message)
+
 
 if __name__ == "__main__":
     unittest.main()

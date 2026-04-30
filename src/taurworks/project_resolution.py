@@ -141,8 +141,13 @@ def gather_project_activate_print_diagnostics(
     """Collect read-only activation-print diagnostics for a resolved project."""
     cwd = pathlib.Path.cwd().resolve()
     target = project_internals.resolve_project_target(path_or_name, cwd)
-    project_root = project_internals.find_project_root_candidate(target)
-    resolved_project = project_root if project_root is not None else target
+    resolved_project = target
+    project_root = None
+    if path_or_name is None:
+        project_root = project_internals.find_project_root_candidate(target)
+        if project_root is not None:
+            resolved_project = project_root
+
     config_path = resolved_project / ".taurworks" / "config.toml"
     config_exists = config_path.is_file()
 
