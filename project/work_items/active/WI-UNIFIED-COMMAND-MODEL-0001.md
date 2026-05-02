@@ -1,3 +1,8 @@
+---
+id: WI-UNIFIED-COMMAND-MODEL-0001
+status: active
+---
+
 # WI-UNIFIED-COMMAND-MODEL-0001: Adopt unified Taurworks command model
 
 ## Status
