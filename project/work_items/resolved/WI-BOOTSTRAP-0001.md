@@ -1,3 +1,8 @@
+---
+id: WI-BOOTSTRAP-0001
+status: resolved
+---
+
 # WI-BOOTSTRAP-0001: Bootstrap LRH project/ directory
 
 ## Status
@@ -10,7 +15,7 @@ Create a minimal LRH-style `project/` directory documenting Taurworks' goal, des
 - `project/goal/project_goal.md`
 - `project/design/design.md`
 - `project/focus/current_focus.md`
-- `project/work_items/WI-BOOTSTRAP-0001.md`
+- `project/work_items/resolved/WI-BOOTSTRAP-0001.md`
 - `project/guardrails/agent_guardrails.md`
 - `project/status/current_status.md`
 - `project/memory/decision_log.md`
