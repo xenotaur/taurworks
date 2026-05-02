@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 
-from tests.project_tests import subprocess_helpers
+from taurworks import subprocess_helpers
 
 
 class ProjectWhereCommandTest(unittest.TestCase):
