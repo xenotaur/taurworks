@@ -298,7 +298,7 @@ def relative_working_dir_metadata(
 def set_working_dir_metadata(
     project_root: pathlib.Path,
     user_path: str,
-) -> tuple[str | None, str, bool, list[str]]:
+) -> tuple[str | None, str, bool, bool, list[str]]:
     """Record working-dir metadata for create without creating that directory."""
     config = read_project_config(project_root)
     previous_working_dir = working_dir_from_config(config)
@@ -308,6 +308,16 @@ def set_working_dir_metadata(
     )
     relative_path_text = relative_path.as_posix()
 
+    config_changed = bool(repairs) or previous_working_dir != relative_path_text
+    if not config_changed:
+        return (
+            previous_working_dir,
+            relative_path_text,
+            working_dir_exists,
+            False,
+            repairs,
+        )
+
     paths_table = config.get("paths")
     if not isinstance(paths_table, dict):
         paths_table = {}
@@ -315,7 +325,13 @@ def set_working_dir_metadata(
     paths_table["working_dir"] = relative_path_text
 
     write_project_config(project_root, config)
-    return previous_working_dir, relative_path_text, working_dir_exists, repairs
+    return (
+        previous_working_dir,
+        relative_path_text,
+        working_dir_exists,
+        True,
+        repairs,
+    )
 
 
 def scaffold_project_metadata(

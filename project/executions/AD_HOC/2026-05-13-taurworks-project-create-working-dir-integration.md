@@ -34,3 +34,10 @@ Integrated working-directory metadata into `taurworks project create`.
 
 # Follow-up
 - Add or restore `scripts/prompts/record-execution` and `project/executions/README.md` so prompt-workflow instructions match repository contents.
+
+# Review follow-up
+- Addressed PR review feedback for create summaries that reported `changed: False` after writing `paths.working_dir` on an already-refreshed project.
+- Replaced brittle `root_created` string matching with a pre-refresh existence check.
+- Changed `set_working_dir_metadata` to skip no-op config writes and return an explicit change flag.
+- Moved test config/file reads after return-code assertions so command stdout/stderr remains visible on failures.
+- Added a regression test for already-refreshed projects where `create --working-dir` writes metadata and reports the config update.

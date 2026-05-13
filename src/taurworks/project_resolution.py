@@ -103,16 +103,16 @@ def gather_project_create_diagnostics(
     working_dir: str | None = None,
 ) -> dict[str, str | bool | list[str]]:
     """Collect safe create actions by delegating to refresh scaffolding logic."""
+    project_root = resolve_project_refresh_target(path_or_name)
+    root_existed_before = project_root.exists()
+
     if working_dir is not None:
-        preflight_target = resolve_project_refresh_target(path_or_name)
         try:
-            project_internals.relative_working_dir_metadata(
-                preflight_target, working_dir
-            )
+            project_internals.relative_working_dir_metadata(project_root, working_dir)
         except project_internals.ProjectConfigError as error:
             return {
                 "ok": False,
-                "target_dir": str(preflight_target),
+                "target_dir": str(project_root),
                 "root_created": False,
                 "changed": False,
                 "found": [],
@@ -124,22 +124,24 @@ def gather_project_create_diagnostics(
                 ],
                 "warnings": [str(error)],
                 "delegated_command": "project refresh",
-                "delegated_target_dir": str(preflight_target),
+                "delegated_target_dir": str(project_root),
                 "delegated_changed": False,
                 "working_dir_requested": True,
                 "previous_working_dir": "none",
                 "working_dir": "none",
                 "working_dir_exists": False,
                 "working_dir_created": False,
+                "working_dir_changed": False,
                 "working_dir_message": str(error),
                 "working_dir_repairs": [],
             }
 
-    diagnostics = gather_project_refresh_diagnostics(path_or_name)
+    diagnostics = gather_project_refresh_diagnostics(str(project_root))
     delegated_target = diagnostics["target_dir"]
     delegated_changed = diagnostics["changed"]
-    project_root = pathlib.Path(str(delegated_target))
-    root_created = f"directory: {project_root}" in diagnostics["created"]
+    root_created = (
+        not root_existed_before and pathlib.Path(str(delegated_target)).is_dir()
+    )
 
     diagnostics = dict(diagnostics)
     diagnostics["ok"] = True
@@ -152,6 +154,7 @@ def gather_project_create_diagnostics(
     diagnostics["working_dir"] = "none"
     diagnostics["working_dir_exists"] = False
     diagnostics["working_dir_created"] = False
+    diagnostics["working_dir_changed"] = False
     diagnostics["working_dir_message"] = (
         "No working_dir requested; metadata left unchanged."
     )
@@ -165,6 +168,7 @@ def gather_project_create_diagnostics(
             previous_working_dir,
             configured_working_dir,
             working_dir_exists,
+            working_dir_changed,
             repairs,
         ) = project_internals.set_working_dir_metadata(project_root, working_dir)
     except (
@@ -180,6 +184,15 @@ def gather_project_create_diagnostics(
     diagnostics["previous_working_dir"] = previous_working_dir or "none"
     diagnostics["working_dir"] = configured_working_dir
     diagnostics["working_dir_exists"] = working_dir_exists
+    diagnostics["working_dir_changed"] = working_dir_changed
+    if working_dir_changed:
+        diagnostics["changed"] = True
+        updated = list(diagnostics["updated"])
+        updated.append(
+            f"config updated: paths.working_dir set to {configured_working_dir}"
+        )
+        updated.extend(f"config repair: {repair}" for repair in repairs)
+        diagnostics["updated"] = updated
     diagnostics["working_dir_message"] = (
         "Working directory metadata recorded; directory was not created."
     )
@@ -209,6 +222,7 @@ def format_project_create_output(
             f"- working_dir: {diagnostics['working_dir']}",
             f"- working_dir_exists: {diagnostics['working_dir_exists']}",
             f"- working_dir_created: {diagnostics['working_dir_created']}",
+            f"- working_dir_changed: {diagnostics['working_dir_changed']}",
         ]
     )
     working_dir_repairs = diagnostics["working_dir_repairs"]
