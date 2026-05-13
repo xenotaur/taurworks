@@ -11,6 +11,7 @@ setup(
             "black",
             "ruff",
         ],
+        "test": [],
     },
     entry_points={
         "console_scripts": [

@@ -5,8 +5,10 @@ echo "Installing taurworks in constrained developer mode..."
 set -x
 
 # Use the active environment's existing pip so setup remains usable in
-# offline/proxy-restricted environments; exact developer-tool versions are
-# constrained below rather than reached through an unconditional pip upgrade.
+# offline/proxy-restricted environments. Because --no-build-isolation makes pip
+# import the configured build backend from this environment, install the
+# constrained backend prerequisites before the editable install.
+python -m pip install setuptools wheel -c constraints-dev.txt
 python -m pip install --no-build-isolation -e ".[dev]" -c constraints-dev.txt
 python --version
 python -m pip --version
