@@ -37,7 +37,7 @@ The scaffolded `project` namespace currently includes implemented discovery and 
 - `taurworks project refresh [PATH_OR_NAME]` (implemented, safe idempotent metadata scaffolding repair)
 - `taurworks project working-dir show` (implemented, project working-directory metadata display)
 - `taurworks project working-dir set [DIR]` (implemented, safe project working-directory metadata update)
-- `taurworks project create [PATH_OR_NAME]` (implemented, safe idempotent create wrapper around refresh)
+- `taurworks project create [PATH_OR_NAME] [--working-dir DIR]` (implemented, safe idempotent create wrapper around refresh with optional working-directory metadata)
 - `taurworks project activate [PATH_OR_NAME] --print` (implemented, read-only activation guidance output)
 
 Quick namespace help:
@@ -155,18 +155,24 @@ Use this command to ensure a target directory exists and then delegate to refres
 
 ```bash
 taurworks project create [PATH_OR_NAME]
+taurworks project create PROJECT --working-dir DIR
 ```
 
 Behavior:
 
 - with no argument, creates/refreshes in the current working directory
 - with an argument, treats it as a path (or path-like name) rooted in the current directory when not already existing
-- creates the target directory when missing
-- delegates scaffolding work to `taurworks project refresh`
-- never overwrites existing files
-- prints a summary including delegation details and created/skipped/warning items
+- creates the target project root directory when missing
+- delegates scaffolding work to `taurworks project refresh` instead of duplicating refresh/scaffold logic
+- writes new configs with `[project].name` defaulting to the project-root directory name unless existing config metadata already provides a non-empty name
+- when `--working-dir DIR` is omitted, does not invent `[paths].working_dir` metadata
+- when `--working-dir DIR` is provided, validates that `DIR` is relative, resolves safely inside `project_root`, and stores it as a relative `paths.working_dir` value
+- rejects absolute working-directory paths and paths that escape `project_root`
+- records the working-directory metadata only; it does not create `DIR`, and the summary reports whether that directory currently exists
+- never overwrites unrelated files or deletes files
+- prints a summary including the project root, whether the root was created, refresh delegation details, configured working directory, and created/skipped/warning items
 
-This command is intentionally safe and idempotent: after first successful scaffolding, repeated runs behave like refresh and report no changes needed.
+This command is intentionally safe and idempotent: after first successful scaffolding, repeated runs behave like refresh, preserve existing unrelated files, and keep the same relative `working_dir` metadata.
 
 ## `taurworks project activate --print`
 

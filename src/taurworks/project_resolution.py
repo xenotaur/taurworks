@@ -100,16 +100,90 @@ def resolve_project_refresh_target(path_or_name: str | None) -> pathlib.Path:
 
 def gather_project_create_diagnostics(
     path_or_name: str | None,
+    working_dir: str | None = None,
 ) -> dict[str, str | bool | list[str]]:
     """Collect safe create actions by delegating to refresh scaffolding logic."""
+    if working_dir is not None:
+        preflight_target = resolve_project_refresh_target(path_or_name)
+        try:
+            project_internals.relative_working_dir_metadata(
+                preflight_target, working_dir
+            )
+        except project_internals.ProjectConfigError as error:
+            return {
+                "ok": False,
+                "target_dir": str(preflight_target),
+                "root_created": False,
+                "changed": False,
+                "found": [],
+                "missing": [],
+                "created": [],
+                "updated": [],
+                "skipped": [
+                    "project refresh skipped because working_dir validation failed"
+                ],
+                "warnings": [str(error)],
+                "delegated_command": "project refresh",
+                "delegated_target_dir": str(preflight_target),
+                "delegated_changed": False,
+                "working_dir_requested": True,
+                "previous_working_dir": "none",
+                "working_dir": "none",
+                "working_dir_exists": False,
+                "working_dir_created": False,
+                "working_dir_message": str(error),
+                "working_dir_repairs": [],
+            }
+
     diagnostics = gather_project_refresh_diagnostics(path_or_name)
     delegated_target = diagnostics["target_dir"]
     delegated_changed = diagnostics["changed"]
+    project_root = pathlib.Path(str(delegated_target))
+    root_created = f"directory: {project_root}" in diagnostics["created"]
 
     diagnostics = dict(diagnostics)
+    diagnostics["ok"] = True
+    diagnostics["root_created"] = root_created
     diagnostics["delegated_command"] = "project refresh"
     diagnostics["delegated_target_dir"] = delegated_target
     diagnostics["delegated_changed"] = delegated_changed
+    diagnostics["working_dir_requested"] = working_dir is not None
+    diagnostics["previous_working_dir"] = "none"
+    diagnostics["working_dir"] = "none"
+    diagnostics["working_dir_exists"] = False
+    diagnostics["working_dir_created"] = False
+    diagnostics["working_dir_message"] = (
+        "No working_dir requested; metadata left unchanged."
+    )
+    diagnostics["working_dir_repairs"] = []
+
+    if working_dir is None:
+        return diagnostics
+
+    try:
+        (
+            previous_working_dir,
+            configured_working_dir,
+            working_dir_exists,
+            repairs,
+        ) = project_internals.set_working_dir_metadata(project_root, working_dir)
+    except (
+        project_internals.ProjectConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+    ) as error:
+        diagnostics["ok"] = False
+        diagnostics["working_dir"] = "none"
+        diagnostics["working_dir_message"] = str(error)
+        return diagnostics
+
+    diagnostics["previous_working_dir"] = previous_working_dir or "none"
+    diagnostics["working_dir"] = configured_working_dir
+    diagnostics["working_dir_exists"] = working_dir_exists
+    diagnostics["working_dir_message"] = (
+        "Working directory metadata recorded; directory was not created."
+    )
+    diagnostics["working_dir_repairs"] = repairs
     return diagnostics
 
 
@@ -119,13 +193,33 @@ def format_project_create_output(
     """Format create summary output for the refresh-backed lifecycle command."""
     lines = [
         "Taurworks project create summary",
-        f"- target_dir: {diagnostics['target_dir']}",
+        f"- ok: {diagnostics['ok']}",
+        f"- project_root: {diagnostics['target_dir']}",
+        f"- root_created: {diagnostics['root_created']}",
         f"- delegated_command: {diagnostics['delegated_command']}",
         f"- delegated_target_dir: {diagnostics['delegated_target_dir']}",
     ]
     refresh_output = format_project_refresh_output(diagnostics)
     refresh_lines = refresh_output.splitlines()
-    return "\n".join(lines + refresh_lines[2:])
+    lines.extend(refresh_lines[2:])
+    lines.extend(
+        [
+            f"- working_dir_requested: {diagnostics['working_dir_requested']}",
+            f"- previous_working_dir: {diagnostics['previous_working_dir']}",
+            f"- working_dir: {diagnostics['working_dir']}",
+            f"- working_dir_exists: {diagnostics['working_dir_exists']}",
+            f"- working_dir_created: {diagnostics['working_dir_created']}",
+        ]
+    )
+    working_dir_repairs = diagnostics["working_dir_repairs"]
+    if working_dir_repairs:
+        lines.append("- working_dir_repairs:")
+        for repair in working_dir_repairs:
+            lines.append(f"  - {repair}")
+    else:
+        lines.append("- working_dir_repairs: none")
+    lines.append(f"- working_dir_message: {diagnostics['working_dir_message']}")
+    return "\n".join(lines)
 
 
 def gather_project_refresh_diagnostics(

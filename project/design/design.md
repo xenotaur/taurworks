@@ -59,7 +59,7 @@ Absolute working-directory paths are deferred unless a later design explicitly a
 
 ## Immediate design-aligned implementation sequence
 1. Implement `taurworks project working-dir show` and `taurworks project working-dir set [DIR]` for the config schema above.
-2. Extend `taurworks project create PROJECT --working-dir DIR` to write working-directory metadata while delegating shared scaffolding to refresh logic.
+2. Extend `taurworks project create PROJECT --working-dir DIR` to write relative working-directory metadata while delegating shared scaffolding to refresh logic. The create path records the directory only, reports whether it exists, and does not create the work directory.
 3. Extend `taurworks project activate --print` to use configured `working_dir` when printing safe, inspectable activation guidance.
 
 Automatic shell mutation through `tw activate` or another shell wrapper remains a later slice. Full `taurworks dev ...` behavior and multi-repo project management are also deferred.
