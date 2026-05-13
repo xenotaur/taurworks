@@ -266,6 +266,74 @@ def set_working_dir(
     return previous_working_dir, relative_path_text, repairs
 
 
+def relative_working_dir_metadata(
+    project_root: pathlib.Path,
+    user_path: str,
+) -> tuple[pathlib.Path, bool]:
+    """Validate working-dir metadata for create without requiring existence."""
+    if not user_path.strip():
+        raise ProjectConfigError("working_dir must not be empty")
+
+    raw_path = pathlib.Path(user_path).expanduser()
+    if raw_path.is_absolute():
+        raise ProjectConfigError(
+            "working_dir must be relative to the project root; absolute paths are not supported yet"
+        )
+
+    resolved_project_root = project_root.resolve()
+    target_path = (resolved_project_root / raw_path).resolve()
+
+    try:
+        relative_path = target_path.relative_to(resolved_project_root)
+    except ValueError as error:
+        raise ProjectConfigError(
+            "working_dir must stay inside the project root and may not escape with '..'"
+        ) from error
+
+    if str(relative_path) == ".":
+        return pathlib.Path("."), target_path.is_dir()
+    return relative_path, target_path.is_dir()
+
+
+def set_working_dir_metadata(
+    project_root: pathlib.Path,
+    user_path: str,
+) -> tuple[str | None, str, bool, bool, list[str]]:
+    """Record working-dir metadata for create without creating that directory."""
+    config = read_project_config(project_root)
+    previous_working_dir = working_dir_from_config(config)
+    config, repairs = ensure_minimal_project_config(project_root, config)
+    relative_path, working_dir_exists = relative_working_dir_metadata(
+        project_root, user_path
+    )
+    relative_path_text = relative_path.as_posix()
+
+    config_changed = bool(repairs) or previous_working_dir != relative_path_text
+    if not config_changed:
+        return (
+            previous_working_dir,
+            relative_path_text,
+            working_dir_exists,
+            False,
+            repairs,
+        )
+
+    paths_table = config.get("paths")
+    if not isinstance(paths_table, dict):
+        paths_table = {}
+        config["paths"] = paths_table
+    paths_table["working_dir"] = relative_path_text
+
+    write_project_config(project_root, config)
+    return (
+        previous_working_dir,
+        relative_path_text,
+        working_dir_exists,
+        True,
+        repairs,
+    )
+
+
 def scaffold_project_metadata(
     target_dir: pathlib.Path,
 ) -> dict[str, str | bool | list[str]]:

@@ -43,9 +43,11 @@ def _handle_project_command(args):
             return
     if args.project_command == "create":
         diagnostics = project_resolution.gather_project_create_diagnostics(
-            args.path_or_name
+            args.path_or_name, args.working_dir
         )
         print(project_resolution.format_project_create_output(diagnostics))
+        if not diagnostics["ok"]:
+            raise SystemExit(1)
         return
     if args.project_command == "activate":
         diagnostics = project_resolution.gather_project_activate_print_diagnostics(
@@ -230,6 +232,13 @@ def main():
         help=(
             "Optional project path or name. Defaults to current working "
             "directory when omitted."
+        ),
+    )
+    parser_project_create.add_argument(
+        "--working-dir",
+        help=(
+            "Optional project-root-relative default working directory to record. "
+            "The directory is not created by this command."
         ),
     )
     parser_project_create.set_defaults(project_parser=parser_project)
