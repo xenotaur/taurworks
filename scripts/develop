@@ -4,7 +4,9 @@ set -euo pipefail
 echo "Installing taurworks in constrained developer mode..."
 set -x
 
-python -m pip install --upgrade pip
+# Use the active environment's existing pip so setup remains usable in
+# offline/proxy-restricted environments; exact developer-tool versions are
+# constrained below rather than reached through an unconditional pip upgrade.
 python -m pip install --no-build-isolation -e ".[dev]" -c constraints-dev.txt
 python --version
 python -m pip --version

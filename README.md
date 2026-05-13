@@ -234,7 +234,7 @@ For Python package and CLI development, use the repository's constrained develop
 ./scripts/develop
 ```
 
-That script installs Taurworks in editable mode with the `dev` extra and applies `constraints-dev.txt`, which is the canonical source of truth for exact developer-tool versions such as Black and Ruff. GitHub Actions intentionally uses the same setup path so local development, CI, and Codex-style environments resolve the same tooling.
+That script installs Taurworks in editable mode with the `dev` extra using the active environment's existing pip, then applies `constraints-dev.txt`, which is the canonical source of truth for exact developer-tool versions such as Black and Ruff. GitHub Actions intentionally uses the same setup path so local development, CI, and Codex-style environments resolve the same tooling without an unconditional pip-upgrade network dependency.
 
 Then validate the package import and CLI entry point:
 

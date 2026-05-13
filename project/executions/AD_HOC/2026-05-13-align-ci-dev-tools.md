@@ -13,11 +13,12 @@ Aligned Taurworks CI with the repository-local constrained developer setup path.
 - Found CI/developer-tool drift: `.github/workflows/python-ci.yml` installed `black==24.10.0` and `ruff==0.6.9` directly, while `environment.yml` recorded newer local tool pins (`black==26.3.1` and `ruff==0.15.12`).
 - Added `constraints-dev.txt` as the canonical exact-version source for Black and Ruff.
 - Added a minimal `dev` extra in `setup.py` so developer tools are abstract package metadata while exact versions remain constrained by `constraints-dev.txt`.
-- Updated `scripts/develop` to install `taurworks` in editable developer mode with `constraints-dev.txt` and print Python, pip, Black, and Ruff versions for drift diagnostics.
+- Updated `scripts/develop` to install `taurworks` in editable developer mode with `constraints-dev.txt`, use the active environment's existing pip instead of unconditionally upgrading pip, and print Python, pip, Black, and Ruff versions for drift diagnostics.
 - Updated GitHub Actions to call `./scripts/develop` instead of hand-installing pinned Black/Ruff versions.
 - Updated `scripts/lint` to run Black check mode with `--diff`, and updated `scripts/format` to pass through options such as `--check --diff`.
 - Updated `README.md` to document `./scripts/develop`, local quality commands, CI alignment, and Codex Cloud guidance to avoid ad-hoc formatter/linter installs.
 - Removed Black/Ruff pins from `environment.yml` so those exact versions live only in `constraints-dev.txt`.
+- Addressed PR review feedback by removing the unconditional `python -m pip install --upgrade pip` step from `scripts/develop`, preserving the offline/proxy-friendly setup path.
 - Branch: `work`; PR link: not yet known in this environment.
 
 # Validation
@@ -26,7 +27,8 @@ Aligned Taurworks CI with the repository-local constrained developer setup path.
 - Attempted `scripts/prompts/check-execution --prompt-id "PROMPT(AD_HOC:ALIGN_CI_DEV_TOOLS)[2026-05-13T13:15:00-04:00]" --project-root .` (failed: script not present in repository).
 - Checked for a prior exact prompt execution record with `rg -n 'prompt_id: "PROMPT\(AD_HOC:ALIGN_CI_DEV_TOOLS\)\[2026-05-13T13:15:00-04:00\]"' project/executions`; no exact prior execution record was found.
 - Inspected `.github/workflows/python-ci.yml`, `scripts/develop`, `scripts/lint`, `scripts/format`, `scripts/test`, related scripts, `pyproject.toml`, `setup.py`, `environment.yml`, README documentation, and project-control docs mentioning CI/developer setup.
-- Ran `./scripts/develop` (pass; pip upgrade lookup emitted repeated `Tunnel connection failed: 403 Forbidden` warnings against the configured package index, but the installed pip was already current enough and the constrained editable install succeeded with existing/cached tools).
+- Earlier run of `./scripts/develop` passed before review feedback, but emitted pip-upgrade proxy warnings; review follow-up removed the unconditional pip upgrade and did not rerun `./scripts/develop` per review-protocol guardrails for ordinary agent-task validation.
+- Checked for `scripts/version tools` (not available in this repository); verified expected tool versions directly with `python -m black --version` and `python -m ruff --version` before rerunning lint/format/test.
 - Ran `./scripts/lint` (pass).
 - Ran `./scripts/test` (pass).
 - Ran `./scripts/format --check --diff` (pass).
