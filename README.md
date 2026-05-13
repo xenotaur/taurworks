@@ -21,6 +21,7 @@ Both namespaces are expected to share a common configuration/discovery core.
 
 Status note: `taurworks project ...` now includes implemented read-only discovery/diagnostic commands (`where`, `list`) while additional project lifecycle commands remain planned. `taurworks dev ...` remains planned and is not implemented yet.
 Implementation note: `where`, `list`, `refresh`, and `create` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior.
+Design note: dogfooding showed that Taurworks must distinguish `project_root` (the directory containing `.taurworks/`) from `working_dir` (the default code/work directory, stored relative to `project_root`) before shell activation can be useful. The next phase is working-directory metadata and printed activation guidance, not full `taurworks dev ...`, automatic shell mutation, or multi-repo management.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 
@@ -48,6 +49,28 @@ taurworks project --help
 
 Breaking command removals/renames are intentionally deferred until a migration path is explicitly documented and implemented.
 
+
+## Planned working-directory metadata slice
+
+The next design-aligned project slice is a minimal `.taurworks/config.toml` model that records the default work directory separately from the project metadata root:
+
+```toml
+schema_version = 1
+
+[project]
+name = "ExampleProject"
+
+[paths]
+working_dir = "repo-or-work-dir"
+```
+
+Planned sequencing:
+
+1. `taurworks project working-dir show` and `taurworks project working-dir set [DIR]` read and write relative `paths.working_dir`.
+2. `taurworks project create PROJECT --working-dir DIR` writes the same metadata while continuing to reuse refresh/scaffold behavior.
+3. `taurworks project activate --print` uses configured `working_dir` to print safe, inspectable activation guidance.
+
+Absolute working-directory paths are deferred unless a later design explicitly accepts them. Actual shell mutation through `tw activate` or a shell wrapper remains a later slice.
 
 ## `taurworks project where`
 
