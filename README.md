@@ -21,7 +21,7 @@ Both namespaces are expected to share a common configuration/discovery core.
 
 Status note: `taurworks project ...` now includes implemented discovery, scaffold, working-directory metadata, and read-only guidance commands (`where`, `list`, `refresh`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` remains planned and is not implemented yet.
 Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, and `taurworks project create` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior.
-Design note: dogfooding showed that Taurworks must distinguish `project_root` (the directory containing `.taurworks/`) from `working_dir` (the default code/work directory, stored relative to `project_root`) before shell activation can be useful. This slice implements the metadata commands; later work will update `taurworks project activate --print` guidance to use configured `working_dir`. Full `taurworks dev ...`, automatic shell mutation, and multi-repo management remain out of scope.
+Design note: dogfooding showed that Taurworks must distinguish `project_root` (the directory containing `.taurworks/`) from `working_dir` (the default code/work directory, stored relative to `project_root`) before shell activation can be useful. `taurworks project activate --print` now uses configured `working_dir` metadata for inspectable guidance while still avoiding shell mutation. Full `taurworks dev ...`, automatic shell mutation, and multi-repo management remain out of scope.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 
@@ -83,7 +83,7 @@ Behavior:
 - absolute working-directory paths are rejected until a later design explicitly accepts them.
 - paths that escape `project_root` via `..` are rejected.
 
-Actual activation behavior will be updated in a later PR. Shell mutation through `tw activate` or a shell wrapper remains a later slice.
+`taurworks project activate [PATH_OR_NAME] --print` reads this metadata and prints activation guidance for the configured work directory. Shell mutation through `tw activate` or a shell wrapper remains a later slice.
 
 ## `taurworks project where`
 
@@ -186,13 +186,19 @@ Behavior:
 
 - with no argument, resolves from the current working directory
 - with an argument, resolves the path/name using the same shared project-resolution internals as other `project` lifecycle commands
-- prints read-only activation diagnostics and (when available) a manual command hint
+- reads `.taurworks/config.toml` and uses `[paths].working_dir` when it is configured
+- validates that configured `working_dir` metadata is relative and resolves safely inside `project_root`
+- prints `project_root`, configured `working_dir`, resolved absolute working-directory path, whether that path exists, and `shell_mutation: not performed`
+- prints an inspectable command such as `cd /absolute/path/to/working_dir` only as guidance; Taurworks does not execute it
+- reports a clear unconfigured diagnostic and suggests `taurworks project working-dir set [DIR]` when no `working_dir` is configured
+- reports a missing configured working-directory path clearly and does not pretend activation is complete
+- rejects invalid escaping or absolute `working_dir` config safely
 - does not source scripts
 - does not activate conda/virtualenv
 - does not change your parent shell state
 - does not write, refresh, create, or delete project files
 
-This slice is intentionally non-mutating. Actual shell mutation will require an explicit shell wrapper/function in a later slice. Inspect printed output before running any command manually.
+This slice is intentionally non-mutating. Actual shell mutation through `tw activate` or another explicit shell wrapper/function remains a later slice. Inspect printed output before running any command manually.
 
 ## Safety and shell-integration guardrails
 
