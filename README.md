@@ -2,6 +2,45 @@
 
 Taurworks is a command-line development framework for creating, switching to, and working in multiple development projects.
 
+## Developer setup
+
+Use the repository script as the canonical setup path for local development, CI,
+and Codex-style environments:
+
+```bash
+./scripts/develop
+```
+
+The script first checks whether the active environment already satisfies the
+minimum build backend prerequisites required by `pyproject.toml`, installs
+`setuptools>=64` and `wheel` only when needed, then performs the constrained
+editable install with the `dev` extra. It intentionally uses
+`--no-build-isolation` so setup can work in environments where build isolation
+cannot download `setuptools` through a network proxy. Formatter and linter
+versions are constrained in `constraints-dev.txt` instead of being hand-pinned
+in CI; backend packages are not exact-pinned there so sufficient conda/Codex
+bootstrap versions are not replaced unnecessarily.
+
+After setup, run the standard checks from the repository root:
+
+```bash
+./scripts/lint
+./scripts/test
+```
+
+Formatting uses Black through the thin formatter wrapper. To check formatting
+with a diff without rewriting files, run:
+
+```bash
+./scripts/format --check --diff
+```
+
+For Codex Cloud environment initialization, use `./scripts/develop` rather than
+`python -m pip install -e ".[test]"`. The `test` extra is retained as an empty
+compatibility extra because Taurworks tests currently use only the Python
+standard-library `unittest` runner; use the `dev` extra, via `./scripts/develop`,
+when formatter and linter tools are needed.
+
 ## Current command model (design-aligned)
 
 Taurworks currently standardizes on one primary executable:

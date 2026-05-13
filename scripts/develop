@@ -5,8 +5,23 @@ echo "Installing taurworks in constrained developer mode..."
 set -x
 
 # Use the active environment's existing pip so setup remains usable in
-# offline/proxy-restricted environments; exact developer-tool versions are
-# constrained below rather than reached through an unconditional pip upgrade.
+# offline/proxy-restricted environments. Because --no-build-isolation makes pip
+# import the configured build backend from this environment, only install the
+# minimum backend prerequisites when the active environment cannot already
+# satisfy pyproject.toml. Do not force exact backend pins here: conda/Codex
+# environments may already provide sufficient offline versions.
+if ! python - <<'PY'
+from importlib import metadata
+
+import setuptools.build_meta
+import wheel
+
+setuptools_major = int(metadata.version("setuptools").split(".", maxsplit=1)[0])
+raise SystemExit(0 if setuptools_major >= 64 else 1)
+PY
+then
+  python -m pip install --disable-pip-version-check "setuptools>=64" wheel
+fi
 python -m pip install --no-build-isolation -e ".[dev]" -c constraints-dev.txt
 python --version
 python -m pip --version
