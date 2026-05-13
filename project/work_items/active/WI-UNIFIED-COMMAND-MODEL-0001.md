@@ -28,3 +28,14 @@ Align `project/` control-plane documentation to a unified Taurworks command mode
 
 ## Follow-up implementation work
 Implementation remains future work and should proceed in small, reviewable phases after design alignment is agreed.
+
+## Current follow-up slice
+Dogfooding the implemented project command slice showed that Taurworks needs a richer project metadata model before activation can be useful. The next work should define `project_root` as the directory containing `.taurworks/` and `working_dir` as the default code/work directory stored relative to that root.
+
+Implementation should proceed in this order:
+
+1. `taurworks project working-dir show` and `taurworks project working-dir set [DIR]`.
+2. `taurworks project create PROJECT --working-dir DIR`, reusing refresh/scaffold behavior.
+3. `taurworks project activate --print` guidance based on configured `working_dir`.
+
+This follow-up remains narrower than full `taurworks dev ...`, automatic shell mutation, or multi-repo project management.

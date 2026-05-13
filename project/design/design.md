@@ -1,7 +1,7 @@
 # Design Overview
 
 ## Status note
-The `taurworks project ...` and `taurworks dev ...` namespaces described below are target design direction and are not yet fully implemented in the currently shipped CLI. Today, top-level commands such as `create`, `refresh`, `activate`, and `projects` remain the supported compatibility interface until migration is finalized.
+The `taurworks project ...` and `taurworks dev ...` namespaces described below are the target design direction and are not yet fully implemented. The current project command slice can create/refresh visible metadata, discover projects, and print read-only activation guidance; dogfooding showed the next design need is to separate `project_root` from `working_dir` before shell activation can be useful.
 
 ## Product model
 Taurworks uses one executable, `taurworks`, with two namespaces:
@@ -11,13 +11,34 @@ Taurworks uses one executable, `taurworks`, with two namespaces:
 
 These namespaces are conceptually separate, but should share core services for discovery, configuration loading, diagnostics, and path normalization.
 
+## Project root vs working directory
+`project_root` is the directory containing `.taurworks/`; it owns Taurworks metadata such as `.taurworks/config.toml`. `working_dir` is the default code/work directory used for day-to-day development and activation guidance. It should be stored in `.taurworks/config.toml` relative to `project_root` for portability.
+
+The minimal planned schema is:
+
+```toml
+schema_version = 1
+
+[project]
+name = "ExampleProject"
+
+[paths]
+working_dir = "repo-or-work-dir"
+```
+
+Absolute working-directory paths are deferred unless a later design explicitly accepts them, and empty legacy project names should be repaired by future implementation work.
+
 ## CLI namespace model
 
 ### Project namespace
 - `taurworks project init`
-- `taurworks project activate`
-- `taurworks project list`
+- `taurworks project create`
 - `taurworks project refresh`
+- `taurworks project where`
+- `taurworks project working-dir show`
+- `taurworks project working-dir set [DIR]`
+- `taurworks project activate --print`
+- `taurworks project list`
 
 ### Dev namespace
 - `taurworks dev init`
@@ -35,6 +56,13 @@ These namespaces are conceptually separate, but should share core services for d
 - `taurworks dev sandbox`
 - `taurworks dev version`
 - `taurworks dev validate`
+
+## Immediate design-aligned implementation sequence
+1. Implement `taurworks project working-dir show` and `taurworks project working-dir set [DIR]` for the config schema above.
+2. Extend `taurworks project create PROJECT --working-dir DIR` to write working-directory metadata while delegating shared scaffolding to refresh logic.
+3. Extend `taurworks project activate --print` to use configured `working_dir` when printing safe, inspectable activation guidance.
+
+Automatic shell mutation through `tw activate` or another shell wrapper remains a later slice. Full `taurworks dev ...` behavior and multi-repo project management are also deferred.
 
 ## Compatibility commands
 Existing top-level commands such as `create`, `refresh`, `activate`, and `projects` remain documented compatibility commands until a migration plan is finalized.
