@@ -253,11 +253,23 @@ class CliCommandTest(unittest.TestCase):
             )
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
-        self.assertIn(
-            f"resolved_project: {parent_project / 'child-project'}",
-            result.stdout,
+        resolved_project_prefix = "- resolved_project: "
+        resolved_project_lines = [
+            line
+            for line in result.stdout.splitlines()
+            if line.startswith(resolved_project_prefix)
+        ]
+        self.assertEqual(len(resolved_project_lines), 1, msg=failure_message)
+
+        resolved_project = pathlib.Path(
+            resolved_project_lines[0].removeprefix(resolved_project_prefix)
+        )
+        self.assertEqual(
+            (parent_project / "child-project").resolve(),
+            resolved_project.resolve(),
             msg=failure_message,
         )
+        self.assertEqual("child-project", resolved_project.name, msg=failure_message)
         self.assertIn("activation_command: none", result.stdout, msg=failure_message)
 
 
