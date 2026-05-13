@@ -17,8 +17,9 @@ Debugged the Codex Cloud bootstrap failure when the environment setup command wa
 - `scripts/develop` used `python -m pip install --no-build-isolation -e ".[dev]" -c constraints-dev.txt`, which made the editable install depend on `setuptools.build_meta` already being importable in the active Python environment.
 - Root cause: `scripts/develop` disabled build isolation for proxy-restricted environments before ensuring the active environment contained the declared build backend. In a Python 3.12 venv created without `setuptools`, the lower-level command reproduced the Codex failure with `pip._vendor.pyproject_hooks._impl.BackendUnavailable: Cannot import 'setuptools.build_meta'`.
 - Normal build isolation was not a reliable alternative in this Codex environment: `python -m pip install -e ".[dev]" -c constraints-dev.txt` failed while trying to fetch `setuptools>=64` through the configured proxy (`Tunnel connection failed: 403 Forbidden`).
-- Implemented the smallest fix that preserves `./scripts/develop` as the shared setup path: added constrained `setuptools` and `wheel` bootstrap entries, made `scripts/develop` install those backend prerequisites before the no-build-isolation editable install, retained `dev` as the formatter/linter developer extra, and added an empty `test` compatibility extra because tests currently use only standard-library `unittest`.
+- Implemented the smallest fix that preserves `./scripts/develop` as the shared setup path: made `scripts/develop` check whether the active environment can already import `setuptools.build_meta`, has `wheel`, and has `setuptools` major version 64 or newer before installing minimum backend prerequisites, retained `dev` as the formatter/linter developer extra, and added an empty `test` compatibility extra because tests currently use only standard-library `unittest`.
 - Updated `README.md` to document `./scripts/develop`, `./scripts/lint`, `./scripts/test`, `./scripts/format --check --diff`, and the recommended Codex Cloud setup command.
+- Addressed PR review feedback by removing exact `setuptools`/`wheel` pins from `constraints-dev.txt` and avoiding a forced backend reinstall when environment-provided versions such as `setuptools` 75.6.0 and `wheel` 0.45.1 already satisfy `pyproject.toml`.
 
 # Validation
 - Read `AGENTS.md`, `STYLE.md`, and `PROMPTS.md` before editing.
@@ -35,7 +36,15 @@ Debugged the Codex Cloud bootstrap failure when the environment setup command wa
 - Ran pre-change `python -m pip install --no-build-isolation -e ".[dev]" -c constraints-dev.txt` in the active environment (pass because `setuptools.build_meta` was already installed).
 - Ran `python -m pip install -e ".[dev]" -c constraints-dev.txt` (failed under build isolation while trying to fetch `setuptools>=64` through the proxy; this confirmed removing `--no-build-isolation` is not the best fix in this environment).
 - Created a temporary Python 3.12 venv with `python -m venv --without-pip`, bootstrapped pip with `ensurepip`, confirmed `setuptools` and `setuptools.build_meta` imports failed, then ran `/tmp/taurworks-nobuildbackend/bin/python -m pip install --no-build-isolation -e ".[dev]" -c constraints-dev.txt` (reproduced `BackendUnavailable: Cannot import 'setuptools.build_meta'`).
-- After the fix, ran `PATH=/tmp/taurworks-bootstrap-test/bin:$PATH ./scripts/develop` in a temporary venv with pip but no setuptools (failed at the new bootstrap step because the Codex proxy blocked package-index access; this is an external environment limitation for a fresh environment without cached/preinstalled backend wheels, not the original repo-side backend import failure).
+- After the initial fix, ran `PATH=/tmp/taurworks-bootstrap-test/bin:$PATH ./scripts/develop` in a temporary venv with pip but no setuptools (failed at the new bootstrap step because the Codex proxy blocked package-index access; this is an external environment limitation for a fresh environment without cached/preinstalled backend wheels, not the original repo-side backend import failure).
+- During PR review follow-up, verified the review issue was still present and valid: exact backend pins would force replacement of sufficient environment-provided backend versions. Updated `scripts/develop` to skip backend installation when the active environment already satisfies the minimum requirements, and removed backend pins from `constraints-dev.txt`.
+- Review follow-up attempted `scripts/version tools` first, but the repository has no `scripts/version` entrypoint. Verified tool versions directly with `python -m black --version` (26.3.1) and `python -m ruff --version` (0.15.12).
+- Ran `bash -n scripts/develop scripts/lint scripts/format scripts/test` (pass).
+- Ran the new backend-check Python snippet from `scripts/develop` in the active environment (pass: `setuptools` 82.0.1 and `wheel` 0.47.0 were already sufficient, so the script would skip backend installation).
+- Ran review follow-up `scripts/format --check --diff` (pass).
+- Ran review follow-up `scripts/lint` (pass).
+- Ran review follow-up `scripts/test` (pass; 47 tests).
+- Ran review follow-up `git diff --check` (pass).
 - Ran `python -m pip install --no-build-isolation -e ".[test]" -c constraints-dev.txt` (pass; confirms the compatibility `test` extra is now valid under the no-build-isolation path).
 - Ran final `./scripts/develop` (pass in the active Codex environment with constrained backend prerequisites present).
 - Ran final `./scripts/lint` (pass).
@@ -45,6 +54,6 @@ Debugged the Codex Cloud bootstrap failure when the environment setup command wa
 
 # Follow-up
 - Recommended Codex Cloud environment setup after this PR: `./scripts/develop`.
-- If Codex Cloud starts from a Python environment that has pip but lacks `setuptools` and `wheel`, the new script will try to install the constrained backend prerequisites first. That still requires either package-index access or a preinstalled/cacheable copy of the constrained packages; the current session's proxy returned 403 for fresh downloads.
+- If Codex Cloud starts from a Python environment that has pip but lacks `setuptools>=64` and `wheel`, the new script will try to install those minimum backend prerequisites first. That still requires either package-index access or a preinstalled/cacheable copy of the backend packages; the current session's proxy returned 403 for fresh downloads. Environments that already provide sufficient backend versions are no longer forced to replace them.
 - Keep using `./scripts/develop`, `./scripts/lint`, and `./scripts/test` in CI/local/Codex setup rather than ad-hoc pinned Black/Ruff installs.
 - Add or restore `scripts/prompts/check-execution`, `scripts/prompts/record-execution`, and `project/executions/README.md` if the prompt workflow is expected to be fully tool-driven in this repository state.

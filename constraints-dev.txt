@@ -1,12 +1,4 @@
-# Canonical constraints for Taurworks developer setup.
-#
-# Build backend prerequisites are listed here because ./scripts/develop uses
-# --no-build-isolation for proxy-restricted Codex-style environments. They must
-# be importable in the active environment before pip can perform the editable
-# install declared by pyproject.toml.
-setuptools==82.0.1
-wheel==0.47.0
-
+# Canonical constraints for Taurworks developer tooling.
 # Keep formatter/linter pins here so local setup, CI, and Codex-style
 # environments resolve the same tool versions through ./scripts/develop.
 black==26.3.1
