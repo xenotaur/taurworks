@@ -32,6 +32,7 @@ class CliCommandTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("where", result.stdout, msg=failure_message)
         self.assertIn("list", result.stdout, msg=failure_message)
+        self.assertIn("working-dir", result.stdout, msg=failure_message)
         self.assertIn("read-only", result.stdout, msg=failure_message)
 
     def test_project_where_help_mentions_read_only_behavior(self):
@@ -168,6 +169,187 @@ class CliCommandTest(unittest.TestCase):
         self.assertIn(
             "warnings present; review skipped items", result.stdout, msg=failure_message
         )
+
+    def test_project_working_dir_show_reports_unconfigured_state(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "project-a"
+            (project_dir / ".taurworks").mkdir(parents=True)
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "project-a"\n',
+                encoding="utf-8",
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "working-dir",
+                "show",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn(
+            "working_dir_configured: False", result.stdout, msg=failure_message
+        )
+        self.assertIn(
+            "No working_dir is configured", result.stdout, msg=failure_message
+        )
+        self.assertEqual("", result.stderr, msg=failure_message)
+
+    def test_project_working_dir_set_writes_relative_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "project-a"
+            repo_dir = project_dir / "repo"
+            repo_dir.mkdir(parents=True)
+            (project_dir / ".taurworks").mkdir()
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "project-a"\n',
+                encoding="utf-8",
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "working-dir",
+                "set",
+                "repo",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            config_text = (project_dir / ".taurworks" / "config.toml").read_text(
+                encoding="utf-8"
+            )
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("working_dir: repo", result.stdout, msg=failure_message)
+        self.assertIn('[paths]\nworking_dir = "repo"', config_text)
+
+    def test_project_working_dir_set_without_argument_uses_current_directory(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "project-a"
+            repo_dir = project_dir / "repo"
+            repo_dir.mkdir(parents=True)
+            (project_dir / ".taurworks").mkdir()
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                '[project]\nname = ""\n',
+                encoding="utf-8",
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "working-dir",
+                "set",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            config_text = (project_dir / ".taurworks" / "config.toml").read_text(
+                encoding="utf-8"
+            )
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("working_dir: repo", result.stdout, msg=failure_message)
+        self.assertIn(
+            "project.name set to project-a", result.stdout, msg=failure_message
+        )
+        self.assertIn("schema_version = 1", config_text)
+        self.assertIn('name = "project-a"', config_text)
+        self.assertIn('working_dir = "repo"', config_text)
+
+    def test_project_working_dir_set_rejects_absolute_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "project-a"
+            repo_dir = project_dir / "repo"
+            repo_dir.mkdir(parents=True)
+            (project_dir / ".taurworks").mkdir()
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "project-a"\n',
+                encoding="utf-8",
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "working-dir",
+                "set",
+                str(repo_dir),
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("absolute paths are not supported", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_project_working_dir_set_rejects_escape_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "project-a"
+            project_dir.mkdir()
+            outside_dir = root_path / "outside"
+            outside_dir.mkdir()
+            (project_dir / ".taurworks").mkdir()
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "project-a"\n',
+                encoding="utf-8",
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "working-dir",
+                "set",
+                "../outside",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("may not escape", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
 
     def test_project_activate_print_reports_read_only_guidance(self):
         with tempfile.TemporaryDirectory() as temp_dir:

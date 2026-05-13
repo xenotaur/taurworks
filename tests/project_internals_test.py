@@ -30,11 +30,14 @@ class ProjectInternalsTest(unittest.TestCase):
             config_path = metadata_dir / "config.toml"
             config_path.write_text('[project]\nname = "existing"\n', encoding="utf-8")
             diagnostics = project_internals.scaffold_project_metadata(project_dir)
-            self.assertFalse(diagnostics["changed"])
+            self.assertTrue(diagnostics["changed"])
             self.assertIn(
-                f"config file retained without changes: {config_path}",
-                diagnostics["skipped"],
+                f"config repaired: {config_path}",
+                diagnostics["updated"],
             )
+            config = project_internals.read_project_config(project_dir)
+            self.assertEqual(1, config["schema_version"])
+            self.assertEqual("existing", config["project"]["name"])
 
     def test_scaffold_project_metadata_warns_for_symlinked_metadata_dir(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -70,6 +73,47 @@ class ProjectInternalsTest(unittest.TestCase):
                 f"config path is a symlink and is not modified for safety: {config_symlink}",
                 diagnostics["warnings"],
             )
+
+    def test_scaffold_project_metadata_writes_minimal_schema(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "SchemaProject"
+            diagnostics = project_internals.scaffold_project_metadata(project_dir)
+            self.assertTrue(diagnostics["changed"])
+            config = project_internals.read_project_config(project_dir)
+            self.assertEqual(1, config["schema_version"])
+            self.assertEqual("SchemaProject", config["project"]["name"])
+            self.assertNotIn("paths", config)
+
+    def test_scaffold_project_metadata_repairs_empty_project_name(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "RepairedProject"
+            metadata_dir = project_dir / ".taurworks"
+            metadata_dir.mkdir(parents=True)
+            config_path = metadata_dir / "config.toml"
+            config_path.write_text(
+                'schema_version = 1\n\n[project]\nname = ""\n',
+                encoding="utf-8",
+            )
+            diagnostics = project_internals.scaffold_project_metadata(project_dir)
+            self.assertTrue(diagnostics["changed"])
+            config = project_internals.read_project_config(project_dir)
+            self.assertEqual("RepairedProject", config["project"]["name"])
+
+    def test_relative_working_dir_rejects_absolute_paths(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            project_dir.mkdir()
+            with self.assertRaises(project_internals.ProjectConfigError):
+                project_internals.relative_working_dir(
+                    project_dir, project_dir, str(project_dir)
+                )
+
+    def test_relative_working_dir_rejects_paths_outside_project_root(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            project_dir.mkdir()
+            with self.assertRaises(project_internals.ProjectConfigError):
+                project_internals.relative_working_dir(project_dir, project_dir, "..")
 
 
 if __name__ == "__main__":

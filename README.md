@@ -19,9 +19,9 @@ Both namespaces are expected to share a common configuration/discovery core.
 
 ### Implementation status and compatibility
 
-Status note: `taurworks project ...` now includes implemented discovery, scaffold, and read-only guidance commands (`where`, `list`, `refresh`, `create`, and `activate --print`) while working-directory metadata commands remain planned. `taurworks dev ...` remains planned and is not implemented yet.
+Status note: `taurworks project ...` now includes implemented discovery, scaffold, working-directory metadata, and read-only guidance commands (`where`, `list`, `refresh`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` remains planned and is not implemented yet.
 Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, and `taurworks project create` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior.
-Design note: dogfooding showed that Taurworks must distinguish `project_root` (the directory containing `.taurworks/`) from `working_dir` (the default code/work directory, stored relative to `project_root`) before shell activation can be useful. The next phase is working-directory metadata and `taurworks project activate --print` guidance based on configured `working_dir`, not full `taurworks dev ...`, automatic shell mutation, or multi-repo management.
+Design note: dogfooding showed that Taurworks must distinguish `project_root` (the directory containing `.taurworks/`) from `working_dir` (the default code/work directory, stored relative to `project_root`) before shell activation can be useful. This slice implements the metadata commands; later work will update `taurworks project activate --print` guidance to use configured `working_dir`. Full `taurworks dev ...`, automatic shell mutation, and multi-repo management remain out of scope.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 
@@ -35,6 +35,8 @@ The scaffolded `project` namespace currently includes implemented discovery and 
 - `taurworks project where` (implemented, read-only diagnostics)
 - `taurworks project list` (implemented, read-only discovery listing)
 - `taurworks project refresh [PATH_OR_NAME]` (implemented, safe idempotent metadata scaffolding repair)
+- `taurworks project working-dir show` (implemented, project working-directory metadata display)
+- `taurworks project working-dir set [DIR]` (implemented, safe project working-directory metadata update)
 - `taurworks project create [PATH_OR_NAME]` (implemented, safe idempotent create wrapper around refresh)
 - `taurworks project activate [PATH_OR_NAME] --print` (implemented, read-only activation guidance output)
 
@@ -50,9 +52,9 @@ taurworks project --help
 Breaking command removals/renames are intentionally deferred until a migration path is explicitly documented and implemented.
 
 
-## Planned working-directory metadata slice
+## Working-directory metadata
 
-The next design-aligned project slice is a minimal `.taurworks/config.toml` model that records the default work directory separately from the project metadata root:
+Taurworks now supports a minimal `.taurworks/config.toml` model that records the default work directory separately from the project metadata root:
 
 ```toml
 schema_version = 1
@@ -64,13 +66,24 @@ name = "ExampleProject"
 working_dir = "repo-or-work-dir"
 ```
 
-Planned sequencing:
+`project_root` is the directory containing `.taurworks/`. `working_dir` is the default code/work directory used for day-to-day development and is stored relative to `project_root` for portability.
 
-1. `taurworks project working-dir show` and `taurworks project working-dir set [DIR]` read and write relative `paths.working_dir`.
-2. `taurworks project create PROJECT --working-dir DIR` writes the same metadata while continuing to reuse refresh/scaffold behavior.
-3. `taurworks project activate --print` uses configured `working_dir` to print safe, inspectable activation guidance.
+Use these commands from inside a Taurworks project:
 
-Absolute working-directory paths are deferred unless a later design explicitly accepts them. Actual shell mutation through `tw activate` or a shell wrapper remains a later slice.
+```bash
+taurworks project working-dir show
+taurworks project working-dir set [DIR]
+```
+
+Behavior:
+
+- `show` prints the configured relative working directory or a clear unconfigured message.
+- `set DIR` resolves `DIR` from the current directory, requires it to be an existing directory inside `project_root`, and stores it relative to `project_root`.
+- `set` with no `DIR` stores the current directory relative to `project_root`.
+- absolute working-directory paths are rejected until a later design explicitly accepts them.
+- paths that escape `project_root` via `..` are rejected.
+
+Actual activation behavior will be updated in a later PR. Shell mutation through `tw activate` or a shell wrapper remains a later slice.
 
 ## `taurworks project where`
 
@@ -128,7 +141,9 @@ Behavior:
 - with an argument, treats it as a path (or path-like name) rooted in the current directory when not already existing
 - if the target directory does not exist, creates it so Taurworks metadata can be scaffolded there
 - creates only missing Taurworks-owned scaffolding within the target (`.taurworks/` and `.taurworks/config.toml`)
-- never overwrites existing files
+- writes new configs with `schema_version = 1`, `[project].name` defaulting to the project-root directory name, and no `[paths].working_dir` until configured
+- repairs legacy empty project names and missing schema versions when the config can be safely parsed and updated
+- never overwrites unrelated config keys
 - prints a truth-first summary of found, missing, created, skipped, and warnings
 
 This command is intentionally safe and idempotent: repeated runs should report no changes needed once minimal scaffolding exists.

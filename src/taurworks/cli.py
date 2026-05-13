@@ -22,6 +22,25 @@ def _handle_project_command(args):
         )
         print(project_resolution.format_project_refresh_output(diagnostics))
         return
+    if args.project_command == "working-dir":
+        if args.working_dir_command == "show":
+            diagnostics = (
+                project_resolution.gather_project_working_dir_show_diagnostics()
+            )
+            print(
+                project_resolution.format_project_working_dir_show_output(diagnostics)
+            )
+            if not diagnostics["ok"]:
+                raise SystemExit(1)
+            return
+        if args.working_dir_command == "set":
+            diagnostics = project_resolution.gather_project_working_dir_set_diagnostics(
+                args.dir
+            )
+            print(project_resolution.format_project_working_dir_set_output(diagnostics))
+            if not diagnostics["ok"]:
+                raise SystemExit(1)
+            return
     if args.project_command == "create":
         diagnostics = project_resolution.gather_project_create_diagnostics(
             args.path_or_name
@@ -153,6 +172,46 @@ def main():
         ),
     )
     parser_project_refresh.set_defaults(project_parser=parser_project)
+
+    parser_project_working_dir = project_subparsers.add_parser(
+        "working-dir",
+        help="Show or set the project default working directory metadata.",
+        description=(
+            "Read or update project-local paths.working_dir metadata. The "
+            "working directory is stored relative to the project root."
+        ),
+    )
+    working_dir_subparsers = parser_project_working_dir.add_subparsers(
+        dest="working_dir_command",
+        required=True,
+    )
+
+    parser_project_working_dir_show = working_dir_subparsers.add_parser(
+        "show",
+        help="Show the configured project working directory.",
+        description=(
+            "Resolve the current Taurworks project root and show configured "
+            "paths.working_dir metadata when present."
+        ),
+    )
+    parser_project_working_dir_show.set_defaults(project_parser=parser_project)
+
+    parser_project_working_dir_set = working_dir_subparsers.add_parser(
+        "set",
+        help="Set the configured project working directory.",
+        description=(
+            "Set paths.working_dir to an existing directory inside the project "
+            "root. DIR is resolved from the current directory and stored "
+            "relative to the project root. When DIR is omitted, the current "
+            "directory is used."
+        ),
+    )
+    parser_project_working_dir_set.add_argument(
+        "dir",
+        nargs="?",
+        help="Optional existing directory to store relative to the project root.",
+    )
+    parser_project_working_dir_set.set_defaults(project_parser=parser_project)
 
     parser_project_create = project_subparsers.add_parser(
         "create",
