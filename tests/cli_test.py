@@ -621,13 +621,20 @@ class CliCommandTest(unittest.TestCase):
         self.assertNotIn("Traceback", result.stderr)
         self.assertEqual(original_config, config_text)
 
-    def test_project_activate_print_reports_read_only_guidance(self):
+    def test_project_activate_print_reports_configured_working_dir_guidance(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_path = pathlib.Path(temp_dir)
             target_dir = root_path / "project-a"
-            (target_dir / ".taurworks").mkdir(parents=True)
+            repo_dir = target_dir / "repo"
+            repo_dir.mkdir(parents=True)
+            (target_dir / ".taurworks").mkdir()
             (target_dir / ".taurworks" / "config.toml").write_text(
-                '[project]\nname = "project-a"\n', encoding="utf-8"
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "project-a"\n\n'
+                    '[paths]\nworking_dir = "repo"\n'
+                ),
+                encoding="utf-8",
             )
             files_before = sorted(
                 str(path.relative_to(root_path)) for path in root_path.rglob("*")
@@ -658,11 +665,162 @@ class CliCommandTest(unittest.TestCase):
         self.assertIn(
             "activation guidance (read-only)", result.stdout, msg=failure_message
         )
+        self.assertIn(f"project_root: {target_dir}", result.stdout, msg=failure_message)
+        self.assertIn(
+            "working_dir_configured: True", result.stdout, msg=failure_message
+        )
+        self.assertIn("working_dir: repo", result.stdout, msg=failure_message)
+        self.assertIn(
+            f"resolved_working_dir: {repo_dir}", result.stdout, msg=failure_message
+        )
+        self.assertIn("working_dir_exists: True", result.stdout, msg=failure_message)
+        self.assertIn(
+            f"activation_command: cd {repo_dir}", result.stdout, msg=failure_message
+        )
         self.assertIn(
             "shell_mutation: not performed", result.stdout, msg=failure_message
         )
-        self.assertIn("activation_command:", result.stdout, msg=failure_message)
+        self.assertIn("was not executed", result.stdout, msg=failure_message)
         self.assertEqual(files_before, files_after, msg=failure_message)
+
+    def test_project_activate_print_reports_unconfigured_working_dir_guidance(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "project-a"
+            (target_dir / ".taurworks").mkdir(parents=True)
+            (target_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "project-a"\n',
+                encoding="utf-8",
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "activate",
+                str(target_dir),
+                "--print",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn(
+            "working_dir_configured: False", result.stdout, msg=failure_message
+        )
+        self.assertIn("working_dir: none", result.stdout, msg=failure_message)
+        self.assertIn("activation_command: none", result.stdout, msg=failure_message)
+        self.assertIn(
+            "taurworks project working-dir set [DIR]",
+            result.stdout,
+            msg=failure_message,
+        )
+        self.assertIn(
+            "shell_mutation: not performed", result.stdout, msg=failure_message
+        )
+
+    def test_project_activate_print_reports_missing_working_dir(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "project-a"
+            missing_dir = target_dir / "missing-repo"
+            (target_dir / ".taurworks").mkdir(parents=True)
+            (target_dir / ".taurworks" / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "project-a"\n\n'
+                    '[paths]\nworking_dir = "missing-repo"\n'
+                ),
+                encoding="utf-8",
+            )
+            files_before = sorted(
+                str(path.relative_to(root_path)) for path in root_path.rglob("*")
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "activate",
+                str(target_dir),
+                "--print",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            files_after = sorted(
+                str(path.relative_to(root_path)) for path in root_path.rglob("*")
+            )
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("working_dir: missing-repo", result.stdout, msg=failure_message)
+        self.assertIn(
+            f"resolved_working_dir: {missing_dir}", result.stdout, msg=failure_message
+        )
+        self.assertIn("working_dir_exists: False", result.stdout, msg=failure_message)
+        self.assertIn(
+            f"activation_command: cd {missing_dir}", result.stdout, msg=failure_message
+        )
+        self.assertIn("directory does not exist", result.stdout, msg=failure_message)
+        self.assertFalse(missing_dir.exists(), msg=failure_message)
+        self.assertEqual(files_before, files_after, msg=failure_message)
+
+    def test_project_activate_print_rejects_escaping_working_dir_config(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "project-a"
+            (target_dir / ".taurworks").mkdir(parents=True)
+            (target_dir / ".taurworks" / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "project-a"\n\n'
+                    '[paths]\nworking_dir = "../outside"\n'
+                ),
+                encoding="utf-8",
+            )
+            original_config = (target_dir / ".taurworks" / "config.toml").read_text(
+                encoding="utf-8"
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "activate",
+                str(target_dir),
+                "--print",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            current_config = (target_dir / ".taurworks" / "config.toml").read_text(
+                encoding="utf-8"
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("working_dir is invalid", result.stdout)
+        self.assertIn("may not escape", result.stdout)
+        self.assertIn("shell_mutation: not performed", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(original_config, current_config)
 
     def test_project_activate_requires_print_flag(self):
         cmd = [sys.executable, "-m", "taurworks.cli", "project", "activate"]
@@ -705,23 +863,23 @@ class CliCommandTest(unittest.TestCase):
             )
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
-        resolved_project_prefix = "- resolved_project: "
-        resolved_project_lines = [
+        project_root_prefix = "- project_root: "
+        project_root_lines = [
             line
             for line in result.stdout.splitlines()
-            if line.startswith(resolved_project_prefix)
+            if line.startswith(project_root_prefix)
         ]
-        self.assertEqual(len(resolved_project_lines), 1, msg=failure_message)
+        self.assertEqual(len(project_root_lines), 1, msg=failure_message)
 
-        resolved_project = pathlib.Path(
-            resolved_project_lines[0].removeprefix(resolved_project_prefix)
+        project_root = pathlib.Path(
+            project_root_lines[0].removeprefix(project_root_prefix)
         )
         self.assertEqual(
             (parent_project / "child-project").resolve(),
-            resolved_project.resolve(),
+            project_root.resolve(),
             msg=failure_message,
         )
-        self.assertEqual("child-project", resolved_project.name, msg=failure_message)
+        self.assertEqual("child-project", project_root.name, msg=failure_message)
         self.assertIn("activation_command: none", result.stdout, msg=failure_message)
 
 

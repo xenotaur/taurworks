@@ -46,7 +46,7 @@ Current path rules for the working-directory metadata slice:
 - `taurworks project working-dir show` displays the configured relative `paths.working_dir` or a clear unconfigured message.
 - `taurworks project working-dir set [DIR]` stores an existing directory inside `project_root` as a relative path. If `DIR` is omitted, it uses the current directory relative to `project_root`.
 - `taurworks project create PROJECT --working-dir DIR` ensures the project root exists, delegates Taurworks-owned scaffolding to `project refresh`, validates that `DIR` is relative and remains inside `project_root`, and records `paths.working_dir` as a relative path without creating that work directory.
-- `taurworks project activate --print` still treats activation behavior as a later integration point; actual activation guidance has not yet been changed to use `working_dir`.
+- `taurworks project activate --print` reads configured `paths.working_dir`, validates that it is relative and resolves inside `project_root`, prints the absolute target path and a manual `cd` guidance command, and still performs no shell mutation.
 
 ## Repo-local workflow configuration
 Use `taurdev.toml` as the primary repo-local workflow configuration surface.

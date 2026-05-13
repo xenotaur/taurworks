@@ -1,4 +1,5 @@
 import pathlib
+import shlex
 import tomllib
 
 from taurworks import project_internals
@@ -407,39 +408,84 @@ def gather_project_activate_print_diagnostics(
     """Collect read-only activation-print diagnostics for a resolved project."""
     cwd = pathlib.Path.cwd().resolve()
     target = project_internals.resolve_project_target(path_or_name, cwd)
-    resolved_project = target
-    project_root = None
+    project_root = target
     if path_or_name is None:
-        project_root = project_internals.find_project_root_candidate(target)
-        if project_root is not None:
-            resolved_project = project_root
+        project_root_candidate = project_internals.find_project_root_candidate(target)
+        if project_root_candidate is not None:
+            project_root = project_root_candidate
 
-    config_path = resolved_project / ".taurworks" / "config.toml"
+    config_path = project_internals.project_config_path(project_root)
     config_exists = config_path.is_file()
-
-    if config_exists:
-        activation_command = (
-            f'cd "{resolved_project}"'
-            "  # then run your environment activation command manually"
-        )
-        guidance = (
-            "Activation hint: project metadata exists. Taurworks only prints guidance "
-            "in this slice and does not activate shells automatically."
-        )
-    else:
-        activation_command = ""
-        guidance = "No activation target is currently configured for this project."
-
-    return {
+    base_diagnostics: dict[str, str | bool] = {
+        "ok": True,
         "cwd": str(cwd),
         "input": path_or_name or "(current working directory)",
-        "resolved_project": str(resolved_project),
-        "project_metadata_found": project_root is not None,
+        "project_root": str(project_root),
+        "config_path": str(config_path),
+        "project_metadata_found": (project_root / ".taurworks").is_dir(),
         "activation_config_exists": config_exists,
-        "activation_command": activation_command,
-        "guidance": guidance,
+        "working_dir_configured": False,
+        "working_dir": "none",
+        "resolved_working_dir": "none",
+        "working_dir_exists": False,
+        "activation_command": "none",
+        "guidance": "",
         "read_only": True,
     }
+
+    if not config_exists:
+        base_diagnostics["guidance"] = (
+            "No project config was found. Run `taurworks project refresh` or "
+            "`taurworks project create` before configuring a working directory."
+        )
+        return base_diagnostics
+
+    try:
+        config = project_internals.read_project_config(project_root)
+        working_dir = project_internals.working_dir_from_config(config)
+        if working_dir is None:
+            base_diagnostics["guidance"] = (
+                "No working_dir is configured for this project. Run "
+                "`taurworks project working-dir set [DIR]` to configure activation guidance."
+            )
+            return base_diagnostics
+
+        (
+            relative_working_dir,
+            resolved_working_dir,
+            working_dir_exists,
+        ) = project_internals.resolve_configured_working_dir(project_root, working_dir)
+    except (
+        project_internals.ProjectConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+    ) as error:
+        base_diagnostics["ok"] = False
+        base_diagnostics["guidance"] = (
+            "Configured working_dir is invalid or could not be read safely: "
+            f"{error}. Run `taurworks project working-dir set [DIR]` "
+            "from inside the project to replace it."
+        )
+        return base_diagnostics
+
+    base_diagnostics["working_dir_configured"] = True
+    base_diagnostics["working_dir"] = relative_working_dir.as_posix()
+    base_diagnostics["resolved_working_dir"] = str(resolved_working_dir)
+    base_diagnostics["working_dir_exists"] = working_dir_exists
+    base_diagnostics["activation_command"] = (
+        f"cd {shlex.quote(str(resolved_working_dir))}"
+    )
+    if working_dir_exists:
+        base_diagnostics["guidance"] = (
+            "Activation guidance is ready. Inspect the command below and run it "
+            "manually if you want to change your shell directory."
+        )
+    else:
+        base_diagnostics["guidance"] = (
+            "Configured working_dir resolves safely inside the project, but the "
+            "directory does not exist. Create it before treating activation as complete."
+        )
+    return base_diagnostics
 
 
 def format_project_activate_print_output(
@@ -450,20 +496,20 @@ def format_project_activate_print_output(
         "Taurworks project activation guidance (read-only)",
         f"- cwd: {diagnostics['cwd']}",
         f"- input: {diagnostics['input']}",
-        f"- resolved_project: {diagnostics['resolved_project']}",
+        f"- project_root: {diagnostics['project_root']}",
+        f"- config_path: {diagnostics['config_path']}",
         f"- project_metadata_found: {diagnostics['project_metadata_found']}",
         f"- activation_config_exists: {diagnostics['activation_config_exists']}",
+        f"- working_dir_configured: {diagnostics['working_dir_configured']}",
+        f"- working_dir: {diagnostics['working_dir']}",
+        f"- resolved_working_dir: {diagnostics['resolved_working_dir']}",
+        f"- working_dir_exists: {diagnostics['working_dir_exists']}",
+        f"- activation_command: {diagnostics['activation_command']}",
+        "- shell_mutation: not performed",
         f"- guidance: {diagnostics['guidance']}",
+        "- note: activation_command is printed for inspection only and was not executed",
+        "- note: real shell mutation will require an explicit shell wrapper/function in a later slice",
     ]
-    if diagnostics["activation_command"]:
-        lines.append(f"- activation_command: {diagnostics['activation_command']}")
-    else:
-        lines.append("- activation_command: none")
-
-    lines.append("- shell_mutation: not performed")
-    lines.append(
-        "- note: real shell mutation will require an explicit shell wrapper/function in a later slice"
-    )
     return "\n".join(lines)
 
 

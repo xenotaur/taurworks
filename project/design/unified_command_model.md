@@ -61,11 +61,11 @@ These aliases are opt-in and user-controlled.
 - `taurworks dev validate`
 
 ## Next project implementation sequence
-The next phase is the minimal metadata model needed to distinguish the Taurworks project root from the default activation/work target. It is intentionally not more package-layout work, not full `taurworks dev ...`, not automatic shell mutation, and not multi-repo project management.
+The current phase is the minimal metadata model needed to distinguish the Taurworks project root from the default activation/work target. It is intentionally not more package-layout work, not full `taurworks dev ...`, not automatic shell mutation, and not multi-repo project management.
 
 1. Add `taurworks project working-dir show` and `taurworks project working-dir set [DIR]` as the first implementation slice for reading and writing `paths.working_dir` in `.taurworks/config.toml`.
 2. Extend `taurworks project create PROJECT --working-dir DIR` so creation writes working-directory metadata while reusing the existing refresh/scaffold path instead of duplicating refresh logic.
-3. Update `taurworks project activate --print` so it uses the configured `working_dir` to print safe, inspectable activation guidance for the intended work directory.
+3. Teach `taurworks project activate --print` to use configured `working_dir` metadata for safe, inspectable activation guidance for the intended work directory.
 4. Leave actual parent-shell mutation through `tw activate`, shell functions, or wrappers for a later explicitly designed slice.
 
 ## Compatibility and migration notes

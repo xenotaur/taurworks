@@ -295,6 +295,18 @@ def relative_working_dir_metadata(
     return relative_path, target_path.is_dir()
 
 
+def resolve_configured_working_dir(
+    project_root: pathlib.Path,
+    working_dir: str,
+) -> tuple[pathlib.Path, pathlib.Path, bool]:
+    """Validate configured working-dir metadata and resolve it under project root."""
+    relative_path, working_dir_exists = relative_working_dir_metadata(
+        project_root, working_dir
+    )
+    resolved_working_dir = (project_root.resolve() / relative_path).resolve()
+    return relative_path, resolved_working_dir, working_dir_exists
+
+
 def set_working_dir_metadata(
     project_root: pathlib.Path,
     user_path: str,

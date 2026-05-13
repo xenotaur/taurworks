@@ -54,6 +54,8 @@ def _handle_project_command(args):
             args.path_or_name
         )
         print(project_resolution.format_project_activate_print_output(diagnostics))
+        if not diagnostics["ok"]:
+            raise SystemExit(1)
         return
 
     args.project_parser.print_help()
