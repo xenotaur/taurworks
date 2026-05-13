@@ -1,13 +1,12 @@
 #!/bin/bash
-echo "Installing taurworks in develop mode..."
+set -euo pipefail
+
+echo "Installing taurworks in constrained developer mode..."
 set -x
 
-python -m pip install --no-build-isolation -e .
-EXIT_CODE=$?
-
-# Turn off logging and print a blank line
-{ set +x; } 2>/dev/null
-echo
-
-# If the command failed, exit with the exit code
-exit $EXIT_CODE
+python -m pip install --upgrade pip
+python -m pip install --no-build-isolation -e ".[dev]" -c constraints-dev.txt
+python --version
+python -m pip --version
+python -m black --version
+python -m ruff --version

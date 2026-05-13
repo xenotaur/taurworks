@@ -3,4 +3,4 @@ set -euo pipefail
 
 echo "Running formatter..."
 set -x
-PYTHONPATH=src python -m black src tests
+PYTHONPATH=src python -m black "$@" src tests

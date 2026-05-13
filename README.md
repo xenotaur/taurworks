@@ -228,11 +228,13 @@ See `project/roadmap/roadmap.md` and `project/design/unified_command_model.md` f
 
 ## Python package development
 
-For Python package and CLI development, install Taurworks in editable mode from the repository root:
+For Python package and CLI development, use the repository's constrained developer setup from the repository root:
 
 ```bash
-python -m pip install -e .
+./scripts/develop
 ```
+
+That script installs Taurworks in editable mode with the `dev` extra and applies `constraints-dev.txt`, which is the canonical source of truth for exact developer-tool versions such as Black and Ruff. GitHub Actions intentionally uses the same setup path so local development, CI, and Codex-style environments resolve the same tooling.
 
 Then validate the package import and CLI entry point:
 
@@ -254,10 +256,12 @@ The repository still contains historical shell utilities under `bin/` and `sourc
 Use the repository scripts as CI entry points:
 
 ```bash
+./scripts/develop
 ./scripts/format
+./scripts/format --check --diff
 ./scripts/lint
 ./scripts/test
 ./scripts/smoke
 ```
 
-These same commands are used by GitHub Actions in `.github/workflows/python-ci.yml`.
+GitHub Actions uses the same constrained setup path and quality-script entry points in `.github/workflows/python-ci.yml`. Codex Cloud agents should also start with `./scripts/develop` and should avoid ad-hoc commands such as `pip install black==... ruff==...`; exact developer-tool pins belong in `constraints-dev.txt`.
