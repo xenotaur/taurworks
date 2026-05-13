@@ -1,9 +1,11 @@
 import os
 import pathlib
+import re
 import tomllib
 from typing import Any
 
 PROJECT_SCHEMA_VERSION = 1
+BARE_TOML_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 class ProjectConfigError(ValueError):
@@ -107,10 +109,18 @@ def _toml_scalar(value: Any) -> str:
     )
 
 
+def _validate_bare_toml_key(key: str) -> None:
+    if not isinstance(key, str) or not BARE_TOML_KEY_PATTERN.fullmatch(key):
+        raise ProjectConfigError(
+            f"unsupported TOML key for safe writer: {key!r}; only bare keys are supported"
+        )
+
+
 def _toml_lines(config: dict[str, Any]) -> list[str]:
     scalar_items: list[tuple[str, Any]] = []
     table_items: list[tuple[str, dict[str, Any]]] = []
     for key, value in config.items():
+        _validate_bare_toml_key(key)
         if isinstance(value, dict):
             table_items.append((key, value))
         else:
@@ -118,13 +128,16 @@ def _toml_lines(config: dict[str, Any]) -> list[str]:
 
     lines: list[str] = []
     for key, value in scalar_items:
+        _validate_bare_toml_key(key)
         lines.append(f"{key} = {_toml_scalar(value)}")
 
     for table_name, table in table_items:
+        _validate_bare_toml_key(table_name)
         if lines:
             lines.append("")
         lines.append(f"[{table_name}]")
         for key, value in table.items():
+            _validate_bare_toml_key(key)
             if isinstance(value, dict):
                 raise ProjectConfigError(
                     f"unsupported nested config table for safe writer: {table_name}.{key}"
@@ -136,7 +149,12 @@ def _toml_lines(config: dict[str, Any]) -> list[str]:
 
 def write_project_config(project_root: pathlib.Path, config: dict[str, Any]) -> None:
     """Write project-local Taurworks config using the small supported TOML shape."""
+    metadata_dir = project_root / ".taurworks"
     config_path = project_config_path(project_root)
+    if metadata_dir.is_symlink():
+        raise ProjectConfigError(
+            f"metadata path is a symlink and is not modified for safety: {metadata_dir}"
+        )
     if config_path.is_symlink():
         raise ProjectConfigError(
             f"config path is a symlink and is not modified for safety: {config_path}"
@@ -154,7 +172,12 @@ def ensure_minimal_project_config(
     )
     changes: list[str] = []
 
-    if updated_config.get("schema_version") != PROJECT_SCHEMA_VERSION:
+    schema_version = updated_config.get("schema_version")
+    if type(schema_version) is int and schema_version != PROJECT_SCHEMA_VERSION:
+        raise ProjectConfigError(
+            f"unsupported project config schema_version: {schema_version}; expected {PROJECT_SCHEMA_VERSION}"
+        )
+    if schema_version != PROJECT_SCHEMA_VERSION:
         updated_config["schema_version"] = PROJECT_SCHEMA_VERSION
         changes.append(f"schema_version set to {PROJECT_SCHEMA_VERSION}")
 

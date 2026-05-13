@@ -36,3 +36,14 @@ Implemented the minimal Taurworks project metadata schema and `taurworks project
 # Follow-up
 - Add or restore `scripts/prompts/record-execution` and `project/executions/README.md` so prompt-workflow instructions match repository contents.
 - Update `taurworks project activate --print` to use configured `paths.working_dir` in a later focused PR.
+
+# Review follow-up
+- Rejected config writes when `project_root/.taurworks` is a symlink so `project working-dir set` cannot mutate metadata through an external symlink target.
+- Added bare-key validation to the small TOML writer so configs with quoted or otherwise unsupported keys are warned/skipped instead of rewritten into invalid TOML.
+- Changed schema repair to reject future integer `schema_version` values instead of downgrading them to schema 1.
+- Clarified README refresh behavior for supported repair rewrites, unsupported TOML skip behavior, and future schema-version rejection.
+- Attempted `scripts/version tools` before formatter/linter/test validation (failed: `scripts/version` is not present in this repository checkout).
+- Ran `./scripts/format` (pass after formatting the new tests).
+- Ran `scripts/format --check --diff` (pass; repository script ignores these flags and runs Black formatting directly).
+- Ran `scripts/lint` (pass).
+- Ran `scripts/test` (pass).

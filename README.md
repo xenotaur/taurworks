@@ -142,9 +142,10 @@ Behavior:
 - if the target directory does not exist, creates it so Taurworks metadata can be scaffolded there
 - creates only missing Taurworks-owned scaffolding within the target (`.taurworks/` and `.taurworks/config.toml`)
 - writes new configs with `schema_version = 1`, `[project].name` defaulting to the project-root directory name, and no `[paths].working_dir` until configured
-- repairs legacy empty project names and missing schema versions when the config can be safely parsed and updated
-- never overwrites unrelated config keys
-- prints a truth-first summary of found, missing, created, skipped, and warnings
+- repairs legacy empty project names and missing/invalid schema versions when the config can be safely parsed and rewritten with Taurworks’ small supported TOML shape
+- preserves supported unrelated scalar keys and one-level tables during repair rewrites, but warns and skips config updates for unsupported TOML shapes or keys rather than rewriting them incorrectly
+- rejects future integer schema versions until an explicit migration path exists
+- prints a truth-first summary of found, missing, created, updated, skipped, and warnings
 
 This command is intentionally safe and idempotent: repeated runs should report no changes needed once minimal scaffolding exists.
 

@@ -351,6 +351,45 @@ class CliCommandTest(unittest.TestCase):
         self.assertIn("may not escape", result.stdout)
         self.assertNotIn("Traceback", result.stderr)
 
+    def test_project_working_dir_set_rejects_symlinked_metadata_dir(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "project-a"
+            project_dir.mkdir()
+            repo_dir = project_dir / "repo"
+            repo_dir.mkdir()
+            linked_metadata_dir = root_path / "linked-metadata"
+            linked_metadata_dir.mkdir()
+            config_path = linked_metadata_dir / "config.toml"
+            original_config = 'schema_version = 1\n\n[project]\nname = "project-a"\n'
+            config_path.write_text(original_config, encoding="utf-8")
+            (project_dir / ".taurworks").symlink_to(
+                linked_metadata_dir, target_is_directory=True
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "working-dir",
+                "set",
+                "repo",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            config_text = config_path.read_text(encoding="utf-8")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("metadata path is a symlink", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(original_config, config_text)
+
     def test_project_activate_print_reports_read_only_guidance(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_path = pathlib.Path(temp_dir)
