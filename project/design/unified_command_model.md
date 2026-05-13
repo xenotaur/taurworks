@@ -37,6 +37,7 @@ These aliases are opt-in and user-controlled.
 - `taurworks project init`
 - `taurworks project create`
 - `taurworks project refresh`
+- `taurworks project where`
 - `taurworks project working-dir show`
 - `taurworks project working-dir set [DIR]`
 - `taurworks project activate --print`

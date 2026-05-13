@@ -14,7 +14,7 @@ Taurworks is in a design-alignment phase moving from basic project scaffolding/d
 - `taurworks project --help` documents the project namespace and available discovery commands.
 - `taurworks project where` provides read-only project/config/discovery diagnostics.
 - `taurworks project list` provides read-only discovery listing and clear no-project behavior.
-- `taurworks project refresh`, `create`, and `activate --print` provide safe scaffolding and inspectable guidance, but dogfooding showed they need configured working-directory metadata before shell activation can be useful.
+- `taurworks project refresh`, `taurworks project create`, and `taurworks project activate --print` provide safe scaffolding and inspectable guidance, but dogfooding showed they need configured working-directory metadata before shell activation can be useful.
 
 ## What this phase prioritizes
 - Aligning design/control-plane docs around `.taurworks/config.toml` project metadata.

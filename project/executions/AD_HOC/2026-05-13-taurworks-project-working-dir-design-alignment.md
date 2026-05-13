@@ -26,3 +26,9 @@ Aligned Taurworks design/control-plane documentation around the next working-dir
 
 # Follow-up
 - Add or restore `scripts/prompts/record-execution` and `project/executions/README.md` so prompt-workflow instructions match repository contents.
+
+# Review follow-up
+- Reconciled README implementation status language so implemented project commands and planned working-directory metadata commands are not conflated.
+- Spelled out full `taurworks project ...` command names in current-status language to avoid confusion with top-level compatibility commands.
+- Added the shipped `taurworks project where` diagnostic command to planned/target project namespace lists.
+- Attempted `scripts/version tools` before lint/format/test per review protocol guidance (failed: `scripts/version` is not present in this repository checkout), so formatter/linter/test validation was not re-run for this review-only documentation cleanup.

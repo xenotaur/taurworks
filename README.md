@@ -19,9 +19,9 @@ Both namespaces are expected to share a common configuration/discovery core.
 
 ### Implementation status and compatibility
 
-Status note: `taurworks project ...` now includes implemented read-only discovery/diagnostic commands (`where`, `list`) while additional project lifecycle commands remain planned. `taurworks dev ...` remains planned and is not implemented yet.
-Implementation note: `where`, `list`, `refresh`, and `create` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior.
-Design note: dogfooding showed that Taurworks must distinguish `project_root` (the directory containing `.taurworks/`) from `working_dir` (the default code/work directory, stored relative to `project_root`) before shell activation can be useful. The next phase is working-directory metadata and printed activation guidance, not full `taurworks dev ...`, automatic shell mutation, or multi-repo management.
+Status note: `taurworks project ...` now includes implemented discovery, scaffold, and read-only guidance commands (`where`, `list`, `refresh`, `create`, and `activate --print`) while working-directory metadata commands remain planned. `taurworks dev ...` remains planned and is not implemented yet.
+Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, and `taurworks project create` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior.
+Design note: dogfooding showed that Taurworks must distinguish `project_root` (the directory containing `.taurworks/`) from `working_dir` (the default code/work directory, stored relative to `project_root`) before shell activation can be useful. The next phase is working-directory metadata and `taurworks project activate --print` guidance based on configured `working_dir`, not full `taurworks dev ...`, automatic shell mutation, or multi-repo management.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 

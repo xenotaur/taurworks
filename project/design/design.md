@@ -34,6 +34,7 @@ Absolute working-directory paths are deferred unless a later design explicitly a
 - `taurworks project init`
 - `taurworks project create`
 - `taurworks project refresh`
+- `taurworks project where`
 - `taurworks project working-dir show`
 - `taurworks project working-dir set [DIR]`
 - `taurworks project activate --print`
