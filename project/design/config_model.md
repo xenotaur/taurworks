@@ -38,11 +38,14 @@ name = "ExampleProject"
 working_dir = "repo-or-work-dir"
 ```
 
-Path rules for the next implementation slice:
+Current path rules for the working-directory metadata slice:
 
 - `paths.working_dir` should be relative by default and interpreted from `project_root`.
 - Absolute `working_dir` values should be rejected or deferred until an explicit design covers them.
-- Empty project names in existing configs are legacy/underspecified metadata and should be repaired by future implementation work rather than treated as the desired steady-state schema.
+- Empty project names in existing configs are legacy/underspecified metadata and are repaired to the project-root directory name when the config can be safely parsed and updated.
+- `taurworks project working-dir show` displays the configured relative `paths.working_dir` or a clear unconfigured message.
+- `taurworks project working-dir set [DIR]` stores an existing directory inside `project_root` as a relative path. If `DIR` is omitted, it uses the current directory relative to `project_root`.
+- `taurworks project activate --print` still treats activation behavior as a later integration point; actual activation guidance has not yet been changed to use `working_dir`.
 
 ## Repo-local workflow configuration
 Use `taurdev.toml` as the primary repo-local workflow configuration surface.

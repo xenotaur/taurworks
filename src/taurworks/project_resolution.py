@@ -1,4 +1,5 @@
 import pathlib
+import tomllib
 
 from taurworks import project_internals
 
@@ -135,6 +136,163 @@ def gather_project_refresh_diagnostics(
     return project_internals.scaffold_project_metadata(target_dir)
 
 
+def gather_project_working_dir_show_diagnostics() -> dict[str, str | bool]:
+    """Collect working-directory metadata for the current project context."""
+    cwd = pathlib.Path.cwd().resolve()
+    project_root = project_internals.find_project_root_candidate(cwd)
+    if project_root is None:
+        return {
+            "ok": False,
+            "cwd": str(cwd),
+            "project_root": "unresolved",
+            "config_path": "unresolved",
+            "working_dir_configured": False,
+            "working_dir": "",
+            "message": "No Taurworks project root found from current directory to filesystem root.",
+        }
+
+    config_path = project_internals.project_config_path(project_root)
+    try:
+        config = project_internals.read_project_config(project_root)
+        working_dir = project_internals.working_dir_from_config(config)
+    except (
+        project_internals.ProjectConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+    ) as error:
+        return {
+            "ok": False,
+            "cwd": str(cwd),
+            "project_root": str(project_root),
+            "config_path": str(config_path),
+            "working_dir_configured": False,
+            "working_dir": "",
+            "message": f"Could not read project config: {error}",
+        }
+
+    if working_dir is None:
+        return {
+            "ok": True,
+            "cwd": str(cwd),
+            "project_root": str(project_root),
+            "config_path": str(config_path),
+            "working_dir_configured": False,
+            "working_dir": "",
+            "message": "No working_dir is configured for this project.",
+        }
+
+    return {
+        "ok": True,
+        "cwd": str(cwd),
+        "project_root": str(project_root),
+        "config_path": str(config_path),
+        "working_dir_configured": True,
+        "working_dir": working_dir,
+        "message": "Configured working_dir found.",
+    }
+
+
+def format_project_working_dir_show_output(diagnostics: dict[str, str | bool]) -> str:
+    """Format `project working-dir show` output as stable text."""
+    lines = [
+        "Taurworks project working directory",
+        f"- cwd: {diagnostics['cwd']}",
+        f"- project_root: {diagnostics['project_root']}",
+        f"- config_path: {diagnostics['config_path']}",
+        f"- working_dir_configured: {diagnostics['working_dir_configured']}",
+    ]
+    if diagnostics["working_dir_configured"]:
+        lines.append(f"- working_dir: {diagnostics['working_dir']}")
+    else:
+        lines.append("- working_dir: none")
+    lines.append(f"- message: {diagnostics['message']}")
+    return "\n".join(lines)
+
+
+def gather_project_working_dir_set_diagnostics(
+    user_path: str | None,
+) -> dict[str, str | bool | list[str]]:
+    """Set working-directory metadata for the current project context."""
+    cwd = pathlib.Path.cwd().resolve()
+    project_root = project_internals.find_project_root_candidate(cwd)
+    if project_root is None:
+        return {
+            "ok": False,
+            "cwd": str(cwd),
+            "project_root": "unresolved",
+            "config_path": "unresolved",
+            "input": user_path or "(current working directory)",
+            "previous_working_dir": "",
+            "working_dir": "",
+            "repairs": [],
+            "message": "No Taurworks project root found from current directory to filesystem root.",
+        }
+
+    config_path = project_internals.project_config_path(project_root)
+    try:
+        previous_working_dir, working_dir, repairs = project_internals.set_working_dir(
+            project_root, cwd, user_path
+        )
+    except (
+        project_internals.ProjectConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+    ) as error:
+        return {
+            "ok": False,
+            "cwd": str(cwd),
+            "project_root": str(project_root),
+            "config_path": str(config_path),
+            "input": user_path or "(current working directory)",
+            "previous_working_dir": "",
+            "working_dir": "",
+            "repairs": [],
+            "message": str(error),
+        }
+
+    return {
+        "ok": True,
+        "cwd": str(cwd),
+        "project_root": str(project_root),
+        "config_path": str(config_path),
+        "input": user_path or "(current working directory)",
+        "previous_working_dir": previous_working_dir or "none",
+        "working_dir": working_dir,
+        "repairs": repairs,
+        "message": "Working directory metadata updated.",
+    }
+
+
+def format_project_working_dir_set_output(
+    diagnostics: dict[str, str | bool | list[str]],
+) -> str:
+    """Format `project working-dir set` output as stable text."""
+    lines = [
+        "Taurworks project working directory update",
+        f"- cwd: {diagnostics['cwd']}",
+        f"- project_root: {diagnostics['project_root']}",
+        f"- config_path: {diagnostics['config_path']}",
+        f"- input: {diagnostics['input']}",
+        f"- previous_working_dir: {diagnostics['previous_working_dir']}",
+    ]
+    if diagnostics["working_dir"]:
+        lines.append(f"- working_dir: {diagnostics['working_dir']}")
+    else:
+        lines.append("- working_dir: none")
+
+    repairs = diagnostics["repairs"]
+    if repairs:
+        lines.append("- repairs:")
+        for repair in repairs:
+            lines.append(f"  - {repair}")
+    else:
+        lines.append("- repairs: none")
+
+    lines.append(f"- ok: {diagnostics['ok']}")
+    lines.append(f"- message: {diagnostics['message']}")
+    return "\n".join(lines)
+
+
 def gather_project_activate_print_diagnostics(
     path_or_name: str | None,
 ) -> dict[str, str | bool]:
@@ -211,7 +369,7 @@ def format_project_refresh_output(
         f"- changed: {diagnostics['changed']}",
     ]
 
-    for key in ["found", "missing", "created", "skipped", "warnings"]:
+    for key in ["found", "missing", "created", "updated", "skipped", "warnings"]:
         entries = diagnostics[key]
         if entries:
             lines.append(f"- {key}:")
