@@ -1,7 +1,8 @@
 # Source this file from bash or zsh to enable Taurworks shell helpers.
 #
 # Usage:
-#   source /path/to/taurworks-shell.sh
+#   taurworks shell print > ~/.config/taurworks/taurworks-shell.sh
+#   source ~/.config/taurworks/taurworks-shell.sh
 #   tw activate [PATH_OR_NAME]
 #
 # The taurworks executable remains read-only for activation. This sourced

@@ -2,6 +2,55 @@
 
 Taurworks is a command-line development framework for creating, switching to, and working in multiple development projects.
 
+## User install and shell helper setup
+
+For normal CLI use, prefer installing Taurworks with `pipx` so the
+`taurworks` command is isolated from project environments:
+
+```bash
+pipx install taurworks
+```
+
+A regular `pip` install also exposes the Python CLI:
+
+```bash
+pip install taurworks
+```
+
+The `taurworks` executable is a Python command-line program. Like any normal
+child process, it cannot mutate the parent shell, so `taurworks project activate
+--print` remains read-only activation guidance. The `tw` command is a shell
+function provided by a manually sourced helper; only that explicit sourced layer
+may change the current shell directory.
+
+Print the packaged helper with:
+
+```bash
+taurworks shell print
+```
+
+To install it manually without a source checkout, redirect the packaged helper
+to a location you control and source it:
+
+```bash
+mkdir -p ~/.config/taurworks
+taurworks shell print > ~/.config/taurworks/taurworks-shell.sh
+source ~/.config/taurworks/taurworks-shell.sh
+```
+
+You may add a `source ~/.config/taurworks/taurworks-shell.sh` line to your
+shell startup file manually if you want `tw` in every new shell. Taurworks does
+not automatically edit `.bashrc`, `.zshrc`, `.profile`, or other startup files,
+and package installation does not install shell hooks.
+
+```bash
+tw activate [PATH_OR_NAME]
+```
+
+Non-activation `tw ...` commands delegate to `taurworks ...`; only
+`tw activate ...` uses validated `taurworks project activate --print` output to
+run `cd` in the current shell.
+
 ## Developer setup
 
 Use the repository script as the canonical setup path for local development, CI,
@@ -53,6 +102,7 @@ The intended command model is namespaced:
 
 - `taurworks project ...` for project/workspace lifecycle operations.
 - `taurworks dev ...` for repository/developer workflow operations.
+- `taurworks shell ...` for printing explicit, sourceable shell integration.
 
 Both namespaces are expected to share a common configuration/discovery core.
 
@@ -79,7 +129,8 @@ The scaffolded `project` namespace currently includes implemented discovery and 
 - `taurworks project working-dir set [DIR]` (implemented, safe project working-directory metadata update; `set DIR --project PATH_OR_NAME` is the preferred planned target-aware shape)
 - `taurworks project create [PATH_OR_NAME] [--working-dir DIR]` (implemented, safe idempotent create wrapper around refresh with optional working-directory metadata)
 - `taurworks project activate [PATH_OR_NAME] --print` (implemented, read-only activation guidance output)
-- `tw activate [PATH_OR_NAME]` after `source taurworks-shell.sh` (implemented, explicit shell function that changes directory only)
+- `taurworks shell print` (implemented, prints the packaged sourceable `tw` shell helper)
+- `tw activate [PATH_OR_NAME]` after manually sourcing the printed helper (implemented, explicit shell function that changes directory only)
 
 Quick namespace help:
 
@@ -127,7 +178,7 @@ Implemented target-aware `working-dir show` behavior:
 
 `working-dir set` remains scoped to the current project in this slice. Working-directory paths remain relative to `project_root`; absolute paths and paths that escape `project_root` via `..` are rejected/deferred until a later design explicitly accepts them. `taurworks project init --working-dir DIR --create-working-dir` is the implemented explicit opt-in for creating a missing working directory during existing-root initialization; without that flag, missing working directories fail safely.
 
-`taurworks project activate [PATH_OR_NAME] --print` reads this metadata, uses the shared project target resolver, and prints activation guidance for the configured work directory. It remains read-only. `tw activate [PATH_OR_NAME]`, provided by the manually sourced `taurworks-shell.sh` helper, is the explicit shell-mutating layer that changes the current directory after validating Taurworks output.
+`taurworks project activate [PATH_OR_NAME] --print` reads this metadata, uses the shared project target resolver, and prints activation guidance for the configured work directory. It remains read-only. `tw activate [PATH_OR_NAME]`, provided by the manually sourced helper from `taurworks shell print`, is the explicit shell-mutating layer that changes the current directory after validating Taurworks output.
 
 ## Dogfood workflows for init/create/activation guidance
 
@@ -349,10 +400,12 @@ This command remains intentionally non-mutating. Actual current-shell mutation i
 
 ## `tw activate` shell helper
 
-Use `tw activate` when you explicitly want Taurworks to change the current shell directory. A standalone executable cannot change its parent shell directory, so this helper is implemented as a sourceable shell function:
+Use `tw activate` when you explicitly want Taurworks to change the current shell directory. A standalone executable cannot change its parent shell directory, so this helper is implemented as a sourceable shell function packaged with Taurworks. Print and source it manually:
 
 ```bash
-source /path/to/taurworks-shell.sh
+mkdir -p ~/.config/taurworks
+taurworks shell print > ~/.config/taurworks/taurworks-shell.sh
+source ~/.config/taurworks/taurworks-shell.sh
 ```
 
 After it is sourced, `tw` behaves as follows:
@@ -364,7 +417,7 @@ After it is sourced, `tw` behaves as follows:
 Basic dogfood workflow:
 
 ```bash
-source /path/to/taurworks-shell.sh
+source ~/.config/taurworks/taurworks-shell.sh
 
 cd ~/Workspace
 taurworks project create TestProject --working-dir test_repo --create-working-dir
@@ -378,7 +431,7 @@ Expected result:
 ~/Workspace/TestProject/test_repo
 ```
 
-The shell helper intentionally does not edit `.bashrc`, `.zshrc`, `.profile`, or any other shell startup file. It does not source arbitrary project files and does not activate Conda, virtualenv, or other environments. Bash is the primary supported shell for this first wrapper layer; the implementation uses portable shell-function features that are also expected to work when sourced by zsh.
+The shell helper intentionally does not edit `.bashrc`, `.zshrc`, `.profile`, or any other shell startup file; add a `source ...` line yourself only if you choose. It does not source arbitrary project files and does not activate Conda, virtualenv, or other environments. Bash is the primary supported shell for this first wrapper layer; the implementation uses portable shell-function features that are also expected to work when sourced by zsh.
 
 ## Safety and shell-integration guardrails
 

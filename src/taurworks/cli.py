@@ -1,7 +1,9 @@
 import argparse
+import sys
 
 from taurworks import manager
 from taurworks import project_resolution
+from taurworks import shell_resources
 
 
 def _handle_project_command(args):
@@ -74,6 +76,19 @@ def _handle_project_command(args):
         return
 
     args.project_parser.print_help()
+
+
+def _handle_shell_command(args):
+    """Handle `taurworks shell ...` commands."""
+    if args.shell_command == "print":
+        try:
+            sys.stdout.write(shell_resources.read_shell_helper_text())
+        except shell_resources.ShellHelperResourceError as exc:
+            print(f"taurworks shell print: {exc}", file=sys.stderr)
+            raise SystemExit(1) from exc
+        return
+
+    args.shell_parser.print_help()
 
 
 def main():
@@ -350,6 +365,31 @@ def main():
 
     parser_project.set_defaults(project_parser=parser_project)
 
+    # `shell` namespace
+    parser_shell = subparsers.add_parser(
+        "shell",
+        help="Print sourceable Taurworks shell helper integration.",
+        description=(
+            "Shell helper commands for explicit, user-sourced shell integration. "
+            "These commands do not edit shell startup files."
+        ),
+    )
+    shell_subparsers = parser_shell.add_subparsers(
+        dest="shell_command",
+        required=False,
+    )
+
+    parser_shell_print = shell_subparsers.add_parser(
+        "print",
+        help="Print the packaged sourceable Taurworks shell helper.",
+        description=(
+            "Print the packaged Taurworks shell helper to stdout so it can be "
+            "reviewed, redirected, or sourced manually."
+        ),
+    )
+    parser_shell_print.set_defaults(shell_parser=parser_shell)
+    parser_shell.set_defaults(shell_parser=parser_shell)
+
     args = parser.parse_args()
 
     if args.command == "projects":
@@ -370,6 +410,8 @@ def main():
         )
     elif args.command == "activate":
         manager.activate_project(args.project_name)
+    elif args.command == "shell":
+        _handle_shell_command(args)
     elif args.command == "project":
         if (
             args.project_command == "init"
