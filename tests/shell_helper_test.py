@@ -117,6 +117,38 @@ class ShellHelperTest(unittest.TestCase):
         self.assertIn("delegated:project list", result.stdout)
         self.assertEqual(delegated_args, "project list")
 
+    def test_tw_help_delegates_to_taurworks_help(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            bin_dir.mkdir()
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            cmd = [
+                "bash",
+                "-c",
+                'source "$1" && tw --help > /tmp/tw-help-option.out && tw help',
+                "bash",
+                str(SHELL_HELPER),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+            option_help = pathlib.Path("/tmp/tw-help-option.out").read_text(
+                encoding="utf-8"
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(result.stdout, option_help)
+        self.assertIn("usage: taurworks", result.stdout)
+
     def test_tw_activate_changes_directory_to_configured_working_dir(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)
@@ -205,11 +237,12 @@ class ShellHelperTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue(result.stdout.startswith(str(workspace)))
         self.assertIn("no configured working directory", result.stdout)
-        self.assertIn("working_dir_configured: False", result.stdout)
+        self.assertNotIn("working_dir_configured: False", result.stdout)
+        self.assertIn("taurworks project activate TestProject --print", result.stdout)
         self.assertEqual(bashrc_text, "original bashrc\n")
         self.assertEqual(profile_text, "original profile\n")
 
-    def test_tw_activate_cli_failure_reports_diagnostics_with_errexit(self):
+    def test_tw_activate_verbose_failure_reports_diagnostics_with_errexit(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)
             bin_dir = temp_path / "bin"
@@ -239,7 +272,7 @@ class ShellHelperTest(unittest.TestCase):
                     "set -e; "
                     'source "$1"; '
                     'cd "$2"; '
-                    "tw activate TestProject; "
+                    "tw activate TestProject --verbose; "
                     "echo unreachable"
                 ),
                 "bash",
@@ -301,7 +334,8 @@ class ShellHelperTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue(result.stdout.startswith(str(workspace)))
         self.assertIn("resolved working directory does not exist", result.stdout)
-        self.assertIn("working_dir_exists: False", result.stdout)
+        self.assertNotIn("working_dir_exists: False", result.stdout)
+        self.assertIn("taurworks project activate TestProject --print", result.stdout)
 
 
 if __name__ == "__main__":

@@ -45,11 +45,20 @@ and package installation does not install shell hooks.
 
 ```bash
 tw activate [PATH_OR_NAME]
+tw help
 ```
 
-Non-activation `tw ...` commands delegate to `taurworks ...`; only
-`tw activate ...` uses validated `taurworks project activate --print` output to
-run `cd` in the current shell.
+On success, `tw activate` prints a concise confirmation containing the resolved
+destination path and runs `cd` in the current shell. Normal activation failures
+are concise and actionable; use `tw activate [PATH_OR_NAME] --verbose` or
+`tw activate [PATH_OR_NAME] --debug` to print the full read-only diagnostic
+block from `taurworks project activate [PATH_OR_NAME] --print`. That
+`taurworks project activate --print` command remains safe to run directly when
+you want activation details without changing directories.
+
+Non-activation `tw ...` commands delegate to `taurworks ...`; `tw help` is an
+alias for `tw --help`. Only `tw activate ...` uses validated
+`taurworks project activate --print` output to run `cd` in the current shell.
 
 ## Developer setup
 
@@ -131,6 +140,8 @@ The scaffolded `project` namespace currently includes implemented discovery and 
 - `taurworks project activate [PATH_OR_NAME] --print` (implemented, read-only activation guidance output)
 - `taurworks shell print` (implemented, prints the packaged sourceable `tw` shell helper)
 - `tw activate [PATH_OR_NAME]` after manually sourcing the printed helper (implemented, explicit shell function that changes directory only)
+- `tw activate [PATH_OR_NAME] --verbose` or `--debug` (implemented, prints detailed activation diagnostics on failure)
+- `tw help` after manually sourcing the printed helper (implemented, alias for `tw --help`)
 
 Quick namespace help:
 
@@ -140,7 +151,7 @@ taurworks project --help
 
 `taurworks project where` intentionally does not mutate files, environments, or shell state.
 `taurworks project list` is also non-mutating and reports discoverable projects plus discovery limitations.
-All non-activation `tw ...` commands delegate to `taurworks ...`; only `tw activate ...` has shell-mutating behavior.
+All non-activation `tw ...` commands delegate to `taurworks ...`; `tw help` delegates to `taurworks --help`. Only `tw activate ...` has shell-mutating behavior, and detailed activation diagnostics stay available through `tw activate ... --verbose`, `tw activate ... --debug`, or direct `taurworks project activate ... --print`.
 
 Breaking command removals/renames are intentionally deferred until a migration path is explicitly documented and implemented.
 
@@ -178,7 +189,7 @@ Implemented target-aware `working-dir show` behavior:
 
 `working-dir set` remains scoped to the current project in this slice. Working-directory paths remain relative to `project_root`; absolute paths and paths that escape `project_root` via `..` are rejected/deferred until a later design explicitly accepts them. `taurworks project init --working-dir DIR --create-working-dir` is the implemented explicit opt-in for creating a missing working directory during existing-root initialization; without that flag, missing working directories fail safely.
 
-`taurworks project activate [PATH_OR_NAME] --print` reads this metadata, uses the shared project target resolver, and prints activation guidance for the configured work directory. It remains read-only. `tw activate [PATH_OR_NAME]`, provided by the manually sourced helper from `taurworks shell print`, is the explicit shell-mutating layer that changes the current directory after validating Taurworks output.
+`taurworks project activate [PATH_OR_NAME] --print` reads this metadata, uses the shared project target resolver, and prints activation guidance for the configured work directory. It remains read-only. `tw activate [PATH_OR_NAME]`, provided by the manually sourced helper from `taurworks shell print`, is the explicit shell-mutating layer that changes the current directory after validating Taurworks output. Default `tw activate` output is concise; add `--verbose` or `--debug` to a `tw activate` call when you want the full diagnostic block on failure.
 
 ## Dogfood workflows for init/create/activation guidance
 
