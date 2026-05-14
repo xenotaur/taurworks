@@ -18,4 +18,4 @@ Existing top-level commands such as `create`, `refresh`, `activate`, and `projec
 
 ## Near-term goal
 
-After successful `tw activate` dogfooding, Taurworks should preserve the safe split between read-only `taurworks project activate --print` guidance and explicit shell-mutating `tw activate`, while polishing shell UX, classifying project-list status, and designing activation extensions before executing project-controlled startup scripts. Automatic legacy `Admin/project-setup.source` sourcing is intentionally deferred because it crosses a stronger trust boundary than `cd`-only activation.
+After successful sourced `taurworks-shell.sh` `tw activate` dogfooding, Taurworks should preserve the safe split between read-only `taurworks project activate --print` guidance and explicit shell-mutating sourced `taurworks-shell.sh` `tw activate`, while polishing shell UX, classifying project-list status, and designing activation extensions before executing project-controlled startup scripts. Automatic legacy `Admin/project-setup.source` sourcing is intentionally deferred because it crosses a stronger trust boundary than `cd`-only activation.

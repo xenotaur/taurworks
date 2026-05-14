@@ -30,7 +30,7 @@ Align `project/` control-plane documentation to a unified Taurworks command mode
 Implementation remains future work and should proceed in small, reviewable phases after design alignment is agreed.
 
 ## Current follow-up slice
-Dogfooding confirmed that the first shell activation path works: `tw project create TestProject --working-dir test_repo --create-working-dir` followed by `tw activate TestProject` changes into the configured working directory, and missing project activation fails safely.
+Dogfooding confirmed that the first shell activation path works after loading the sourceable helper: `source /path/to/taurworks-shell.sh`, `taurworks project create TestProject --working-dir test_repo --create-working-dir`, then `tw activate TestProject` changes into the configured working directory, and missing project activation fails safely.
 
 Implementation should proceed in this order:
 

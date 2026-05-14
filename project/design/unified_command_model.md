@@ -1,7 +1,7 @@
 # Unified Command Model
 
 ## Status note
-The command model below is current design direction and roadmap intent. The shipped CLI now includes minimal `taurworks project ...` discovery/scaffold commands, existing-root initialization, working-directory metadata, read-only `project activate --print` guidance, and an explicit `tw activate` shell helper. Dogfooding showed the next design-aligned phase is shell UX polish, project-list status classification, a minimal read-only `dev` namespace scaffold, and activation-extension design before broader workflow automation or stronger trust behavior.
+The command model below is current design direction and roadmap intent. The shipped CLI now includes minimal `taurworks project ...` discovery/scaffold commands, existing-root initialization, working-directory metadata, read-only `project activate --print` guidance, and an explicitly sourced `taurworks-shell.sh` `tw activate` shell helper. Dogfooding showed the next design-aligned phase is shell UX polish, project-list status classification, a minimal read-only `dev` namespace scaffold, and activation-extension design before broader workflow automation or stronger trust behavior.
 
 ## Why one primary executable: `taurworks`
 A single primary executable keeps command discovery simple, avoids duplicated initialization paths, and reduces user confusion around which binary owns workspace vs development behavior.
@@ -22,14 +22,13 @@ See `project/design/config_model.md` for precedence and repository-vs-global res
 ## Why short names are not installed by default
 Short names like `tw`, `td`, and `dev` are not installed globally by default because they can collide with existing user commands, shell functions, or other toolchains.
 
-Optional user-local aliases may be documented:
+Optional user-local aliases may be documented for non-mutating shorthand:
 
 ```bash
-alias tw=taurworks
 alias td='taurworks dev'
 ```
 
-These aliases are opt-in and user-controlled.
+Do not document `alias tw=taurworks` as equivalent to the sourceable `taurworks-shell.sh` helper. An alias cannot change the parent shell directory, while the sourced `tw` function can implement `tw activate` as explicit `cd`-only shell mutation. These aliases and helpers are opt-in and user-controlled.
 
 ## Command namespace intent (planned/target)
 
@@ -61,7 +60,7 @@ These aliases are opt-in and user-controlled.
 - `taurworks dev validate`
 
 ## Next project implementation sequence
-The current phase follows successful dogfooding of `tw activate` with a configured working directory. It is intentionally not broad repo workflow automation, not automatic legacy setup sourcing, and not multi-repo project management.
+The current phase follows successful dogfooding of the sourced `taurworks-shell.sh` `tw activate` function with a configured working directory. It is intentionally not broad repo workflow automation, not automatic legacy setup sourcing, and not multi-repo project management.
 
 1. Polish the `tw` shell UX: concise default `tw activate` output, detailed diagnostics only with `--verbose` or `--debug`, concise default warnings for missing projects or working directories, `tw help` as an alias for `tw --help`, and no change to successful activation semantics.
 2. Classify project-list entries for `tw projects` / `taurworks projects` as initialized projects with `.taurworks/config.toml`, workspace-only directories, or legacy-admin directories with `Admin/project-setup.source`.
@@ -79,7 +78,7 @@ The current phase follows successful dogfooding of `tw activate` with a configur
 ## Safety and shell-integration constraints
 - Taurworks should not implicitly modify user shell startup files.
 - `taurworks project activate --print` remains read-only activation guidance.
-- `tw activate` is the explicit shell-mutating wrapper for `cd`-only activation.
+- `tw activate` is shell-mutating only when provided by the sourced `taurworks-shell.sh` function; a plain alias to `taurworks` cannot change the parent shell.
 - Legacy `Admin/project-setup.source` support is a migration/design topic, not an automatic fallback.
 - Automatic sourcing of legacy setup scripts is intentionally deferred because it crosses a stronger trust boundary than `cd`-only activation.
 - Documentation should distinguish instruction-printing commands from state-changing commands.

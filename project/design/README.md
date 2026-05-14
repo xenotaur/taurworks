@@ -6,7 +6,7 @@ Current design priorities:
 
 - keep `project_root` and relative `working_dir` semantics stable;
 - preserve `taurworks project activate --print` as read-only activation guidance;
-- treat `tw activate` as the explicit shell-mutating wrapper for `cd`-only activation;
+- treat `tw activate` as shell-mutating only when provided by the explicitly sourced `taurworks-shell.sh` function;
 - classify legacy `Admin/project-setup.source` projects for migration planning rather than automatic fallback sourcing;
 - introduce broader `taurworks dev ...` behavior only through small, safe, read-only scaffolds before workflow automation.
 

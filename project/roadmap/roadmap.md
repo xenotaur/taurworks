@@ -15,7 +15,7 @@ This roadmap is phased and conservative. It prioritizes command-model alignment,
 
 ### In scope now
 
-- Post-dogfood `tw activate` UX polish.
+- Post-dogfood sourced `taurworks-shell.sh` `tw activate` UX polish.
 - Concise default activation output with verbose/debug diagnostics gated behind explicit flags.
 - `tw help` as an alias for `tw --help`.
 - Project-list status classification for initialized, workspace-only, and legacy-admin directories.
@@ -24,7 +24,7 @@ This roadmap is phased and conservative. It prioritizes command-model alignment,
 
 ### Out of scope now
 
-- Changing successful `tw activate` behavior.
+- Changing successful sourced `taurworks-shell.sh` `tw activate` behavior.
 - Automatic fallback sourcing of `Admin/project-setup.source`.
 - Treating legacy-admin projects as activation targets before migration.
 - Broad `taurworks dev ...` workflow automation.
@@ -65,7 +65,7 @@ This roadmap is phased and conservative. It prioritizes command-model alignment,
 ## Phase 2C — Polish explicit shell activation
 
 - Keep `taurworks project activate --print` as read-only activation guidance.
-- Keep `tw activate` as the explicit shell-mutating wrapper.
+- Keep `tw activate` shell-mutating only through the explicitly sourced `taurworks-shell.sh` function.
 - Make default `tw activate` output concise.
 - Move detailed activation diagnostics behind `--verbose` or `--debug`.
 - Keep missing project and missing working-directory failures concise by default.

@@ -3,8 +3,8 @@
 ## Purpose
 
 This note records the activation-extension topics that should be designed after
-successful `tw activate` dogfooding, without implementing them in the current
-polish sequence.
+successful dogfooding of the sourced `taurworks-shell.sh` `tw activate` helper,
+without implementing them in the current polish sequence.
 
 The current safe boundary is:
 
@@ -13,7 +13,7 @@ taurworks project activate --print
   read-only activation guidance
 
 tw activate
-  explicit shell-mutating wrapper
+  explicit shell-mutating function from sourced taurworks-shell.sh
 
 legacy Admin/project-setup.source
   migration/design topic, not automatic fallback
@@ -25,13 +25,15 @@ The validated baseline is `cd`-only activation through an explicitly sourced
 shell helper:
 
 ```bash
+source /path/to/taurworks-shell.sh
 tw project create TestProject --working-dir test_repo --create-working-dir
 tw activate TestProject
 ```
 
 For this baseline, `taurworks project activate --print` remains the read-only
-source of activation guidance, while `tw activate` is the explicit wrapper that
-may mutate the current shell by changing directory.
+source of activation guidance, while `tw activate`, provided by the sourced
+`taurworks-shell.sh` helper, is the explicit wrapper that may mutate the
+current shell by changing directory.
 
 ## Extension topics to design before implementation
 

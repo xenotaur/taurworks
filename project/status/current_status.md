@@ -1,7 +1,7 @@
 # Current Status
 
 ## Maturity snapshot
-Taurworks is in a design-alignment phase moving from successful `tw activate` dogfooding toward shell UX polish, project-list status classification, a minimal read-only `dev` scaffold, and activation-extension design while preserving current activation behavior.
+Taurworks is in a design-alignment phase moving from successful sourced `taurworks-shell.sh` `tw activate` dogfooding toward shell UX polish, project-list status classification, a minimal read-only `dev` scaffold, and activation-extension design while preserving current activation behavior.
 
 ## Current direction (documented)
 - One primary executable: `taurworks`.
@@ -9,13 +9,13 @@ Taurworks is in a design-alignment phase moving from successful `tw activate` do
 - Namespaced repo workflow commands: `taurworks dev ...`.
 - Shared discovery/configuration core across namespaces.
 - Compatibility coverage for existing top-level commands (`create`, `refresh`, `activate`, `projects`).
-- Explicit separation between read-only activation guidance and shell-mutating `tw activate`.
+- Explicit separation between read-only activation guidance and shell-mutating sourced `taurworks-shell.sh` `tw activate`.
 
 ## Implemented minimal project slice
 - `taurworks project --help` documents the project namespace and available discovery commands.
 - `taurworks project where` provides read-only project/config/discovery diagnostics.
 - `taurworks project list` provides read-only discovery listing and clear no-project behavior.
-- `taurworks project refresh`, `taurworks project create`, and `taurworks project activate --print` provide safe scaffolding and inspectable guidance, but dogfooding showed they need configured working-directory metadata before shell activation can be useful.
+- `taurworks project refresh`, `taurworks project init`, `taurworks project create`, working-directory metadata commands, and `taurworks project activate --print` provide safe scaffolding and inspectable guidance for initialized projects. Dogfooding confirmed that the sourced `taurworks-shell.sh` `tw activate` helper can use that guidance to change into the configured working directory.
 
 ## What this phase prioritizes
 - Making default `tw activate` output concise while preserving successful activation behavior.

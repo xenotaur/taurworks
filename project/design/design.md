@@ -1,7 +1,7 @@
 # Design Overview
 
 ## Status note
-The `taurworks project ...` and `taurworks dev ...` namespaces described below are the target design direction and are not yet fully implemented. The current project command slice can create/refresh visible metadata, discover projects, initialize existing roots, record working-directory metadata, and print read-only activation guidance. Dogfooding has now shown that the explicit `tw activate` shell helper can safely change into the configured working directory, so the next sequence is UX polish, project-list classification, a minimal read-only `dev` namespace scaffold, and activation-extension design without adding stronger shell trust behavior yet.
+The `taurworks project ...` and `taurworks dev ...` namespaces described below are the target design direction and are not yet fully implemented. The current project command slice can create/refresh visible metadata, discover projects, initialize existing roots, record working-directory metadata, and print read-only activation guidance. Dogfooding has now shown that the explicitly sourced `taurworks-shell.sh` `tw activate` shell helper can safely change into the configured working directory, so the next sequence is UX polish, project-list classification, a minimal read-only `dev` namespace scaffold, and activation-extension design without adding stronger shell trust behavior yet.
 
 ## Product model
 Taurworks uses one executable, `taurworks`, with two namespaces:
@@ -61,6 +61,7 @@ Absolute working-directory paths are deferred unless a later design explicitly a
 Dogfooding confirmed this activation path works for the first validation workflow:
 
 ```bash
+source /path/to/taurworks-shell.sh
 tw project create TestProject --working-dir test_repo --create-working-dir
 tw activate TestProject
 ```
@@ -79,7 +80,7 @@ taurworks project activate --print
   read-only activation guidance
 
 tw activate
-  explicit shell-mutating wrapper
+  explicit shell-mutating function from sourced taurworks-shell.sh
 
 legacy Admin/project-setup.source
   migration/design topic, not automatic fallback
@@ -116,7 +117,7 @@ Working-directory commands should use the same resolver. `taurworks project work
 
 Missing working directories should only be created with explicit opt-in. Accepted forms are `taurworks project create NAME --working-dir repo --create-working-dir` and `taurworks project working-dir set repo --create`. Without the opt-in, commands may record or validate metadata according to their command contract, but must not silently create a code/work directory.
 
-`taurworks project activate [PATH_OR_NAME] --print` remains read-only: it should use the shared resolver, print diagnostics and guidance, and avoid shell mutation. `tw activate` is the explicit shell-mutating wrapper for changing directory only; future activation-extension work should be designed before adding environment activation or project-script execution.
+`taurworks project activate [PATH_OR_NAME] --print` remains read-only: it should use the shared resolver, print diagnostics and guidance, and avoid shell mutation. `tw activate`, when provided by the sourced `taurworks-shell.sh` function, is the explicit shell-mutating layer for changing directory only; future activation-extension work should be designed before adding environment activation or project-script execution.
 
 ## Dev command resolution model
 For `taurworks dev <command>`, resolution should follow this order:

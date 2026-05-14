@@ -6,7 +6,7 @@ confidence: high
 
 # Current Focus
 
-Taurworks is currently focused on **post-dogfood shell and control-plane polish**. The `project_root` / `working_dir` metadata model remains correct, and dogfooding confirmed that the explicit `tw activate` shell helper can change into a configured working directory while missing project activation fails safely.
+Taurworks is currently focused on **post-dogfood shell and control-plane polish**. The `project_root` / `working_dir` metadata model remains correct, and dogfooding confirmed that the explicitly sourced `taurworks-shell.sh` `tw activate` shell helper can change into a configured working directory while missing project activation fails safely.
 
 ## Active direction
 
@@ -21,7 +21,7 @@ Taurworks is currently focused on **post-dogfood shell and control-plane polish*
 
 ## In scope now
 
-- Control-plane documentation for the next PR sequence after successful `tw activate` dogfooding.
+- Control-plane documentation for the next PR sequence after successful sourced `taurworks-shell.sh` `tw activate` dogfooding.
 - UX polish for existing activation output and help aliasing.
 - Project-list status vocabulary:
   - initialized projects with `.taurworks/config.toml`;
@@ -48,7 +48,7 @@ taurworks project activate --print
   read-only activation guidance
 
 tw activate
-  explicit shell-mutating wrapper
+  explicit shell-mutating function from sourced taurworks-shell.sh
 
 legacy Admin/project-setup.source
   migration/design topic, not automatic fallback
