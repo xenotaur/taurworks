@@ -17,3 +17,7 @@ status: proposed
 ```
 
 Frontmatter metadata is authoritative; bucket directories are a human-friendly organization layer and should agree with `status`.
+
+## Current active work
+
+The active unified-command-model work item now tracks post-dogfood shell polish: concise sourced `taurworks-shell.sh` `tw activate` UX, project-list status classification, a minimal read-only `taurworks dev ...` scaffold, and activation-extension design. Legacy `Admin/project-setup.source` projects should be classified for migration planning, not automatically sourced as an activation fallback.
