@@ -60,7 +60,7 @@ Both namespaces are expected to share a common configuration/discovery core.
 
 Status note: `taurworks project ...` now includes implemented discovery, scaffold, existing-root initialization, working-directory metadata, and read-only guidance commands (`where`, `list`, `refresh`, `init`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` remains planned and is not implemented yet.
 Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, `taurworks project init`, `taurworks project create`, `taurworks project working-dir show [PATH_OR_NAME]`, and `taurworks project activate [PATH_OR_NAME] --print` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior where appropriate.
-Design note: dogfooding confirmed the `project_root` (the directory containing `.taurworks/`) and `working_dir` (the default code/work directory, stored relative to `project_root`) model. The accepted design separates `project init` for existing/current roots from `project create` for new roots, centralizes target resolution diagnostics, makes working-directory creation explicit, and prevents accidental nested same-name projects. Full `taurworks dev ...`, automatic shell mutation, and multi-repo management remain out of scope.
+Design note: dogfooding confirmed the `project_root` (the directory containing `.taurworks/`) and `working_dir` (the default code/work directory, stored relative to `project_root`) model. The accepted design separates `project init` for existing/current roots from `project create` for new roots, centralizes target resolution diagnostics, makes working-directory creation explicit, and prevents accidental nested same-name projects. `tw activate` is now the explicit opt-in shell-mutating wrapper for changing the current shell directory. Full `taurworks dev ...`, automatic shell startup-file edits, environment activation, and multi-repo management remain out of scope.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 
@@ -79,6 +79,7 @@ The scaffolded `project` namespace currently includes implemented discovery and 
 - `taurworks project working-dir set [DIR]` (implemented, safe project working-directory metadata update; `set DIR --project PATH_OR_NAME` is the preferred planned target-aware shape)
 - `taurworks project create [PATH_OR_NAME] [--working-dir DIR]` (implemented, safe idempotent create wrapper around refresh with optional working-directory metadata)
 - `taurworks project activate [PATH_OR_NAME] --print` (implemented, read-only activation guidance output)
+- `tw activate [PATH_OR_NAME]` after `source taurworks-shell.sh` (implemented, explicit shell function that changes directory only)
 
 Quick namespace help:
 
@@ -88,6 +89,7 @@ taurworks project --help
 
 `taurworks project where` intentionally does not mutate files, environments, or shell state.
 `taurworks project list` is also non-mutating and reports discoverable projects plus discovery limitations.
+All non-activation `tw ...` commands delegate to `taurworks ...`; only `tw activate ...` has shell-mutating behavior.
 
 Breaking command removals/renames are intentionally deferred until a migration path is explicitly documented and implemented.
 
@@ -125,7 +127,7 @@ Implemented target-aware `working-dir show` behavior:
 
 `working-dir set` remains scoped to the current project in this slice. Working-directory paths remain relative to `project_root`; absolute paths and paths that escape `project_root` via `..` are rejected/deferred until a later design explicitly accepts them. `taurworks project init --working-dir DIR --create-working-dir` is the implemented explicit opt-in for creating a missing working directory during existing-root initialization; without that flag, missing working directories fail safely.
 
-`taurworks project activate [PATH_OR_NAME] --print` reads this metadata, uses the shared project target resolver, and prints activation guidance for the configured work directory. It remains read-only. Shell mutation through `tw activate` or a shell wrapper remains a later slice.
+`taurworks project activate [PATH_OR_NAME] --print` reads this metadata, uses the shared project target resolver, and prints activation guidance for the configured work directory. It remains read-only. `tw activate [PATH_OR_NAME]`, provided by the manually sourced `taurworks-shell.sh` helper, is the explicit shell-mutating layer that changes the current directory after validating Taurworks output.
 
 ## Dogfood workflows for init/create/activation guidance
 
@@ -176,7 +178,7 @@ cd ~/Workspace/TestProject
 taurworks project activate TestProject --print
 ```
 
-If you run `taurworks project create TestProject` from inside an existing/current `TestProject`, Taurworks refuses the likely accidental nested same-name project. Pass `--nested` only when `TestProject/TestProject` is intentional. `activate --print` is read-only throughout these workflows: it prints inspectable `cd ...` guidance but does not change your shell, create directories, write files, activate Conda, or source shell scripts. Full `tw activate` shell-wrapper behavior remains future work.
+If you run `taurworks project create TestProject` from inside an existing/current `TestProject`, Taurworks refuses the likely accidental nested same-name project. Pass `--nested` only when `TestProject/TestProject` is intentional. `activate --print` is read-only throughout these workflows: it prints inspectable `cd ...` guidance but does not change your shell, create directories, write files, activate Conda, or source shell scripts. Use the explicitly sourced `tw activate` shell helper when you want Taurworks to change the current shell directory.
 
 ## `taurworks project where`
 
@@ -343,7 +345,40 @@ Behavior:
 - does not change your parent shell state
 - does not write, refresh, create, or delete project files
 
-This slice is intentionally non-mutating. Actual shell mutation through `tw activate` or another explicit shell wrapper/function remains a later slice. Inspect printed output before running any command manually.
+This command remains intentionally non-mutating. Actual current-shell mutation is limited to the explicitly sourced `tw activate` shell function described below.
+
+## `tw activate` shell helper
+
+Use `tw activate` when you explicitly want Taurworks to change the current shell directory. A standalone executable cannot change its parent shell directory, so this helper is implemented as a sourceable shell function:
+
+```bash
+source /path/to/taurworks-shell.sh
+```
+
+After it is sourced, `tw` behaves as follows:
+
+- `tw activate [PATH_OR_NAME]` calls `taurworks project activate [PATH_OR_NAME] --print`, reads the stable `working_dir_configured`, `resolved_working_dir`, and `working_dir_exists` diagnostic fields, and runs only `cd -- "$resolved_working_dir"` in the current shell when the working directory is configured and exists.
+- `tw project where`, `tw project list`, `tw project create ...`, and other non-activation invocations delegate directly to `taurworks ...`.
+- failures print Taurworks diagnostics and do not change directory.
+
+Basic dogfood workflow:
+
+```bash
+source /path/to/taurworks-shell.sh
+
+cd ~/Workspace
+taurworks project create TestProject --working-dir test_repo --create-working-dir
+tw activate TestProject
+pwd
+```
+
+Expected result:
+
+```text
+~/Workspace/TestProject/test_repo
+```
+
+The shell helper intentionally does not edit `.bashrc`, `.zshrc`, `.profile`, or any other shell startup file. It does not source arbitrary project files and does not activate Conda, virtualenv, or other environments. Bash is the primary supported shell for this first wrapper layer; the implementation uses portable shell-function features that are also expected to work when sourced by zsh.
 
 ## Safety and shell-integration guardrails
 
