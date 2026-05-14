@@ -106,6 +106,233 @@ def resolve_project_refresh_target(path_or_name: str | None) -> pathlib.Path:
     return (cwd / candidate).resolve()
 
 
+def resolve_project_init_target(
+    path_or_name: str | None,
+) -> project_internals.ProjectResolution:
+    """Resolve init targets while preserving no-argument current-dir init."""
+    cwd = pathlib.Path.cwd().resolve()
+    if path_or_name is None:
+        return project_internals.ProjectResolution(
+            input="(current working directory)",
+            project_root=cwd,
+            resolved_by=project_internals.ResolutionReason.DEFAULT_CURRENT_DIRECTORY,
+        )
+    return project_internals.resolve_project_target(path_or_name, cwd)
+
+
+def _project_init_failure_diagnostics(
+    resolution: project_internals.ProjectResolution,
+    message: str,
+    *,
+    working_dir_requested: bool,
+) -> dict[str, str | bool | list[str]]:
+    """Build a stable non-mutating init failure diagnostic payload."""
+    project_root = resolution.project_root
+    return {
+        "ok": False,
+        "input": resolution.input,
+        "resolved_by": resolution.resolved_by.value,
+        "target_dir": str(project_root),
+        "config_path": str(project_internals.project_config_path(project_root)),
+        "root_exists": project_root.exists(),
+        "root_created": False,
+        "changed": False,
+        "found": [],
+        "missing": [],
+        "created": [],
+        "updated": [],
+        "skipped": ["project init skipped because validation failed"],
+        "warnings": [message],
+        "delegated_command": "project refresh",
+        "delegated_target_dir": str(project_root),
+        "delegated_changed": False,
+        "working_dir_requested": working_dir_requested,
+        "previous_working_dir": "none",
+        "working_dir": "none",
+        "working_dir_exists": False,
+        "working_dir_created": False,
+        "working_dir_changed": False,
+        "working_dir_message": message,
+        "working_dir_repairs": [],
+    }
+
+
+def gather_project_init_diagnostics(
+    path_or_name: str | None,
+    working_dir: str | None = None,
+    *,
+    create_working_dir: bool = False,
+) -> dict[str, str | bool | list[str]]:
+    """Initialize existing/current project roots with safe metadata scaffolding."""
+    resolution = resolve_project_init_target(path_or_name)
+    project_root = resolution.project_root
+    if not project_root.exists():
+        return _project_init_failure_diagnostics(
+            resolution,
+            "project init target must be an existing directory; use `taurworks project create` to create a new project root",
+            working_dir_requested=working_dir is not None,
+        )
+    if not project_root.is_dir():
+        return _project_init_failure_diagnostics(
+            resolution,
+            f"project init target exists but is not a directory: {project_root}",
+            working_dir_requested=working_dir is not None,
+        )
+
+    if working_dir is not None:
+        try:
+            (
+                relative_working_dir,
+                working_dir_exists,
+            ) = project_internals.relative_working_dir_metadata(
+                project_root, working_dir
+            )
+        except project_internals.ProjectConfigError as error:
+            return _project_init_failure_diagnostics(
+                resolution,
+                str(error),
+                working_dir_requested=True,
+            )
+        resolved_working_dir = (project_root.resolve() / relative_working_dir).resolve()
+        if resolved_working_dir.exists() and not resolved_working_dir.is_dir():
+            return _project_init_failure_diagnostics(
+                resolution,
+                "working_dir target exists but is not a directory: "
+                f"{resolved_working_dir}",
+                working_dir_requested=True,
+            )
+        if not working_dir_exists and not create_working_dir:
+            return _project_init_failure_diagnostics(
+                resolution,
+                "working_dir target must be an existing directory unless --create-working-dir is supplied",
+                working_dir_requested=True,
+            )
+
+    diagnostics = gather_project_refresh_diagnostics(str(project_root))
+    delegated_target = diagnostics["target_dir"]
+    delegated_changed = diagnostics["changed"]
+
+    diagnostics = dict(diagnostics)
+    diagnostics["ok"] = True
+    diagnostics["input"] = resolution.input
+    diagnostics["resolved_by"] = resolution.resolved_by.value
+    diagnostics["config_path"] = str(
+        project_internals.project_config_path(project_root)
+    )
+    diagnostics["root_exists"] = True
+    diagnostics["root_created"] = False
+    diagnostics["delegated_command"] = "project refresh"
+    diagnostics["delegated_target_dir"] = delegated_target
+    diagnostics["delegated_changed"] = delegated_changed
+    diagnostics["working_dir_requested"] = working_dir is not None
+    diagnostics["previous_working_dir"] = "none"
+    diagnostics["working_dir"] = "none"
+    diagnostics["working_dir_exists"] = False
+    diagnostics["working_dir_created"] = False
+    diagnostics["working_dir_changed"] = False
+    diagnostics["working_dir_message"] = (
+        "No working_dir requested; metadata left unchanged."
+    )
+    diagnostics["working_dir_repairs"] = []
+
+    if working_dir is None:
+        return diagnostics
+
+    try:
+        working_dir_created = False
+        if create_working_dir:
+            (
+                _relative_working_dir,
+                _resolved_working_dir,
+                working_dir_created,
+            ) = project_internals.create_working_dir_metadata_target(
+                project_root, working_dir
+            )
+        (
+            previous_working_dir,
+            configured_working_dir,
+            working_dir_exists,
+            working_dir_changed,
+            repairs,
+        ) = project_internals.set_working_dir_metadata(project_root, working_dir)
+    except (
+        project_internals.ProjectConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+    ) as error:
+        diagnostics["ok"] = False
+        diagnostics["working_dir"] = "none"
+        diagnostics["working_dir_message"] = str(error)
+        diagnostics["warnings"] = [*diagnostics["warnings"], str(error)]
+        return diagnostics
+
+    diagnostics["previous_working_dir"] = previous_working_dir or "none"
+    diagnostics["working_dir"] = configured_working_dir
+    diagnostics["working_dir_exists"] = working_dir_exists or working_dir_created
+    diagnostics["working_dir_created"] = working_dir_created
+    diagnostics["working_dir_changed"] = working_dir_changed
+    if working_dir_changed or working_dir_created:
+        diagnostics["changed"] = True
+        updated = list(diagnostics["updated"])
+        if working_dir_changed:
+            updated.append(
+                f"config updated: paths.working_dir set to {configured_working_dir}"
+            )
+            updated.extend(f"config repair: {repair}" for repair in repairs)
+        if working_dir_created:
+            created = list(diagnostics["created"])
+            created.append(f"directory: {project_root / configured_working_dir}")
+            diagnostics["created"] = created
+        diagnostics["updated"] = updated
+    diagnostics["working_dir_message"] = (
+        "Working directory metadata recorded; missing directory was created."
+        if working_dir_created
+        else "Working directory metadata recorded; existing directory was not created."
+    )
+    diagnostics["working_dir_repairs"] = repairs
+    return diagnostics
+
+
+def format_project_init_output(
+    diagnostics: dict[str, str | bool | list[str]],
+) -> str:
+    """Format init summary output for existing-root initialization."""
+    lines = [
+        "Taurworks project init summary",
+        f"- ok: {diagnostics['ok']}",
+        f"- input: {diagnostics['input']}",
+        f"- project_root: {diagnostics['target_dir']}",
+        f"- resolved_by: {diagnostics['resolved_by']}",
+        f"- root_exists: {diagnostics['root_exists']}",
+        f"- root_created: {diagnostics['root_created']}",
+        f"- config_path: {diagnostics['config_path']}",
+        f"- delegated_command: {diagnostics['delegated_command']}",
+        f"- delegated_target_dir: {diagnostics['delegated_target_dir']}",
+    ]
+    refresh_output = format_project_refresh_output(diagnostics)
+    refresh_lines = refresh_output.splitlines()
+    lines.extend(refresh_lines[2:])
+    lines.extend(
+        [
+            f"- working_dir_requested: {diagnostics['working_dir_requested']}",
+            f"- previous_working_dir: {diagnostics['previous_working_dir']}",
+            f"- working_dir: {diagnostics['working_dir']}",
+            f"- working_dir_exists: {diagnostics['working_dir_exists']}",
+            f"- working_dir_created: {diagnostics['working_dir_created']}",
+            f"- working_dir_changed: {diagnostics['working_dir_changed']}",
+        ]
+    )
+    working_dir_repairs = diagnostics["working_dir_repairs"]
+    if working_dir_repairs:
+        lines.append("- working_dir_repairs:")
+        for repair in working_dir_repairs:
+            lines.append(f"  - {repair}")
+    else:
+        lines.append("- working_dir_repairs: none")
+    lines.append(f"- working_dir_message: {diagnostics['working_dir_message']}")
+    return "\n".join(lines)
+
+
 def gather_project_create_diagnostics(
     path_or_name: str | None,
     working_dir: str | None = None,

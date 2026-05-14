@@ -339,6 +339,475 @@ class CliCommandTest(unittest.TestCase):
         self.assertIn("may not escape", result.stdout)
         self.assertNotIn("Traceback", result.stderr)
 
+    def test_project_init_initializes_current_directory(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            existing_file = root_path / "notes.txt"
+            existing_file.write_text("keep me", encoding="utf-8")
+            cmd = [sys.executable, "-m", "taurworks.cli", "project", "init"]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            config = tomllib.loads(
+                (root_path / ".taurworks" / "config.toml").read_text(encoding="utf-8")
+            )
+            file_text = existing_file.read_text(encoding="utf-8")
+            self.assertEqual(root_path.name, config["project"]["name"])
+            self.assertEqual("keep me", file_text)
+            self.assertIn(
+                f"project_root: {root_path}", result.stdout, msg=failure_message
+            )
+            self.assertIn("root_exists: True", result.stdout, msg=failure_message)
+            self.assertIn("root_created: False", result.stdout, msg=failure_message)
+
+    def test_project_init_initializes_existing_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "ExistingProject"
+            target_dir.mkdir()
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                str(target_dir),
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            self.assertTrue((target_dir / ".taurworks" / "config.toml").is_file())
+            self.assertIn(
+                f"project_root: {target_dir}", result.stdout, msg=failure_message
+            )
+            self.assertIn(
+                "working_dir_requested: False", result.stdout, msg=failure_message
+            )
+
+    def test_project_init_rejects_missing_project_root(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "missing-project"
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                str(target_dir),
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(target_dir.exists())
+            self.assertIn("target must be an existing directory", result.stdout)
+            self.assertIn("root_exists: False", result.stdout)
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_project_init_is_idempotent_and_preserves_files(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "idempotent-init"
+            target_dir.mkdir()
+            existing_file = target_dir / "notes.txt"
+            existing_file.write_text("keep me", encoding="utf-8")
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                str(target_dir),
+            ]
+            first = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            second = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            first_message = f"First command failed: {cmd}\nreturn code: {first.returncode}\nstdout:\n{first.stdout}\nstderr:\n{first.stderr}"
+            second_message = f"Second command failed: {cmd}\nreturn code: {second.returncode}\nstdout:\n{second.stdout}\nstderr:\n{second.stderr}"
+            self.assertEqual(first.returncode, 0, msg=first_message)
+            self.assertEqual(second.returncode, 0, msg=second_message)
+            file_text = existing_file.read_text(encoding="utf-8")
+            self.assertEqual("keep me", file_text)
+            self.assertIn("changed: True", first.stdout, msg=first_message)
+            self.assertIn("changed: False", second.stdout, msg=second_message)
+            self.assertIn(
+                "result: no changes needed", second.stdout, msg=second_message
+            )
+
+    def test_project_init_records_existing_working_dir(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "with-existing-workdir"
+            repo_dir = target_dir / "repo"
+            repo_dir.mkdir(parents=True)
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                str(target_dir),
+                "--working-dir",
+                "repo",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            config = tomllib.loads(
+                (target_dir / ".taurworks" / "config.toml").read_text(encoding="utf-8")
+            )
+            self.assertEqual("repo", config["paths"]["working_dir"])
+            self.assertIn("working_dir: repo", result.stdout, msg=failure_message)
+            self.assertIn(
+                "working_dir_exists: True", result.stdout, msg=failure_message
+            )
+            self.assertIn(
+                "working_dir_created: False", result.stdout, msg=failure_message
+            )
+
+    def test_project_init_missing_working_dir_requires_create_flag(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "missing-workdir"
+            target_dir.mkdir()
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                str(target_dir),
+                "--working-dir",
+                "repo",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((target_dir / "repo").exists())
+            self.assertFalse((target_dir / ".taurworks").exists())
+            self.assertIn("unless --create-working-dir is supplied", result.stdout)
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_project_init_create_working_dir_creates_and_records_it(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "create-workdir"
+            target_dir.mkdir()
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                str(target_dir),
+                "--working-dir",
+                "repo",
+                "--create-working-dir",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            config = tomllib.loads(
+                (target_dir / ".taurworks" / "config.toml").read_text(encoding="utf-8")
+            )
+            self.assertTrue((target_dir / "repo").is_dir())
+            self.assertEqual("repo", config["paths"]["working_dir"])
+            self.assertIn(
+                "working_dir_created: True", result.stdout, msg=failure_message
+            )
+            self.assertIn("changed: True", result.stdout, msg=failure_message)
+
+    def test_project_init_rejects_escaping_and_absolute_working_dirs(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "bad-workdir"
+            target_dir.mkdir()
+            escaping_cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                str(target_dir),
+                "--working-dir",
+                "../outside",
+                "--create-working-dir",
+            ]
+            escaping = subprocess.run(
+                escaping_cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            absolute_cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                str(target_dir),
+                "--working-dir",
+                str(target_dir / "repo"),
+                "--create-working-dir",
+            ]
+            absolute = subprocess.run(
+                absolute_cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            self.assertNotEqual(escaping.returncode, 0)
+            self.assertNotEqual(absolute.returncode, 0)
+            self.assertFalse((target_dir / ".taurworks").exists())
+            self.assertFalse((root_path / "outside").exists())
+            self.assertIn("may not escape", escaping.stdout)
+            self.assertIn("absolute paths are not supported", absolute.stdout)
+            self.assertNotIn("Traceback", escaping.stderr)
+            self.assertNotIn("Traceback", absolute.stderr)
+
+    def test_project_init_resolves_current_project_name_before_child_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "TestProject"
+            nested_same_name_dir = project_dir / "TestProject"
+            nested_same_name_dir.mkdir(parents=True)
+            (project_dir / ".taurworks").mkdir()
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "TestProject"\n',
+                encoding="utf-8",
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                "TestProject",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            self.assertIn(
+                f"project_root: {project_dir}", result.stdout, msg=failure_message
+            )
+            self.assertIn(
+                "resolved_by: current_project_name",
+                result.stdout,
+                msg=failure_message,
+            )
+            self.assertFalse(
+                (nested_same_name_dir / ".taurworks").exists(), msg=failure_message
+            )
+
+    def test_project_init_resolves_current_basename_before_child_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "TestProject"
+            nested_same_name_dir = project_dir / "TestProject"
+            nested_same_name_dir.mkdir(parents=True)
+            (project_dir / ".taurworks").mkdir()
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "ConfiguredName"\n',
+                encoding="utf-8",
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                "TestProject",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            self.assertIn(
+                f"project_root: {project_dir}", result.stdout, msg=failure_message
+            )
+            self.assertIn(
+                "resolved_by: current_directory_basename",
+                result.stdout,
+                msg=failure_message,
+            )
+            self.assertFalse(
+                (nested_same_name_dir / ".taurworks").exists(), msg=failure_message
+            )
+
+    def test_project_init_treats_refresh_warnings_as_nonfatal(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "warning-project"
+            project_dir.mkdir()
+            linked_metadata_dir = root_path / "linked-metadata"
+            linked_metadata_dir.mkdir()
+            (project_dir / ".taurworks").symlink_to(
+                linked_metadata_dir, target_is_directory=True
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                str(project_dir),
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            self.assertIn("ok: True", result.stdout, msg=failure_message)
+            self.assertIn("warnings:", result.stdout, msg=failure_message)
+            self.assertIn("metadata path is a symlink", result.stdout)
+
+    def test_project_init_create_working_dir_requires_working_dir(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                "--create-working-dir",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((root_path / ".taurworks").exists())
+        self.assertIn("--create-working-dir requires --working-dir", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_project_init_create_working_dir_rejects_existing_file(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "file-workdir"
+            target_dir.mkdir()
+            (target_dir / "repo").write_text("not a directory", encoding="utf-8")
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "init",
+                str(target_dir),
+                "--working-dir",
+                "repo",
+                "--create-working-dir",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((target_dir / ".taurworks").exists())
+            self.assertIn(
+                "working_dir target exists but is not a directory", result.stdout
+            )
+            self.assertNotIn("FileExistsError", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
     def test_project_create_rejects_absolute_working_dir(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_path = pathlib.Path(temp_dir)

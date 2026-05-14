@@ -22,6 +22,16 @@ def _handle_project_command(args):
         )
         print(project_resolution.format_project_refresh_output(diagnostics))
         return
+    if args.project_command == "init":
+        diagnostics = project_resolution.gather_project_init_diagnostics(
+            args.path_or_name,
+            args.working_dir,
+            create_working_dir=args.create_working_dir,
+        )
+        print(project_resolution.format_project_init_output(diagnostics))
+        if not diagnostics["ok"]:
+            raise SystemExit(1)
+        return
     if args.project_command == "working-dir":
         if args.working_dir_command == "show":
             diagnostics = (
@@ -179,6 +189,40 @@ def main():
     )
     parser_project_refresh.set_defaults(project_parser=parser_project)
 
+    parser_project_init = project_subparsers.add_parser(
+        "init",
+        help=("Initialize an existing/current directory as a Taurworks project root."),
+        description=(
+            "Initialize an existing/current directory with safe, idempotent "
+            "Taurworks metadata. Missing project roots are not created; use "
+            "project create for new roots."
+        ),
+    )
+    parser_project_init.add_argument(
+        "path_or_name",
+        nargs="?",
+        help=(
+            "Optional existing project root path. Defaults to current working "
+            "directory when omitted."
+        ),
+    )
+    parser_project_init.add_argument(
+        "--working-dir",
+        help=(
+            "Optional project-root-relative default working directory to record. "
+            "The directory must already exist unless --create-working-dir is supplied."
+        ),
+    )
+    parser_project_init.add_argument(
+        "--create-working-dir",
+        action="store_true",
+        help=(
+            "Create a missing --working-dir directory after validating that it "
+            "stays inside the project root."
+        ),
+    )
+    parser_project_init.set_defaults(project_parser=parser_project)
+
     parser_project_working_dir = project_subparsers.add_parser(
         "working-dir",
         help="Show or set the project default working directory metadata.",
@@ -306,6 +350,12 @@ def main():
     elif args.command == "activate":
         manager.activate_project(args.project_name)
     elif args.command == "project":
+        if (
+            args.project_command == "init"
+            and args.create_working_dir
+            and args.working_dir is None
+        ):
+            parser_project_init.error("--create-working-dir requires --working-dir")
         if args.project_command == "activate" and not args.print_only:
             parser_project.error(
                 "project activate currently requires --print and is read-only."
