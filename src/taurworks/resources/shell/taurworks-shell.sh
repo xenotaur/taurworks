@@ -47,6 +47,7 @@ _tw_activate() {
     local resolved_working_dir
     local working_dir_configured
     local working_dir_exists
+    local guidance
     local path_or_name
     local verbose
     local target_label
@@ -101,8 +102,14 @@ _tw_activate() {
         if [ "$verbose" = "1" ]; then
             printf '%s\n' "$output" >&2
         else
+            guidance=$(printf '%s\n' "$output" | _tw_activation_field "guidance")
             target_label=$(_tw_activation_target_label "$path_or_name")
-            printf '%s\n' "tw activate: no configured working directory is available for $target_label." >&2
+            printf '%s\n' "tw activate: activation failed for $target_label." >&2
+            if [ "$guidance" != "" ]; then
+                printf '%s\n' "tw activate: $guidance" >&2
+            else
+                printf '%s\n' "$output" >&2
+            fi
             _tw_activation_detail_command "$path_or_name"
         fi
         return "$status"

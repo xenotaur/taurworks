@@ -242,6 +242,62 @@ class ShellHelperTest(unittest.TestCase):
         self.assertEqual(bashrc_text, "original bashrc\n")
         self.assertEqual(profile_text, "original profile\n")
 
+    def test_tw_activate_invalid_config_default_failure_preserves_reason(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            workspace = temp_path / "Workspace"
+            bin_dir.mkdir()
+            workspace.mkdir()
+            _write_taurworks_module_shim(bin_dir)
+
+            project_dir = workspace / "TestProject"
+            config_dir = project_dir / ".taurworks"
+            config_dir.mkdir(parents=True)
+            (config_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "TestProject"\n\n'
+                    '[paths]\nworking_dir = "../outside"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    'cd "$2" && '
+                    "before=$(pwd) && "
+                    "if tw activate TestProject >/tmp/tw-invalid.out 2>/tmp/tw-invalid.err; "
+                    "then exit 20; fi && "
+                    'test "$(pwd)" = "$before" && '
+                    "pwd && cat /tmp/tw-invalid.err"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue(result.stdout.startswith(str(workspace)))
+        self.assertIn("activation failed for TestProject", result.stdout)
+        self.assertIn("Configured working_dir is invalid", result.stdout)
+        self.assertNotIn("no configured working directory", result.stdout)
+        self.assertNotIn("working_dir_configured:", result.stdout)
+        self.assertIn("taurworks project activate TestProject --print", result.stdout)
+
     def test_tw_activate_verbose_failure_reports_diagnostics_with_errexit(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)
