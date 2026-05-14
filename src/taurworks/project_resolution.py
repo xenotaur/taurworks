@@ -877,7 +877,7 @@ def format_project_activate_print_output(
         "- shell_mutation: not performed",
         f"- guidance: {diagnostics['guidance']}",
         "- note: activation_command is printed for inspection only and was not executed",
-        "- note: real shell mutation will require an explicit shell wrapper/function in a later slice",
+        "- note: real shell mutation is limited to an explicitly sourced shell wrapper/function such as tw activate",
     ]
     return "\n".join(lines)
 
