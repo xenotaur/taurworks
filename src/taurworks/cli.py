@@ -297,7 +297,7 @@ def main():
         "--working-dir",
         help=(
             "Optional project-root-relative default working directory to record. "
-            "The directory must already exist to be used but is not created unless "
+            "Missing directories are recorded without being created unless "
             "--create-working-dir is supplied."
         ),
     )

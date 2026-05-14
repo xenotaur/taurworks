@@ -365,10 +365,12 @@ def _project_create_failure_diagnostics(
     }
 
 
-def _is_simple_project_name(path_or_name: str) -> bool:
-    """Return whether create input is a bare NAME rather than a path."""
+def _simple_project_name(path_or_name: str) -> str | None:
+    """Return a normalized bare project name, or None when input is a path."""
     candidate = pathlib.PurePath(path_or_name)
-    return not candidate.is_absolute() and len(candidate.parts) == 1
+    if candidate.is_absolute() or len(candidate.parts) != 1:
+        return None
+    return candidate.name
 
 
 def _current_project_name(cwd: pathlib.Path) -> str | None:
@@ -378,7 +380,11 @@ def _current_project_name(cwd: pathlib.Path) -> str | None:
         return None
     try:
         config = project_internals.read_project_config(project_root)
-    except (project_internals.ProjectConfigError, tomllib.TOMLDecodeError):
+    except (
+        OSError,
+        project_internals.ProjectConfigError,
+        tomllib.TOMLDecodeError,
+    ):
         return None
     project_table = config.get("project")
     if not isinstance(project_table, dict):
@@ -393,12 +399,13 @@ def _would_create_same_name_nested_project(
     path_or_name: str, cwd: pathlib.Path
 ) -> bool:
     """Return whether bare create NAME would create an accidental NAME/NAME root."""
-    if not _is_simple_project_name(path_or_name):
+    project_name = _simple_project_name(path_or_name)
+    if project_name is None:
         return False
-    if cwd.name == path_or_name:
+    if cwd.name == project_name:
         return True
     current_project_name = _current_project_name(cwd)
-    return current_project_name == path_or_name
+    return current_project_name == project_name
 
 
 def gather_project_create_diagnostics(
