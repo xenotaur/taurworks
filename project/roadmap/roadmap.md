@@ -15,9 +15,10 @@ This roadmap is phased and conservative. It prioritizes command-model alignment 
 ### In scope now
 - Minimal project metadata model distinguishing `project_root`, relative `working_dir`, and activation target.
 - `.taurworks/config.toml` schema alignment for `schema_version`, `[project].name`, and `[paths].working_dir`.
-- First working-directory command slice: `project working-dir show` and `project working-dir set [DIR]`.
-- Follow-on `project create PROJECT --working-dir DIR` integration that reuses refresh/scaffold logic.
-- Follow-on `project activate --print` guidance based on configured `working_dir`.
+- Dogfood-resolution design for distinct `project init` and `project create` semantics.
+- Central shared target resolution with inspectable diagnostics (`input`, `project_root`, and `resolved_by`).
+- Target-aware working-directory commands, explicit working-directory creation opt-ins, and nested same-name project guardrails.
+- Read-only `project activate --print` guidance based on configured `working_dir` and the shared resolver.
 
 ### Out of scope now
 - More package-layout work as the primary next phase.
@@ -43,10 +44,14 @@ This roadmap is phased and conservative. It prioritizes command-model alignment 
 - Treat empty project names in existing configs as legacy metadata to repair in future implementation work.
 - Implement `project working-dir show/set` before changing create or activation behavior.
 
-## Phase 2B — Integrate working-directory metadata into project commands
-- Add `project create PROJECT --working-dir DIR` metadata writing without duplicating refresh logic.
-- Make `project activate --print` use configured `working_dir` for safe, inspectable guidance.
-- Keep actual shell mutation for a later wrapper/function design.
+## Phase 2B — Resolve project init/create and working-directory dogfood findings
+- Add `project init [PATH] [--working-dir DIR] [--create-working-dir]` for safe, idempotent initialization of existing/current project roots.
+- Refine `project create NAME [--working-dir DIR] [--create-working-dir] [--nested]` so it creates a new project root, delegates to init/refresh, and refuses accidental nested same-name creation unless `--nested` is supplied.
+- Centralize target resolution for project lifecycle, working-directory, and read-only activation commands with diagnostics that show `input`, `project_root`, and `resolved_by`.
+- Make `project working-dir show [PATH_OR_NAME]` target-aware and prefer `project working-dir set DIR --project PATH_OR_NAME` for mutation.
+- Require `--create-working-dir` or `working-dir set --create` before creating missing working directories.
+- Make `project activate --print` use the shared resolver while remaining read-only.
+- Complete this dogfood-resolution sequence before adding actual shell mutation through `tw activate` or a wrapper/function.
 
 ## Phase 3 — Introduce/document namespaced project lifecycle
 - Introduce or document `taurworks project` namespace for lifecycle operations.

@@ -30,12 +30,14 @@ Align `project/` control-plane documentation to a unified Taurworks command mode
 Implementation remains future work and should proceed in small, reviewable phases after design alignment is agreed.
 
 ## Current follow-up slice
-Dogfooding the implemented project command slice showed that Taurworks needs a richer project metadata model before activation can be useful. The next work should define `project_root` as the directory containing `.taurworks/` and `working_dir` as the default code/work directory stored relative to that root.
+Dogfooding the implemented project command slice showed that the `project_root` / `working_dir` model is useful, but the lifecycle command semantics need refinement before activation can be useful. The next work should keep `project_root` as the directory containing `.taurworks/` and `working_dir` as the default code/work directory stored relative to that root, while resolving dogfood findings around target resolution and explicit creation behavior.
 
 Implementation should proceed in this order:
 
-1. `taurworks project working-dir show` and `taurworks project working-dir set [DIR]`.
-2. `taurworks project create PROJECT --working-dir DIR`, reusing refresh/scaffold behavior.
-3. `taurworks project activate --print` guidance based on configured `working_dir`.
+1. Add `taurworks project init [PATH] [--working-dir DIR] [--create-working-dir]` for safe, idempotent initialization of existing/current project roots, reusing refresh/config logic.
+2. Refine `taurworks project create NAME [--working-dir DIR] [--create-working-dir] [--nested]` so it creates a new root, delegates to init/refresh, and refuses accidental nested same-name creation unless `--nested` is supplied.
+3. Centralize shared target resolution with diagnostics for no input, existing paths, current project-name input, current-directory basename input, and child-path fallback.
+4. Extend `taurworks project working-dir show [PATH_OR_NAME]`, prefer `taurworks project working-dir set DIR --project PATH_OR_NAME`, and require explicit opt-in before creating missing working directories.
+5. Keep `taurworks project activate [PATH_OR_NAME] --print` read-only while making it use the shared resolver and configured `working_dir`.
 
-This follow-up remains narrower than full `taurworks dev ...`, automatic shell mutation, or multi-repo project management.
+This follow-up remains narrower than full `taurworks dev ...`, automatic shell mutation, or multi-repo project management. It should be completed before adding `tw activate` or any shell wrapper that mutates the user shell.

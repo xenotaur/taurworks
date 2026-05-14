@@ -1,7 +1,7 @@
 # Unified Command Model
 
 ## Status note
-The command model below is current design direction and roadmap intent. The shipped CLI now includes minimal `taurworks project ...` discovery/scaffold commands and read-only `project activate --print` guidance, but the next design-aligned phase is working-directory metadata rather than full shell activation or full `taurworks dev ...` implementation.
+The command model below is current design direction and roadmap intent. The shipped CLI now includes minimal `taurworks project ...` discovery/scaffold commands and read-only `project activate --print` guidance. Dogfooding showed the next design-aligned phase is refining `project init` versus `project create`, centralizing target resolution, and making working-directory creation explicit before full shell activation or full `taurworks dev ...` implementation.
 
 ## Why one primary executable: `taurworks`
 A single primary executable keeps command discovery simple, avoids duplicated initialization paths, and reduces user confusion around which binary owns workspace vs development behavior.
@@ -38,8 +38,8 @@ These aliases are opt-in and user-controlled.
 - `taurworks project create`
 - `taurworks project refresh`
 - `taurworks project where`
-- `taurworks project working-dir show`
-- `taurworks project working-dir set [DIR]`
+- `taurworks project working-dir show [PATH_OR_NAME]`
+- `taurworks project working-dir set DIR --project PATH_OR_NAME`
 - `taurworks project activate --print`
 - `taurworks project list`
 
@@ -61,12 +61,16 @@ These aliases are opt-in and user-controlled.
 - `taurworks dev validate`
 
 ## Next project implementation sequence
-The current phase is the minimal metadata model needed to distinguish the Taurworks project root from the default activation/work target. It is intentionally not more package-layout work, not full `taurworks dev ...`, not automatic shell mutation, and not multi-repo project management.
+The current phase addresses dogfood findings in the project lifecycle command family. It is intentionally not more package-layout work, not full `taurworks dev ...`, not automatic shell mutation, and not multi-repo project management.
 
-1. Add `taurworks project working-dir show` and `taurworks project working-dir set [DIR]` as the first implementation slice for reading and writing `paths.working_dir` in `.taurworks/config.toml`.
-2. Extend `taurworks project create PROJECT --working-dir DIR` so creation writes working-directory metadata while reusing the existing refresh/scaffold path instead of duplicating refresh logic.
-3. Teach `taurworks project activate --print` to use configured `working_dir` metadata for safe, inspectable activation guidance for the intended work directory.
-4. Leave actual parent-shell mutation through `tw activate`, shell functions, or wrappers for a later explicitly designed slice.
+1. Add `taurworks project init [PATH] [--working-dir DIR] [--create-working-dir]` for safe, idempotent initialization of an existing/current project root. Reuse refresh/config logic rather than creating a separate scaffold implementation.
+2. Refine `taurworks project create NAME [--working-dir DIR] [--create-working-dir] [--nested]` so create means new root creation followed by init/refresh delegation. Guard against accidental `NAME/NAME` nested creation when the current project or directory already has the requested name unless `--nested` is supplied.
+3. Centralize shared target resolution so no input, existing paths, current project-name input, current-directory basename input, and child-path fallback behave consistently across project commands.
+4. Emit resolver diagnostics such as `input`, `project_root`, and `resolved_by` so command output explains why a target was selected.
+5. Extend `taurworks project working-dir show [PATH_OR_NAME]` and prefer `taurworks project working-dir set DIR --project PATH_OR_NAME` for target-aware working-directory metadata.
+6. Require explicit opt-in before creating a missing working directory: `project create NAME --working-dir repo --create-working-dir` or `project working-dir set repo --create`.
+7. Keep `taurworks project activate [PATH_OR_NAME] --print` read-only while making it use the shared resolver and configured `working_dir` metadata.
+8. Leave actual parent-shell mutation through `tw activate`, shell functions, or wrappers for a later explicitly designed slice after this dogfood-resolution sequence is complete.
 
 ## Compatibility and migration notes
 - Existing top-level commands (`create`, `refresh`, `activate`, `projects`) are retained as compatibility commands.

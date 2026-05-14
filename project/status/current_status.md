@@ -1,7 +1,7 @@
 # Current Status
 
 ## Maturity snapshot
-Taurworks is in a design-alignment phase moving from basic project scaffolding/discovery toward a minimal metadata model that separates `project_root`, `working_dir`, and activation target while preserving current behavior.
+Taurworks is in a design-alignment phase moving from basic project scaffolding/discovery and the initial `project_root` / `working_dir` metadata model toward refined project lifecycle semantics that resolve dogfood findings while preserving current behavior.
 
 ## Current direction (documented)
 - One primary executable: `taurworks`.
@@ -19,9 +19,14 @@ Taurworks is in a design-alignment phase moving from basic project scaffolding/d
 ## What this phase prioritizes
 - Aligning design/control-plane docs around `.taurworks/config.toml` project metadata.
 - Defining `project_root` as the directory containing `.taurworks/` and `working_dir` as a relative path from that root.
-- Sequencing `project working-dir show/set`, then `project create --working-dir`, then `project activate --print` integration.
+- Distinguishing `project init` for existing/current roots from `project create` for new project roots.
+- Centralizing target resolution with diagnostics that show `input`, selected `project_root`, and `resolved_by`.
+- Making `working-dir show` target-aware, preferring `working-dir set DIR --project PATH_OR_NAME`, and requiring explicit opt-in before creating missing working directories.
+- Preventing accidental nested same-name projects unless `--nested` is supplied.
+- Completing this dogfood-resolution sequence before adding `tw activate` or shell-wrapper mutation.
 
 ## What remains future implementation work
+- Implementing the documented `project init`, resolver, `project create`, `working-dir`, and `activate --print` refinements.
 - Full command implementation across all `taurworks dev` verbs.
 - Automatic shell mutation through aliases, wrappers, or shell functions.
 - Multi-repo project management.
