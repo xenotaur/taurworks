@@ -24,6 +24,25 @@ class ProjectResolutionModuleTest(unittest.TestCase):
         self.assertIn("project_count: 0", rendered)
         self.assertIn("projects: none", rendered)
 
+    def test_resolve_project_refresh_target_keeps_name_as_child_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_dir = pathlib.Path(temp_dir)
+            project_dir = root_dir / "TestProject"
+            (project_dir / ".taurworks").mkdir(parents=True)
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "TestProject"\n',
+                encoding="utf-8",
+            )
+            original = pathlib.Path.cwd()
+            try:
+                __import__("os").chdir(project_dir)
+                resolved = project_resolution.resolve_project_refresh_target(
+                    "TestProject"
+                )
+            finally:
+                __import__("os").chdir(original)
+        self.assertEqual((project_dir / "TestProject").resolve(), resolved)
+
     def test_resolve_project_refresh_target_defaults_to_cwd(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             cwd = pathlib.Path(temp_dir)

@@ -195,12 +195,12 @@ This command is intentionally safe and idempotent: repeated runs should report n
 Existing project commands use shared target-resolution internals where appropriate. State-changing scaffold commands preserve their documented create/refresh behavior, while read-only commands such as `working-dir show` and `activate --print` prefer resolving inside an existing Taurworks project root:
 
 1. No input resolves the current project if present; otherwise the command may use its documented default.
-2. Existing filesystem paths resolve as paths.
-3. Input equal to the current project name resolves to the current project root. This fixes same-name activation from inside a project, such as `taurworks project activate TestProject --print`.
-4. Input equal to the current working-directory basename, when the current directory is or should be the target, resolves to the current directory for init-like behavior.
+2. Input equal to the current project name resolves to the current project root before accepting an accidental same-name relative child path. This fixes same-name activation from inside a project, such as `taurworks project activate TestProject --print`.
+3. Input equal to the current working-directory basename, when the current directory is or should be the target, resolves to the current directory for init-like behavior.
+4. Existing filesystem paths resolve as paths.
 5. Otherwise, input is treated as a child path relative to the current working directory.
 
-For read-only project commands, existing paths inside a Taurworks project are reported as the enclosing project root unless the command explicitly requires the exact path.
+For read-only project commands, existing paths inside a Taurworks project are reported as the enclosing project root unless the command explicitly requires the exact path. State-changing scaffold commands keep path-only create/refresh target behavior.
 
 Outputs should make this choice inspectable, for example:
 

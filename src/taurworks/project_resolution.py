@@ -95,13 +95,15 @@ def format_project_list_output(
 
 
 def resolve_project_refresh_target(path_or_name: str | None) -> pathlib.Path:
-    """Resolve refresh/create target path while preserving current defaults."""
+    """Resolve refresh/create target path with path-only legacy semantics."""
     cwd = pathlib.Path.cwd()
     if path_or_name is None:
         return cwd.resolve()
 
-    resolution = project_internals.resolve_project_target(path_or_name, cwd)
-    return resolution.project_root
+    candidate = pathlib.Path(path_or_name).expanduser()
+    if candidate.exists():
+        return candidate.resolve()
+    return (cwd / candidate).resolve()
 
 
 def gather_project_create_diagnostics(

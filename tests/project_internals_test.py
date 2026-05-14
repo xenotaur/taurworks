@@ -20,7 +20,9 @@ class ProjectInternalsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_dir = pathlib.Path(temp_dir)
             project_dir = root_dir / "TestProject"
-            (project_dir / ".taurworks").mkdir(parents=True)
+            same_name_child = project_dir / "TestProject"
+            same_name_child.mkdir(parents=True)
+            (project_dir / ".taurworks").mkdir()
             (project_dir / ".taurworks" / "config.toml").write_text(
                 'schema_version = 1\n\n[project]\nname = "TestProject"\n',
                 encoding="utf-8",
@@ -31,6 +33,7 @@ class ProjectInternalsTest(unittest.TestCase):
                 prefer_project_root=True,
             )
         self.assertEqual(project_dir.resolve(), resolved.project_root)
+        self.assertNotEqual(same_name_child.resolve(), resolved.project_root)
         self.assertEqual(
             project_internals.ResolutionReason.CURRENT_PROJECT_NAME,
             resolved.resolved_by,

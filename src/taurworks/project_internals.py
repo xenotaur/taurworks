@@ -137,6 +137,22 @@ def resolve_project_target(
             resolved_by=ResolutionReason.DEFAULT_CURRENT_DIRECTORY,
         )
 
+    if current_project_root is not None:
+        current_project_name = project_name_from_config(current_project_root)
+        if path_or_name == current_project_name:
+            return ProjectResolution(
+                input=display_input,
+                project_root=current_project_root,
+                resolved_by=ResolutionReason.CURRENT_PROJECT_NAME,
+            )
+
+    if resolved_cwd.name == path_or_name and (resolved_cwd / ".taurworks").is_dir():
+        return ProjectResolution(
+            input=display_input,
+            project_root=resolved_cwd,
+            resolved_by=ResolutionReason.CURRENT_DIRECTORY_BASENAME,
+        )
+
     candidate = _path_candidate(path_or_name, resolved_cwd)
     if candidate.exists():
         resolved_candidate = candidate.resolve()
@@ -155,22 +171,6 @@ def resolve_project_target(
             input=display_input,
             project_root=resolved_candidate,
             resolved_by=ResolutionReason.EXISTING_PATH,
-        )
-
-    if current_project_root is not None:
-        current_project_name = project_name_from_config(current_project_root)
-        if path_or_name == current_project_name:
-            return ProjectResolution(
-                input=display_input,
-                project_root=current_project_root,
-                resolved_by=ResolutionReason.CURRENT_PROJECT_NAME,
-            )
-
-    if resolved_cwd.name == path_or_name and (resolved_cwd / ".taurworks").is_dir():
-        return ProjectResolution(
-            input=display_input,
-            project_root=resolved_cwd,
-            resolved_by=ResolutionReason.CURRENT_DIRECTORY_BASENAME,
         )
 
     return ProjectResolution(

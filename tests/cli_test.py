@@ -775,6 +775,7 @@ class CliCommandTest(unittest.TestCase):
             target_dir = root_path / "TestProject"
             repo_dir = target_dir / "test_repo"
             repo_dir.mkdir(parents=True)
+            (target_dir / "TestProject").mkdir()
             (target_dir / ".taurworks").mkdir()
             (target_dir / ".taurworks" / "config.toml").write_text(
                 (
