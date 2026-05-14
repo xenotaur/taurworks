@@ -1,12 +1,16 @@
+import importlib.resources
 import os
 import pathlib
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-SHELL_HELPER = REPO_ROOT / "taurworks-shell.sh"
+SHELL_HELPER = (
+    REPO_ROOT / "src" / "taurworks" / "resources" / "shell" / "taurworks-shell.sh"
+)
 
 
 def _subprocess_env() -> dict[str, str]:
@@ -29,6 +33,36 @@ def _write_taurworks_module_shim(bin_dir: pathlib.Path) -> None:
 
 
 class ShellHelperTest(unittest.TestCase):
+    def test_packaged_shell_helper_resource_is_readable(self):
+        resource = importlib.resources.files("taurworks").joinpath(
+            "resources/shell/taurworks-shell.sh"
+        )
+        helper_text = resource.read_text(encoding="utf-8")
+
+        self.assertIn("tw()", helper_text)
+        self.assertIn("_tw_activate()", helper_text)
+
+    def test_shell_print_outputs_sourceable_helper(self):
+        cmd = [sys.executable, "-m", "taurworks.cli", "shell", "print"]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=_subprocess_env(),
+        )
+        failure_message = (
+            f"Command failed: {cmd}\n"
+            f"return code: {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("tw()", result.stdout, msg=failure_message)
+        self.assertIn("_tw_activate()", result.stdout, msg=failure_message)
+
     def test_shell_helper_defines_tw_function(self):
         cmd = ["bash", "-c", 'source "$1" && type tw', "bash", str(SHELL_HELPER)]
         result = subprocess.run(
