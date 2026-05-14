@@ -114,12 +114,12 @@ taurworks project working-dir show
 taurworks project working-dir set [DIR]
 ```
 
-Accepted dogfood-resolution design:
+Planned accepted dogfood-resolution design (not yet fully implemented):
 
-- `taurworks project working-dir show [PATH_OR_NAME]` should accept an optional target and print the configured relative working directory or a clear unconfigured message.
-- `taurworks project working-dir set DIR --project PATH_OR_NAME` is preferred over ambiguous positional overloads for target-aware mutation. A no-target form may continue to mean the current project.
+- `taurworks project working-dir show [PATH_OR_NAME]` should accept an optional target and print the configured relative working directory or a clear unconfigured message. Current CLI support is limited to the no-target `show` form.
+- `taurworks project working-dir set DIR --project PATH_OR_NAME` is preferred over ambiguous positional overloads for target-aware mutation. Current CLI support is limited to `set [DIR]` for the current project.
 - Working-directory paths remain relative to `project_root`; absolute paths and paths that escape `project_root` via `..` are rejected/deferred until a later design explicitly accepts them.
-- Missing working directories are created only with explicit opt-in, such as `taurworks project create NAME --working-dir repo --create-working-dir` or `taurworks project working-dir set repo --create`.
+- Missing working directories should eventually be created only with explicit opt-in. Planned examples include `taurworks project create NAME --working-dir repo --create-working-dir` and `taurworks project working-dir set repo --create`; these opt-in flags are not implemented in the current CLI.
 
 `taurworks project activate [PATH_OR_NAME] --print` reads this metadata and prints activation guidance for the configured work directory. It should remain read-only and use the shared project target resolver. Shell mutation through `tw activate` or a shell wrapper remains a later slice.
 
@@ -187,9 +187,9 @@ Behavior:
 
 This command is intentionally safe and idempotent: repeated runs should report no changes needed once minimal scaffolding exists.
 
-## Shared project target resolution
+## Planned shared project target resolution
 
-Project lifecycle, working-directory, and read-only activation commands should use one shared resolver:
+The following rules are the accepted resolver design, not the fully implemented current behavior. Current `project refresh` / `project create` target resolution is simpler: no input resolves to the current directory, existing paths resolve as paths, and other input is treated as a child path relative to the current directory. Planned project lifecycle, working-directory, and read-only activation commands should use one shared resolver:
 
 1. No input resolves the current project if present; otherwise the command may use its documented default.
 2. Existing filesystem paths resolve as paths.
@@ -205,9 +205,9 @@ Outputs should make this choice inspectable, for example:
 - resolved_by: current_project_name
 ```
 
-## `taurworks project init` and `taurworks project create`
+## Planned `taurworks project init` and `taurworks project create` semantics
 
-Accepted design distinguishes initialization from creation:
+The current CLI implements `taurworks project create [PATH_OR_NAME] [--working-dir DIR]` as a safe wrapper around refresh. The accepted design below is planned and not yet fully implemented; it distinguishes initialization from creation:
 
 ```bash
 taurworks project init [PATH] [--working-dir DIR] [--create-working-dir]
@@ -221,7 +221,7 @@ Behavior:
 - `project create NAME` refuses accidental nested same-name creation when the current project or current directory already has the requested name unless `--nested` is supplied.
 - when `--working-dir DIR` is omitted, commands do not invent `[paths].working_dir` metadata.
 - when `--working-dir DIR` is provided, commands validate that `DIR` is relative, resolves safely inside `project_root`, and stores it as a relative `paths.working_dir` value.
-- missing working directories are created only when explicitly requested with `--create-working-dir`.
+- missing working directories should eventually be created only when explicitly requested with planned `--create-working-dir`; this flag is not implemented in the current CLI.
 - absolute working-directory paths and paths that escape `project_root` are rejected/deferred until later explicit design.
 - commands never overwrite unrelated files or delete files.
 - summaries should include resolver diagnostics such as `input`, `project_root`, and `resolved_by`, plus whether roots or working directories were created.

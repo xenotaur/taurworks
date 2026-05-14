@@ -19,7 +19,7 @@ Aligned Taurworks design/control-plane documentation with the accepted dogfood-r
 
 # Validation
 - Read `AGENTS.md`, `STYLE.md`, and `PROMPTS.md` before editing.
-- Attempted to read `project/executions/README.md` (failed: file is not present in this repository checkout).
+- At the start of this prompt run, attempted to read `project/executions/README.md` before creating it in this change (failed: file was not present in this repository checkout yet).
 - Checked prior executions for this exact prompt ID with `rg -n "TAURWORKS_INIT_CREATE_RESOLUTION_DESIGN_ALIGNMENT|init create|nested same-name|create-working-dir|shared target" project PROMPTS.md README.md` (no prior execution record for this exact prompt ID found).
 - Ran `./scripts/test` (pass).
 - Ran `./scripts/lint` (pass).
@@ -29,3 +29,9 @@ Aligned Taurworks design/control-plane documentation with the accepted dogfood-r
 
 # Follow-up
 - Add or restore `scripts/prompts/record-execution` so prompt-workflow instructions match repository contents.
+
+# Review follow-up
+- Clarified README user-facing sections so planned resolver rules and planned flags such as `--create-working-dir`, `working-dir set --create`, target-aware `working-dir show [PATH_OR_NAME]`, and `working-dir set DIR --project PATH_OR_NAME` are explicitly labeled as not yet fully implemented.
+- Clarified that the failed `project/executions/README.md` read happened at the start of the prompt run before this change added that file.
+- Attempted review-protocol validation with `scripts/version tools` first (failed: `scripts/version` is not present in this repository checkout), so lint/format/test were not re-run for this review follow-up under the requested validation order.
+- Ran `git diff --check` for the review follow-up (pass).
