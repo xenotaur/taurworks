@@ -127,6 +127,57 @@ Implemented target-aware `working-dir show` behavior:
 
 `taurworks project activate [PATH_OR_NAME] --print` reads this metadata, uses the shared project target resolver, and prints activation guidance for the configured work directory. It remains read-only. Shell mutation through `tw activate` or a shell wrapper remains a later slice.
 
+## Dogfood workflows for init/create/activation guidance
+
+Use `project create` when Taurworks should make a new project-root directory, then initialize metadata inside it. Add `--create-working-dir` only when Taurworks should also create a missing code/work directory:
+
+```bash
+cd ~/Workspace
+taurworks project create TestProject --working-dir test_repo --create-working-dir
+taurworks project activate TestProject --print
+```
+
+Expected shape:
+
+```text
+TestProject/
+  .taurworks/
+    config.toml
+  test_repo/
+```
+
+Use `project init` when the project root already exists or when you are already inside it. Without `--create-working-dir`, the configured working directory must already exist:
+
+```bash
+mkdir -p ~/Workspace/TestProject/test_repo
+cd ~/Workspace/TestProject
+taurworks project init --working-dir test_repo
+taurworks project activate --print
+```
+
+Use `working-dir set` from inside the project to change the default work directory after initialization. The directory must already exist in this slice:
+
+```bash
+cd ~/Workspace/TestProject
+mkdir other_repo
+taurworks project working-dir set other_repo
+taurworks project working-dir show
+taurworks project activate --print
+```
+
+Target-aware read-only commands accept either a path or the configured/current project name. From inside `TestProject`, naming `TestProject` resolves the current project root instead of creating or inspecting an accidental `TestProject/TestProject` child:
+
+```bash
+cd ~/Workspace
+taurworks project working-dir show TestProject
+taurworks project activate TestProject --print
+
+cd ~/Workspace/TestProject
+taurworks project activate TestProject --print
+```
+
+If you run `taurworks project create TestProject` from inside an existing/current `TestProject`, Taurworks refuses the likely accidental nested same-name project. Pass `--nested` only when `TestProject/TestProject` is intentional. `activate --print` is read-only throughout these workflows: it prints inspectable `cd ...` guidance but does not change your shell, create directories, write files, activate Conda, or source shell scripts. Full `tw activate` shell-wrapper behavior remains future work.
+
 ## `taurworks project where`
 
 Use this command to inspect Taurworks project/config/discovery resolution without mutating anything:
