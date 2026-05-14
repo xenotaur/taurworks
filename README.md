@@ -239,28 +239,34 @@ Outputs should make this choice inspectable, for example:
 - resolved_by: current_project_name
 ```
 
-## `taurworks project init` and planned `taurworks project create` semantics
+## `taurworks project create`
 
-The current CLI implements `taurworks project init [PATH] [--working-dir DIR] [--create-working-dir]` for existing/current project roots. `taurworks project create [PATH_OR_NAME] [--working-dir DIR]` remains a safe wrapper around refresh with its existing lifecycle semantics. The accepted design distinguishes initialization from creation:
+Use this command to create a new project root directory, then initialize it with safe Taurworks metadata:
 
 ```bash
-taurworks project init [PATH] [--working-dir DIR] [--create-working-dir]
-taurworks project create NAME [--working-dir DIR] [--create-working-dir] [--nested]
+taurworks project create NAME
+taurworks project create NAME --working-dir DIR
+taurworks project create NAME --working-dir DIR --create-working-dir
+taurworks project create NAME --nested
 ```
+
+Command intent is deliberately split:
+
+- `project init` initializes an existing/current directory.
+- `project create` creates a new project root, then reuses the same safe refresh/config scaffolding used by init.
 
 Behavior:
 
-- `project init` initializes an existing/current project root; it is implemented, safe, idempotent, and reuses refresh/config logic.
-- `project create` currently creates a new project root directory, then delegates to refresh logic; future slices may route it through init more directly.
-- `project create NAME` refuses accidental nested same-name creation when the current project or current directory already has the requested name unless `--nested` is supplied.
-- when `--working-dir DIR` is omitted, commands do not invent `[paths].working_dir` metadata.
-- when `--working-dir DIR` is provided, commands validate that `DIR` is relative, resolves safely inside `project_root`, and stores it as a relative `paths.working_dir` value.
-- for `project init`, missing working directories are created only when explicitly requested with `--create-working-dir`; `project create --create-working-dir` remains planned.
-- absolute working-directory paths and paths that escape `project_root` are rejected/deferred until later explicit design.
-- commands never overwrite unrelated files or delete files.
-- summaries should include resolver diagnostics such as `input`, `project_root`, and `resolved_by`, plus whether roots or working directories were created.
+- `project create NAME` creates `./NAME` when it is missing and initializes `./NAME/.taurworks/` without overwriting unrelated files. Existing project roots are safely refreshed.
+- `--working-dir DIR` records `paths.working_dir = "DIR"` after validating that `DIR` is relative and stays inside the project root. It does not create `DIR` by default.
+- `--working-dir DIR --create-working-dir` creates the missing working directory inside the new project root after validation, then records the same metadata.
+- `--create-working-dir` is rejected unless `--working-dir` is also supplied.
+- absolute working-directory paths and paths that escape `project_root` are rejected.
+- `project create NAME` refuses accidental `NAME/NAME` nesting when the current project name or current directory basename already equals `NAME`. Use `taurworks project init` to initialize or repair the current directory.
+- `--nested` allows intentional nested same-name project creation after the same path and working-directory safety checks pass.
+- `project create` with no `NAME` is preserved as a compatibility alias for current-directory initialization, but `taurworks project init` is preferred and documented for that use.
 
-The shared resolver now addresses the dogfood finding where same-name input from inside a project could resolve to an unintended child path. Remaining planned create refinements below are not implemented in this slice.
+The command prints a summary with `project_root`, `root_created`, delegated refresh details, `working_dir_requested`, `working_dir`, `working_dir_exists`, `working_dir_created`, `working_dir_changed`, and any warnings.
 
 ## `taurworks project activate --print`
 

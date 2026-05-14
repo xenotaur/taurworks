@@ -55,7 +55,10 @@ def _handle_project_command(args):
             return
     if args.project_command == "create":
         diagnostics = project_resolution.gather_project_create_diagnostics(
-            args.path_or_name, args.working_dir
+            args.path_or_name,
+            args.working_dir,
+            create_working_dir=args.create_working_dir,
+            nested=args.nested,
         )
         print(project_resolution.format_project_create_output(diagnostics))
         if not diagnostics["ok"]:
@@ -294,7 +297,24 @@ def main():
         "--working-dir",
         help=(
             "Optional project-root-relative default working directory to record. "
-            "The directory is not created by this command."
+            "The directory must already exist to be used but is not created unless "
+            "--create-working-dir is supplied."
+        ),
+    )
+    parser_project_create.add_argument(
+        "--create-working-dir",
+        action="store_true",
+        help=(
+            "Create a missing --working-dir directory after validating that it "
+            "stays inside the new project root."
+        ),
+    )
+    parser_project_create.add_argument(
+        "--nested",
+        action="store_true",
+        help=(
+            "Allow intentional nested same-name project creation when the current "
+            "project or current directory already has NAME."
         ),
     )
     parser_project_create.set_defaults(project_parser=parser_project)
@@ -356,6 +376,12 @@ def main():
             and args.working_dir is None
         ):
             parser_project_init.error("--create-working-dir requires --working-dir")
+        if (
+            args.project_command == "create"
+            and args.create_working_dir
+            and args.working_dir is None
+        ):
+            parser_project_create.error("--create-working-dir requires --working-dir")
         if args.project_command == "activate" and not args.print_only:
             parser_project.error(
                 "project activate currently requires --print and is read-only."
