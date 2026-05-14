@@ -18,6 +18,29 @@ def _subprocess_env() -> dict[str, str]:
     return env
 
 
+def _run_cli(args: list[str], cwd: pathlib.Path) -> subprocess.CompletedProcess[str]:
+    cmd = [sys.executable, "-m", "taurworks.cli", *args]
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+        env=_subprocess_env(),
+    )
+
+
+def _failure_message(args: list[str], result: subprocess.CompletedProcess[str]) -> str:
+    cmd = [sys.executable, "-m", "taurworks.cli", *args]
+    return (
+        f"Command failed: {cmd}\n"
+        f"return code: {result.returncode}\n"
+        f"stdout:\n{result.stdout}\n"
+        f"stderr:\n{result.stderr}"
+    )
+
+
 class CliCommandTest(unittest.TestCase):
     def test_project_namespace_help_lists_read_only_commands(self):
         cmd = [sys.executable, "-m", "taurworks.cli", "project", "--help"]
@@ -49,6 +72,123 @@ class CliCommandTest(unittest.TestCase):
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("read-only", result.stdout, msg=failure_message)
+
+    def test_project_init_and_create_help_distinguish_existing_and_new_roots(self):
+        init_args = ["project", "init", "--help"]
+        create_args = ["project", "create", "--help"]
+        init_result = _run_cli(init_args, pathlib.Path.cwd())
+        create_result = _run_cli(create_args, pathlib.Path.cwd())
+        init_message = _failure_message(init_args, init_result)
+        create_message = _failure_message(create_args, create_result)
+
+        self.assertEqual(init_result.returncode, 0, msg=init_message)
+        self.assertEqual(create_result.returncode, 0, msg=create_message)
+        self.assertIn(
+            "existing/current directory", init_result.stdout, msg=init_message
+        )
+        self.assertIn("use project create", init_result.stdout, msg=init_message)
+        self.assertIn("new", init_result.stdout, msg=init_message)
+        self.assertIn("roots", init_result.stdout, msg=init_message)
+        self.assertIn("new project root", create_result.stdout, msg=create_message)
+        self.assertIn(
+            "project init for existing/current roots",
+            create_result.stdout,
+            msg=create_message,
+        )
+        self.assertIn("--create-working-dir", create_result.stdout, msg=create_message)
+        self.assertIn("--nested", create_result.stdout, msg=create_message)
+
+    def test_dogfood_create_from_parent_and_target_aware_activation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            project_dir = workspace / "TestProject"
+            repo_dir = project_dir / "test_repo"
+
+            create_args = [
+                "project",
+                "create",
+                "TestProject",
+                "--working-dir",
+                "test_repo",
+                "--create-working-dir",
+            ]
+            create_result = _run_cli(create_args, workspace)
+            create_message = _failure_message(create_args, create_result)
+            self.assertEqual(create_result.returncode, 0, msg=create_message)
+            self.assertTrue(
+                (project_dir / ".taurworks" / "config.toml").is_file(),
+                msg=create_message,
+            )
+            self.assertTrue(repo_dir.is_dir(), msg=create_message)
+            self.assertIn("working_dir_created: True", create_result.stdout)
+
+            show_args = ["project", "working-dir", "show", "TestProject"]
+            show_result = _run_cli(show_args, workspace)
+            show_message = _failure_message(show_args, show_result)
+            self.assertEqual(show_result.returncode, 0, msg=show_message)
+            self.assertIn(f"project_root: {project_dir}", show_result.stdout)
+            self.assertIn("working_dir: test_repo", show_result.stdout)
+
+            activate_args = ["project", "activate", "TestProject", "--print"]
+            activate_result = _run_cli(activate_args, workspace)
+            activate_message = _failure_message(activate_args, activate_result)
+            self.assertEqual(activate_result.returncode, 0, msg=activate_message)
+            self.assertIn(f"project_root: {project_dir}", activate_result.stdout)
+            self.assertIn(f"resolved_working_dir: {repo_dir}", activate_result.stdout)
+            self.assertIn("shell_mutation: not performed", activate_result.stdout)
+
+            inside_activate_result = _run_cli(activate_args, project_dir)
+            inside_message = _failure_message(activate_args, inside_activate_result)
+            self.assertEqual(inside_activate_result.returncode, 0, msg=inside_message)
+            self.assertIn(f"project_root: {project_dir}", inside_activate_result.stdout)
+            self.assertIn(
+                "resolved_by: current_project_name", inside_activate_result.stdout
+            )
+            self.assertNotIn(
+                str(project_dir / "TestProject"), inside_activate_result.stdout
+            )
+
+    def test_dogfood_init_existing_directory_and_set_working_dir(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            project_dir = workspace / "TestProject"
+            repo_dir = project_dir / "test_repo"
+            other_repo = project_dir / "other_repo"
+            repo_dir.mkdir(parents=True)
+
+            init_args = ["project", "init", "--working-dir", "test_repo"]
+            init_result = _run_cli(init_args, project_dir)
+            init_message = _failure_message(init_args, init_result)
+            self.assertEqual(init_result.returncode, 0, msg=init_message)
+            self.assertTrue((project_dir / ".taurworks" / "config.toml").is_file())
+            self.assertIn("working_dir: test_repo", init_result.stdout)
+            self.assertIn("working_dir_created: False", init_result.stdout)
+
+            activate_args = ["project", "activate", "--print"]
+            activate_result = _run_cli(activate_args, project_dir)
+            activate_message = _failure_message(activate_args, activate_result)
+            self.assertEqual(activate_result.returncode, 0, msg=activate_message)
+            self.assertIn(f"resolved_working_dir: {repo_dir}", activate_result.stdout)
+
+            other_repo.mkdir()
+            set_args = ["project", "working-dir", "set", "other_repo"]
+            set_result = _run_cli(set_args, project_dir)
+            set_message = _failure_message(set_args, set_result)
+            self.assertEqual(set_result.returncode, 0, msg=set_message)
+            self.assertIn("working_dir: other_repo", set_result.stdout)
+
+            show_args = ["project", "working-dir", "show"]
+            show_result = _run_cli(show_args, project_dir)
+            show_message = _failure_message(show_args, show_result)
+            self.assertEqual(show_result.returncode, 0, msg=show_message)
+            self.assertIn("working_dir: other_repo", show_result.stdout)
+
+            changed_activate_result = _run_cli(activate_args, project_dir)
+            changed_message = _failure_message(activate_args, changed_activate_result)
+            self.assertEqual(changed_activate_result.returncode, 0, msg=changed_message)
+            self.assertIn(
+                f"resolved_working_dir: {other_repo}", changed_activate_result.stdout
+            )
 
     def test_project_list_succeeds_without_discovered_projects(self):
         with tempfile.TemporaryDirectory() as temp_dir:

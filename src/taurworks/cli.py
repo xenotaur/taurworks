@@ -277,12 +277,13 @@ def main():
     parser_project_create = project_subparsers.add_parser(
         "create",
         help=(
-            "Ensure target directory exists, then safely refresh Taurworks "
-            "project scaffolding without overwriting files."
+            "Create a new project root, then safely initialize Taurworks "
+            "metadata without overwriting files."
         ),
         description=(
-            "Create a target directory when needed, then delegate to project "
-            "refresh for safe, idempotent Taurworks metadata scaffolding."
+            "Create a new project root directory when needed, then delegate "
+            "to the same safe, idempotent Taurworks metadata initialization "
+            "used by project init. Use project init for existing/current roots."
         ),
     )
     parser_project_create.add_argument(
