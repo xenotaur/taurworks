@@ -41,6 +41,17 @@ def _failure_message(args: list[str], result: subprocess.CompletedProcess[str]) 
     )
 
 
+def _single_output_path(output: str, key: str) -> pathlib.Path:
+    prefix = f"- {key}: "
+    matching_lines = [line for line in output.splitlines() if line.startswith(prefix)]
+    if len(matching_lines) != 1:
+        raise AssertionError(
+            f"Expected exactly one {prefix!r} line, found {len(matching_lines)} "
+            f"in output:\n{output}"
+        )
+    return pathlib.Path(matching_lines[0].removeprefix(prefix))
+
+
 class CliCommandTest(unittest.TestCase):
     def test_project_namespace_help_lists_read_only_commands(self):
         cmd = [sys.executable, "-m", "taurworks.cli", "project", "--help"]
@@ -126,21 +137,41 @@ class CliCommandTest(unittest.TestCase):
             show_result = _run_cli(show_args, workspace)
             show_message = _failure_message(show_args, show_result)
             self.assertEqual(show_result.returncode, 0, msg=show_message)
-            self.assertIn(f"project_root: {project_dir}", show_result.stdout)
+            self.assertEqual(
+                project_dir.resolve(),
+                _single_output_path(show_result.stdout, "project_root").resolve(),
+                msg=show_message,
+            )
             self.assertIn("working_dir: test_repo", show_result.stdout)
 
             activate_args = ["project", "activate", "TestProject", "--print"]
             activate_result = _run_cli(activate_args, workspace)
             activate_message = _failure_message(activate_args, activate_result)
             self.assertEqual(activate_result.returncode, 0, msg=activate_message)
-            self.assertIn(f"project_root: {project_dir}", activate_result.stdout)
-            self.assertIn(f"resolved_working_dir: {repo_dir}", activate_result.stdout)
+            self.assertEqual(
+                project_dir.resolve(),
+                _single_output_path(activate_result.stdout, "project_root").resolve(),
+                msg=activate_message,
+            )
+            self.assertEqual(
+                repo_dir.resolve(),
+                _single_output_path(
+                    activate_result.stdout, "resolved_working_dir"
+                ).resolve(),
+                msg=activate_message,
+            )
             self.assertIn("shell_mutation: not performed", activate_result.stdout)
 
             inside_activate_result = _run_cli(activate_args, project_dir)
             inside_message = _failure_message(activate_args, inside_activate_result)
             self.assertEqual(inside_activate_result.returncode, 0, msg=inside_message)
-            self.assertIn(f"project_root: {project_dir}", inside_activate_result.stdout)
+            self.assertEqual(
+                project_dir.resolve(),
+                _single_output_path(
+                    inside_activate_result.stdout, "project_root"
+                ).resolve(),
+                msg=inside_message,
+            )
             self.assertIn(
                 "resolved_by: current_project_name", inside_activate_result.stdout
             )
@@ -168,7 +199,13 @@ class CliCommandTest(unittest.TestCase):
             activate_result = _run_cli(activate_args, project_dir)
             activate_message = _failure_message(activate_args, activate_result)
             self.assertEqual(activate_result.returncode, 0, msg=activate_message)
-            self.assertIn(f"resolved_working_dir: {repo_dir}", activate_result.stdout)
+            self.assertEqual(
+                repo_dir.resolve(),
+                _single_output_path(
+                    activate_result.stdout, "resolved_working_dir"
+                ).resolve(),
+                msg=activate_message,
+            )
 
             other_repo.mkdir()
             set_args = ["project", "working-dir", "set", "other_repo"]
@@ -186,8 +223,12 @@ class CliCommandTest(unittest.TestCase):
             changed_activate_result = _run_cli(activate_args, project_dir)
             changed_message = _failure_message(activate_args, changed_activate_result)
             self.assertEqual(changed_activate_result.returncode, 0, msg=changed_message)
-            self.assertIn(
-                f"resolved_working_dir: {other_repo}", changed_activate_result.stdout
+            self.assertEqual(
+                other_repo.resolve(),
+                _single_output_path(
+                    changed_activate_result.stdout, "resolved_working_dir"
+                ).resolve(),
+                msg=changed_message,
             )
 
     def test_project_list_succeeds_without_discovered_projects(self):
