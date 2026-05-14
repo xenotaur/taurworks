@@ -350,6 +350,12 @@ def main():
     elif args.command == "activate":
         manager.activate_project(args.project_name)
     elif args.command == "project":
+        if (
+            args.project_command == "init"
+            and args.create_working_dir
+            and args.working_dir is None
+        ):
+            parser_project_init.error("--create-working-dir requires --working-dir")
         if args.project_command == "activate" and not args.print_only:
             parser_project.error(
                 "project activate currently requires --print and is read-only."

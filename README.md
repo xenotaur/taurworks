@@ -213,9 +213,11 @@ Behavior:
 - stores `--working-dir DIR` as a normalized path relative to `project_root`;
 - rejects absolute working-directory paths and paths that escape the project root;
 - requires `DIR` to exist by default;
-- creates a missing `DIR` only when `--create-working-dir` is supplied.
+- creates a missing `DIR` only when `--create-working-dir` is supplied;
+- rejects `--create-working-dir` when `--working-dir` is omitted;
+- resolves an explicit target through the shared project resolver so a current project name or current directory basename initializes the current project root instead of an accidental nested same-name child path.
 
-The command prints a summary with `project_root`, `root_exists`, `root_created`, `config_path`, `changed`, `working_dir_requested`, `working_dir`, `working_dir_exists`, `working_dir_created`, and any `warnings`.
+The command prints a summary with `input`, `project_root`, `resolved_by`, `root_exists`, `root_created`, `config_path`, `changed`, `working_dir_requested`, `working_dir`, `working_dir_exists`, `working_dir_created`, and any `warnings`. Refresh warnings are reported separately from fatal init failures.
 
 ## Shared project target resolution
 

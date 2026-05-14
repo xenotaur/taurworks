@@ -418,6 +418,11 @@ def create_working_dir_metadata_target(
         project_root, user_path
     )
     resolved_working_dir = (project_root.resolve() / relative_path).resolve()
+    if resolved_working_dir.exists() and not resolved_working_dir.is_dir():
+        raise ProjectConfigError(
+            "working_dir target exists but is not a directory: "
+            f"{resolved_working_dir}"
+        )
     if not working_dir_exists:
         resolved_working_dir.mkdir(parents=True, exist_ok=True)
     return relative_path.as_posix(), resolved_working_dir, not working_dir_exists
