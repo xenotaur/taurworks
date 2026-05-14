@@ -25,7 +25,9 @@ def _handle_project_command(args):
     if args.project_command == "working-dir":
         if args.working_dir_command == "show":
             diagnostics = (
-                project_resolution.gather_project_working_dir_show_diagnostics()
+                project_resolution.gather_project_working_dir_show_diagnostics(
+                    args.path_or_name
+                )
             )
             print(
                 project_resolution.format_project_working_dir_show_output(diagnostics)
@@ -196,6 +198,14 @@ def main():
         description=(
             "Resolve the current Taurworks project root and show configured "
             "paths.working_dir metadata when present."
+        ),
+    )
+    parser_project_working_dir_show.add_argument(
+        "path_or_name",
+        nargs="?",
+        help=(
+            "Optional project path or name. Defaults to the current project "
+            "when run inside Taurworks metadata."
         ),
     )
     parser_project_working_dir_show.set_defaults(project_parser=parser_project)

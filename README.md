@@ -59,7 +59,7 @@ Both namespaces are expected to share a common configuration/discovery core.
 ### Implementation status and compatibility
 
 Status note: `taurworks project ...` now includes implemented discovery, scaffold, working-directory metadata, and read-only guidance commands (`where`, `list`, `refresh`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` remains planned and is not implemented yet.
-Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, and `taurworks project create` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior.
+Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, `taurworks project create`, `taurworks project working-dir show [PATH_OR_NAME]`, and `taurworks project activate [PATH_OR_NAME] --print` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior where appropriate.
 Design note: dogfooding confirmed the `project_root` (the directory containing `.taurworks/`) and `working_dir` (the default code/work directory, stored relative to `project_root`) model, but showed that the lifecycle semantics need refinement. The accepted design separates `project init` for existing/current roots from `project create` for new roots, centralizes target resolution diagnostics, makes working-directory creation explicit, and prevents accidental nested same-name projects. This sequence should be completed before adding `tw activate` or any shell wrapper that mutates the user shell. Full `taurworks dev ...`, automatic shell mutation, and multi-repo management remain out of scope.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
@@ -74,7 +74,7 @@ The scaffolded `project` namespace currently includes implemented discovery and 
 - `taurworks project where` (implemented, read-only diagnostics)
 - `taurworks project list` (implemented, read-only discovery listing)
 - `taurworks project refresh [PATH_OR_NAME]` (implemented, safe idempotent metadata scaffolding repair)
-- `taurworks project working-dir show` (implemented, project working-directory metadata display; target-aware `show [PATH_OR_NAME]` is planned)
+- `taurworks project working-dir show [PATH_OR_NAME]` (implemented, target-aware project working-directory metadata display)
 - `taurworks project working-dir set [DIR]` (implemented, safe project working-directory metadata update; `set DIR --project PATH_OR_NAME` is the preferred planned target-aware shape)
 - `taurworks project create [PATH_OR_NAME] [--working-dir DIR]` (implemented, safe idempotent create wrapper around refresh with optional working-directory metadata)
 - `taurworks project activate [PATH_OR_NAME] --print` (implemented, read-only activation guidance output)
@@ -110,18 +110,21 @@ working_dir = "repo-or-work-dir"
 Current implemented commands can be used from inside a Taurworks project:
 
 ```bash
-taurworks project working-dir show
+taurworks project working-dir show [PATH_OR_NAME]
 taurworks project working-dir set [DIR]
 ```
 
-Planned accepted dogfood-resolution design (not yet fully implemented):
+Implemented target-aware `working-dir show` behavior:
 
-- `taurworks project working-dir show [PATH_OR_NAME]` should accept an optional target and print the configured relative working directory or a clear unconfigured message. Current CLI support is limited to the no-target `show` form.
-- `taurworks project working-dir set DIR --project PATH_OR_NAME` is preferred over ambiguous positional overloads for target-aware mutation. Current CLI support is limited to `set [DIR]` for the current project.
-- Working-directory paths remain relative to `project_root`; absolute paths and paths that escape `project_root` via `..` are rejected/deferred until a later design explicitly accepts them.
-- Missing working directories should eventually be created only with explicit opt-in. Planned examples include `taurworks project create NAME --working-dir repo --create-working-dir` and `taurworks project working-dir set repo --create`; these opt-in flags are not implemented in the current CLI.
+- no target resolves the current Taurworks project when the command is run inside one;
+- an existing path inside a Taurworks project resolves to the enclosing project root for this read-only command;
+- a target matching the current project name resolves to the current project root instead of an unintended child path;
+- otherwise the target is treated as a child path relative to the current directory and fails safely if no `.taurworks/` metadata is present;
+- output includes `input`, `project_root`, and `resolved_by` diagnostics.
 
-`taurworks project activate [PATH_OR_NAME] --print` reads this metadata and prints activation guidance for the configured work directory. It should remain read-only and use the shared project target resolver. Shell mutation through `tw activate` or a shell wrapper remains a later slice.
+`working-dir set` remains scoped to the current project in this slice. Working-directory paths remain relative to `project_root`; absolute paths and paths that escape `project_root` via `..` are rejected/deferred until a later design explicitly accepts them. Missing working directories should eventually be created only with explicit opt-in. Planned examples include `taurworks project create NAME --working-dir repo --create-working-dir` and `taurworks project working-dir set repo --create`; these opt-in flags are not implemented in the current CLI.
+
+`taurworks project activate [PATH_OR_NAME] --print` reads this metadata, uses the shared project target resolver, and prints activation guidance for the configured work directory. It remains read-only. Shell mutation through `tw activate` or a shell wrapper remains a later slice.
 
 ## `taurworks project where`
 
@@ -187,15 +190,17 @@ Behavior:
 
 This command is intentionally safe and idempotent: repeated runs should report no changes needed once minimal scaffolding exists.
 
-## Planned shared project target resolution
+## Shared project target resolution
 
-The following rules are the accepted resolver design, not the fully implemented current behavior. Current `project refresh` / `project create` target resolution is simpler: no input resolves to the current directory, existing paths resolve as paths, and other input is treated as a child path relative to the current directory. Planned project lifecycle, working-directory, and read-only activation commands should use one shared resolver:
+Existing project commands use shared target-resolution internals where appropriate. State-changing scaffold commands preserve their documented create/refresh behavior, while read-only commands such as `working-dir show` and `activate --print` prefer resolving inside an existing Taurworks project root:
 
 1. No input resolves the current project if present; otherwise the command may use its documented default.
-2. Existing filesystem paths resolve as paths.
-3. Input equal to the current project name resolves to the current project root.
-4. Input equal to the current working-directory basename, when the current directory is or should be the target, resolves to the current directory for init-like behavior.
+2. Input equal to the current project name resolves to the current project root before accepting an accidental same-name relative child path. This fixes same-name activation from inside a project, such as `taurworks project activate TestProject --print`.
+3. Input equal to the current working-directory basename, when the current directory is or should be the target, resolves to the current directory for init-like behavior.
+4. Existing filesystem paths resolve as paths.
 5. Otherwise, input is treated as a child path relative to the current working directory.
+
+For read-only project commands, existing paths inside a Taurworks project are reported as the enclosing project root unless the command explicitly requires the exact path. State-changing scaffold commands keep path-only create/refresh target behavior.
 
 Outputs should make this choice inspectable, for example:
 
@@ -226,7 +231,7 @@ Behavior:
 - commands never overwrite unrelated files or delete files.
 - summaries should include resolver diagnostics such as `input`, `project_root`, and `resolved_by`, plus whether roots or working directories were created.
 
-This design addresses dogfood findings where same-name input from inside a project could resolve to an unintended child path and where missing working-directory creation behavior was inconsistent.
+The shared resolver now addresses the dogfood finding where same-name input from inside a project could resolve to an unintended child path. Remaining planned create/init refinements below are not implemented in this slice.
 
 ## `taurworks project activate --print`
 

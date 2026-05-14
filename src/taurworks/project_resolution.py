@@ -95,8 +95,15 @@ def format_project_list_output(
 
 
 def resolve_project_refresh_target(path_or_name: str | None) -> pathlib.Path:
-    """Resolve refresh target path using simple where-compatible rules."""
-    return project_internals.resolve_project_target(path_or_name, pathlib.Path.cwd())
+    """Resolve refresh/create target path with path-only legacy semantics."""
+    cwd = pathlib.Path.cwd()
+    if path_or_name is None:
+        return cwd.resolve()
+
+    candidate = pathlib.Path(path_or_name).expanduser()
+    if candidate.exists():
+        return candidate.resolve()
+    return (cwd / candidate).resolve()
 
 
 def gather_project_create_diagnostics(
@@ -245,19 +252,28 @@ def gather_project_refresh_diagnostics(
     return project_internals.scaffold_project_metadata(target_dir)
 
 
-def gather_project_working_dir_show_diagnostics() -> dict[str, str | bool]:
-    """Collect working-directory metadata for the current project context."""
+def gather_project_working_dir_show_diagnostics(
+    path_or_name: str | None = None,
+) -> dict[str, str | bool]:
+    """Collect working-directory metadata for a resolved project context."""
     cwd = pathlib.Path.cwd().resolve()
-    project_root = project_internals.find_project_root_candidate(cwd)
-    if project_root is None:
+    resolution = project_internals.resolve_project_target(
+        path_or_name,
+        cwd,
+        prefer_project_root=True,
+    )
+    project_root = resolution.project_root
+    if not (project_root / ".taurworks").is_dir():
         return {
             "ok": False,
             "cwd": str(cwd),
-            "project_root": "unresolved",
+            "input": resolution.input,
+            "project_root": str(project_root),
+            "resolved_by": resolution.resolved_by.value,
             "config_path": "unresolved",
             "working_dir_configured": False,
             "working_dir": "",
-            "message": "No Taurworks project root found from current directory to filesystem root.",
+            "message": "No Taurworks project metadata found for the resolved target.",
         }
 
     config_path = project_internals.project_config_path(project_root)
@@ -272,7 +288,9 @@ def gather_project_working_dir_show_diagnostics() -> dict[str, str | bool]:
         return {
             "ok": False,
             "cwd": str(cwd),
+            "input": resolution.input,
             "project_root": str(project_root),
+            "resolved_by": resolution.resolved_by.value,
             "config_path": str(config_path),
             "working_dir_configured": False,
             "working_dir": "",
@@ -283,7 +301,9 @@ def gather_project_working_dir_show_diagnostics() -> dict[str, str | bool]:
         return {
             "ok": True,
             "cwd": str(cwd),
+            "input": resolution.input,
             "project_root": str(project_root),
+            "resolved_by": resolution.resolved_by.value,
             "config_path": str(config_path),
             "working_dir_configured": False,
             "working_dir": "",
@@ -293,7 +313,9 @@ def gather_project_working_dir_show_diagnostics() -> dict[str, str | bool]:
     return {
         "ok": True,
         "cwd": str(cwd),
+        "input": resolution.input,
         "project_root": str(project_root),
+        "resolved_by": resolution.resolved_by.value,
         "config_path": str(config_path),
         "working_dir_configured": True,
         "working_dir": working_dir,
@@ -306,7 +328,9 @@ def format_project_working_dir_show_output(diagnostics: dict[str, str | bool]) -
     lines = [
         "Taurworks project working directory",
         f"- cwd: {diagnostics['cwd']}",
+        f"- input: {diagnostics['input']}",
         f"- project_root: {diagnostics['project_root']}",
+        f"- resolved_by: {diagnostics['resolved_by']}",
         f"- config_path: {diagnostics['config_path']}",
         f"- working_dir_configured: {diagnostics['working_dir_configured']}",
     ]
@@ -407,20 +431,21 @@ def gather_project_activate_print_diagnostics(
 ) -> dict[str, str | bool]:
     """Collect read-only activation-print diagnostics for a resolved project."""
     cwd = pathlib.Path.cwd().resolve()
-    target = project_internals.resolve_project_target(path_or_name, cwd)
-    project_root = target
-    if path_or_name is None:
-        project_root_candidate = project_internals.find_project_root_candidate(target)
-        if project_root_candidate is not None:
-            project_root = project_root_candidate
+    resolution = project_internals.resolve_project_target(
+        path_or_name,
+        cwd,
+        prefer_project_root=True,
+    )
+    project_root = resolution.project_root
 
     config_path = project_internals.project_config_path(project_root)
     config_exists = config_path.is_file()
     base_diagnostics: dict[str, str | bool] = {
         "ok": True,
         "cwd": str(cwd),
-        "input": path_or_name or "(current working directory)",
+        "input": resolution.input,
         "project_root": str(project_root),
+        "resolved_by": resolution.resolved_by.value,
         "config_path": str(config_path),
         "project_metadata_found": (project_root / ".taurworks").is_dir(),
         "activation_config_exists": config_exists,
@@ -497,6 +522,7 @@ def format_project_activate_print_output(
         f"- cwd: {diagnostics['cwd']}",
         f"- input: {diagnostics['input']}",
         f"- project_root: {diagnostics['project_root']}",
+        f"- resolved_by: {diagnostics['resolved_by']}",
         f"- config_path: {diagnostics['config_path']}",
         f"- project_metadata_found: {diagnostics['project_metadata_found']}",
         f"- activation_config_exists: {diagnostics['activation_config_exists']}",

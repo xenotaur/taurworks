@@ -10,7 +10,52 @@ class ProjectInternalsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             cwd = pathlib.Path(temp_dir)
             resolved = project_internals.resolve_project_target(None, cwd)
-            self.assertEqual(cwd.resolve(), resolved)
+            self.assertEqual(cwd.resolve(), resolved.project_root)
+            self.assertEqual(
+                project_internals.ResolutionReason.DEFAULT_CURRENT_DIRECTORY,
+                resolved.resolved_by,
+            )
+
+    def test_resolve_project_target_uses_current_project_name(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_dir = pathlib.Path(temp_dir)
+            project_dir = root_dir / "TestProject"
+            same_name_child = project_dir / "TestProject"
+            same_name_child.mkdir(parents=True)
+            (project_dir / ".taurworks").mkdir()
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "TestProject"\n',
+                encoding="utf-8",
+            )
+            resolved = project_internals.resolve_project_target(
+                "TestProject",
+                project_dir,
+                prefer_project_root=True,
+            )
+        self.assertEqual(project_dir.resolve(), resolved.project_root)
+        self.assertNotEqual(same_name_child.resolve(), resolved.project_root)
+        self.assertEqual(
+            project_internals.ResolutionReason.CURRENT_PROJECT_NAME,
+            resolved.resolved_by,
+        )
+
+    def test_resolve_project_target_collapses_existing_child_to_project_root(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_dir = pathlib.Path(temp_dir)
+            project_dir = root_dir / "TestProject"
+            child_dir = project_dir / "repo"
+            child_dir.mkdir(parents=True)
+            (project_dir / ".taurworks").mkdir()
+            resolved = project_internals.resolve_project_target(
+                str(child_dir),
+                root_dir,
+                prefer_project_root=True,
+            )
+        self.assertEqual(project_dir.resolve(), resolved.project_root)
+        self.assertEqual(
+            project_internals.ResolutionReason.EXISTING_PATH_PROJECT_ROOT,
+            resolved.resolved_by,
+        )
 
     def test_find_project_root_candidate_walks_parents(self):
         with tempfile.TemporaryDirectory() as temp_dir:
