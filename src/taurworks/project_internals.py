@@ -409,6 +409,20 @@ def resolve_configured_working_dir(
     return relative_path, resolved_working_dir, working_dir_exists
 
 
+def create_working_dir_metadata_target(
+    project_root: pathlib.Path,
+    user_path: str,
+) -> tuple[str, pathlib.Path, bool]:
+    """Create a validated project-root-relative working directory when missing."""
+    relative_path, working_dir_exists = relative_working_dir_metadata(
+        project_root, user_path
+    )
+    resolved_working_dir = (project_root.resolve() / relative_path).resolve()
+    if not working_dir_exists:
+        resolved_working_dir.mkdir(parents=True, exist_ok=True)
+    return relative_path.as_posix(), resolved_working_dir, not working_dir_exists
+
+
 def set_working_dir_metadata(
     project_root: pathlib.Path,
     user_path: str,
