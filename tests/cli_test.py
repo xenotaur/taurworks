@@ -204,6 +204,207 @@ class CliCommandTest(unittest.TestCase):
         self.assertIn("working_dir_exists: False", result.stdout, msg=failure_message)
         self.assertIn("working_dir_created: False", result.stdout, msg=failure_message)
 
+    def test_project_create_with_create_working_dir_creates_and_records_it(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "created-workdir-project"
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "create",
+                "created-workdir-project",
+                "--working-dir",
+                "repo",
+                "--create-working-dir",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            config = tomllib.loads(
+                (target_dir / ".taurworks" / "config.toml").read_text(encoding="utf-8")
+            )
+            self.assertEqual("repo", config["paths"]["working_dir"])
+            self.assertTrue((target_dir / "repo").is_dir(), msg=failure_message)
+            self.assertIn(
+                "working_dir_created: True", result.stdout, msg=failure_message
+            )
+
+    def test_project_create_refuses_same_name_nested_from_project(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "TestProject"
+            (project_dir / ".taurworks").mkdir(parents=True)
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "TestProject"\n',
+                encoding="utf-8",
+            )
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "create",
+                "TestProject",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((project_dir / "TestProject").exists())
+        self.assertIn("refusing to create a nested same-name project", result.stdout)
+        self.assertIn("taurworks project init", result.stdout)
+        self.assertIn("--nested", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_project_create_refuses_same_name_nested_with_trailing_separator(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "TestProject"
+            project_dir.mkdir()
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "create",
+                "TestProject/",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((project_dir / "TestProject").exists())
+        self.assertIn("refusing to create a nested same-name project", result.stdout)
+        self.assertIn("--nested", result.stdout)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_project_create_handles_unreadable_current_config_probe(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "CurrentProject"
+            (project_dir / ".taurworks" / "config.toml").mkdir(parents=True)
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "create",
+                "ChildProject",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            self.assertTrue(
+                (project_dir / "ChildProject" / ".taurworks" / "config.toml").is_file(),
+                msg=failure_message,
+            )
+            self.assertNotIn("Traceback", result.stderr)
+
+    def test_project_create_refuses_same_name_nested_from_basename(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "TestProject"
+            project_dir.mkdir()
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "create",
+                "TestProject",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((project_dir / "TestProject").exists())
+        self.assertIn("refusing to create a nested same-name project", result.stdout)
+        self.assertIn("--nested", result.stdout)
+
+    def test_project_create_nested_allows_same_name_child(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            project_dir = root_path / "TestProject"
+            project_dir.mkdir()
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "project",
+                "create",
+                "TestProject",
+                "--nested",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            nested_project = project_dir / "TestProject"
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            self.assertTrue((nested_project / ".taurworks" / "config.toml").is_file())
+            self.assertIn(f"project_root: {nested_project}", result.stdout)
+
+    def test_project_create_without_name_is_init_compatibility_alias(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            cmd = [sys.executable, "-m", "taurworks.cli", "project", "create"]
+            result = subprocess.run(
+                cmd,
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=_subprocess_env(),
+            )
+            failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            self.assertTrue((root_path / ".taurworks" / "config.toml").is_file())
+            self.assertIn("compatibility_alias: True", result.stdout)
+            self.assertIn("prefer `taurworks project init`", result.stdout)
+
     def test_project_create_with_working_dir_is_idempotent_and_preserves_files(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_path = pathlib.Path(temp_dir)

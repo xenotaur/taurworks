@@ -333,44 +333,139 @@ def format_project_init_output(
     return "\n".join(lines)
 
 
+def _project_create_failure_diagnostics(
+    project_root: pathlib.Path,
+    message: str,
+    *,
+    working_dir_requested: bool,
+) -> dict[str, str | bool | list[str]]:
+    """Build a stable non-mutating create failure diagnostic payload."""
+    return {
+        "ok": False,
+        "target_dir": str(project_root),
+        "root_created": False,
+        "changed": False,
+        "found": [],
+        "missing": [],
+        "created": [],
+        "updated": [],
+        "skipped": [message],
+        "warnings": [message],
+        "delegated_command": "project refresh",
+        "delegated_target_dir": str(project_root),
+        "delegated_changed": False,
+        "working_dir_requested": working_dir_requested,
+        "previous_working_dir": "none",
+        "working_dir": "none",
+        "working_dir_exists": False,
+        "working_dir_created": False,
+        "working_dir_changed": False,
+        "working_dir_message": message,
+        "working_dir_repairs": [],
+    }
+
+
+def _simple_project_name(path_or_name: str) -> str | None:
+    """Return a normalized bare project name, or None when input is a path."""
+    candidate = pathlib.PurePath(path_or_name)
+    if candidate.is_absolute() or len(candidate.parts) != 1:
+        return None
+    return candidate.name
+
+
+def _current_project_name(cwd: pathlib.Path) -> str | None:
+    """Return the configured current project name when readable."""
+    project_root = project_internals.find_project_root_candidate(cwd)
+    if project_root is None:
+        return None
+    try:
+        config = project_internals.read_project_config(project_root)
+    except (
+        OSError,
+        project_internals.ProjectConfigError,
+        tomllib.TOMLDecodeError,
+    ):
+        return None
+    project_table = config.get("project")
+    if not isinstance(project_table, dict):
+        return None
+    project_name = project_table.get("name")
+    if not isinstance(project_name, str) or not project_name.strip():
+        return None
+    return project_name
+
+
+def _would_create_same_name_nested_project(
+    path_or_name: str, cwd: pathlib.Path
+) -> bool:
+    """Return whether bare create NAME would create an accidental NAME/NAME root."""
+    project_name = _simple_project_name(path_or_name)
+    if project_name is None:
+        return False
+    if cwd.name == project_name:
+        return True
+    current_project_name = _current_project_name(cwd)
+    return current_project_name == project_name
+
+
 def gather_project_create_diagnostics(
     path_or_name: str | None,
     working_dir: str | None = None,
+    *,
+    create_working_dir: bool = False,
+    nested: bool = False,
 ) -> dict[str, str | bool | list[str]]:
     """Collect safe create actions by delegating to refresh scaffolding logic."""
+    if path_or_name is None:
+        diagnostics = gather_project_init_diagnostics(
+            None, working_dir, create_working_dir=create_working_dir
+        )
+        diagnostics = dict(diagnostics)
+        diagnostics["compatibility_alias"] = True
+        diagnostics["compatibility_message"] = (
+            "project create with no NAME is a compatibility alias; prefer "
+            "`taurworks project init` for existing/current directory initialization."
+        )
+        return diagnostics
+
+    cwd = pathlib.Path.cwd().resolve()
     project_root = resolve_project_refresh_target(path_or_name)
+
+    if not nested and _would_create_same_name_nested_project(path_or_name, cwd):
+        message = (
+            "refusing to create a nested same-name project; use "
+            "`taurworks project init` to initialize or repair the current project, "
+            "or pass --nested to intentionally create a nested same-name project"
+        )
+        return _project_create_failure_diagnostics(
+            project_root,
+            message,
+            working_dir_requested=working_dir is not None,
+        )
+
     root_existed_before = project_root.exists()
 
     if working_dir is not None:
         try:
-            project_internals.relative_working_dir_metadata(project_root, working_dir)
+            relative_working_dir, _working_dir_exists = (
+                project_internals.relative_working_dir_metadata(
+                    project_root, working_dir
+                )
+            )
         except project_internals.ProjectConfigError as error:
-            return {
-                "ok": False,
-                "target_dir": str(project_root),
-                "root_created": False,
-                "changed": False,
-                "found": [],
-                "missing": [],
-                "created": [],
-                "updated": [],
-                "skipped": [
-                    "project refresh skipped because working_dir validation failed"
-                ],
-                "warnings": [str(error)],
-                "delegated_command": "project refresh",
-                "delegated_target_dir": str(project_root),
-                "delegated_changed": False,
-                "working_dir_requested": True,
-                "previous_working_dir": "none",
-                "working_dir": "none",
-                "working_dir_exists": False,
-                "working_dir_created": False,
-                "working_dir_changed": False,
-                "working_dir_message": str(error),
-                "working_dir_repairs": [],
-            }
-
+            return _project_create_failure_diagnostics(
+                project_root,
+                str(error),
+                working_dir_requested=True,
+            )
+        resolved_working_dir = (project_root.resolve() / relative_working_dir).resolve()
+        if resolved_working_dir.exists() and not resolved_working_dir.is_dir():
+            return _project_create_failure_diagnostics(
+                project_root,
+                "working_dir target exists but is not a directory: "
+                f"{resolved_working_dir}",
+                working_dir_requested=True,
+            )
     diagnostics = gather_project_refresh_diagnostics(str(project_root))
     delegated_target = diagnostics["target_dir"]
     delegated_changed = diagnostics["changed"]
@@ -399,6 +494,15 @@ def gather_project_create_diagnostics(
         return diagnostics
 
     try:
+        working_dir_created = False
+        if create_working_dir:
+            (
+                _relative_working_dir,
+                _resolved_working_dir,
+                working_dir_created,
+            ) = project_internals.create_working_dir_metadata_target(
+                project_root, working_dir
+            )
         (
             previous_working_dir,
             configured_working_dir,
@@ -414,22 +518,31 @@ def gather_project_create_diagnostics(
         diagnostics["ok"] = False
         diagnostics["working_dir"] = "none"
         diagnostics["working_dir_message"] = str(error)
+        diagnostics["warnings"] = [*diagnostics["warnings"], str(error)]
         return diagnostics
 
     diagnostics["previous_working_dir"] = previous_working_dir or "none"
     diagnostics["working_dir"] = configured_working_dir
-    diagnostics["working_dir_exists"] = working_dir_exists
+    diagnostics["working_dir_exists"] = working_dir_exists or working_dir_created
+    diagnostics["working_dir_created"] = working_dir_created
     diagnostics["working_dir_changed"] = working_dir_changed
-    if working_dir_changed:
+    if working_dir_changed or working_dir_created:
         diagnostics["changed"] = True
         updated = list(diagnostics["updated"])
-        updated.append(
-            f"config updated: paths.working_dir set to {configured_working_dir}"
-        )
-        updated.extend(f"config repair: {repair}" for repair in repairs)
+        if working_dir_changed:
+            updated.append(
+                f"config updated: paths.working_dir set to {configured_working_dir}"
+            )
+            updated.extend(f"config repair: {repair}" for repair in repairs)
+        if working_dir_created:
+            created = list(diagnostics["created"])
+            created.append(f"directory: {project_root / configured_working_dir}")
+            diagnostics["created"] = created
         diagnostics["updated"] = updated
     diagnostics["working_dir_message"] = (
-        "Working directory metadata recorded; directory was not created."
+        "Working directory metadata recorded; missing directory was created."
+        if working_dir_created
+        else "Working directory metadata recorded; directory was not created."
     )
     diagnostics["working_dir_repairs"] = repairs
     return diagnostics
@@ -447,6 +560,9 @@ def format_project_create_output(
         f"- delegated_command: {diagnostics['delegated_command']}",
         f"- delegated_target_dir: {diagnostics['delegated_target_dir']}",
     ]
+    if diagnostics.get("compatibility_alias"):
+        lines.append(f"- compatibility_alias: {diagnostics['compatibility_alias']}")
+        lines.append(f"- compatibility_message: {diagnostics['compatibility_message']}")
     refresh_output = format_project_refresh_output(diagnostics)
     refresh_lines = refresh_output.splitlines()
     lines.extend(refresh_lines[2:])
