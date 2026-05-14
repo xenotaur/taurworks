@@ -175,6 +175,57 @@ class ShellHelperTest(unittest.TestCase):
         self.assertEqual(bashrc_text, "original bashrc\n")
         self.assertEqual(profile_text, "original profile\n")
 
+    def test_tw_activate_cli_failure_reports_diagnostics_with_errexit(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            workspace = temp_path / "Workspace"
+            bin_dir.mkdir()
+            workspace.mkdir()
+            _write_taurworks_module_shim(bin_dir)
+
+            project_dir = workspace / "TestProject"
+            config_dir = project_dir / ".taurworks"
+            config_dir.mkdir(parents=True)
+            (config_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "TestProject"\n\n'
+                    '[paths]\nworking_dir = "../outside"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    "set -e; "
+                    'source "$1"; '
+                    'cd "$2"; '
+                    "tw activate TestProject; "
+                    "echo unreachable"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Configured working_dir is invalid", result.stderr)
+        self.assertIn("working_dir is invalid", result.stderr)
+        self.assertNotIn("unreachable", result.stdout)
+
     def test_tw_activate_missing_working_dir_fails_without_changing_directory(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)

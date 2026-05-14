@@ -27,9 +27,10 @@ _tw_activate() {
     local working_dir_configured
     local working_dir_exists
 
-    output=$(command taurworks project activate "$@" --print 2>&1)
-    status=$?
-    if [ "$status" -ne 0 ]; then
+    if output=$(command taurworks project activate "$@" --print 2>&1); then
+        status=0
+    else
+        status=$?
         printf '%s\n' "$output" >&2
         return "$status"
     fi
