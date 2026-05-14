@@ -18,10 +18,10 @@ pip install taurworks
 ```
 
 The `taurworks` executable is a Python command-line program. Like any normal
-child process, it cannot mutate the parent shell, so `taurworks project activate
---print` remains read-only activation guidance. The `tw` command is a shell
-function provided by a manually sourced helper; only that explicit sourced layer
-may change the current shell directory.
+child process, it cannot mutate the parent shell, so
+`taurworks project activate --print` remains read-only activation guidance. The
+`tw` command is a shell function provided by a manually sourced helper; only
+that explicit sourced layer may change the current shell directory.
 
 Print the packaged helper with:
 
