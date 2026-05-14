@@ -20,6 +20,73 @@ class ManagerModuleTest(unittest.TestCase):
         self.assertEqual(count, 2)
         self.assertGreaterEqual(size, 3)
 
+    def test_project_status_classification_for_workspace_entries(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            initialized = workspace / "Initialized"
+            workspace_only = workspace / "WorkspaceOnly"
+            legacy_admin = workspace / "LegacyAdmin"
+            initialized_repo = initialized / "repo"
+            initialized_config = initialized / ".taurworks" / "config.toml"
+            legacy_setup = legacy_admin / "Admin" / "project-setup.source"
+
+            initialized_config.parent.mkdir(parents=True)
+            initialized_repo.mkdir(parents=True)
+            initialized_config.write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "Initialized"\n\n'
+                    '[paths]\nworking_dir = "repo"\n'
+                ),
+                encoding="utf-8",
+            )
+            workspace_only.mkdir()
+            legacy_setup.parent.mkdir(parents=True)
+            legacy_setup.write_text("echo should-not-run\n", encoding="utf-8")
+
+            initialized_status = manager.classify_project_entry(initialized)
+            workspace_only_status = manager.classify_project_entry(workspace_only)
+            legacy_admin_status = manager.classify_project_entry(legacy_admin)
+
+        self.assertEqual(
+            initialized_status["status"], manager.PROJECT_STATUS_INITIALIZED
+        )
+        self.assertTrue(initialized_status["activation_eligible"])
+        self.assertEqual(initialized_status["working_dir"], "repo")
+        self.assertTrue(initialized_status["working_dir_exists"])
+        self.assertEqual(
+            workspace_only_status["status"], manager.PROJECT_STATUS_WORKSPACE_ONLY
+        )
+        self.assertFalse(workspace_only_status["activation_eligible"])
+        self.assertEqual(
+            legacy_admin_status["status"], manager.PROJECT_STATUS_LEGACY_ADMIN
+        )
+        self.assertFalse(legacy_admin_status["activation_eligible"])
+        self.assertIn("not sourced", legacy_admin_status["status_message"])
+
+    def test_classification_does_not_mutate_files_or_source_legacy_admin(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "LegacyAdmin"
+            setup_script = project_dir / "Admin" / "project-setup.source"
+            sentinel = project_dir / "sourced.txt"
+            setup_script.parent.mkdir(parents=True)
+            setup_script.write_text(
+                f"#!/bin/sh\nprintf touched > {sentinel}\n", encoding="utf-8"
+            )
+            before_paths = sorted(
+                path.relative_to(project_dir) for path in project_dir.rglob("*")
+            )
+
+            status = manager.classify_project_entry(project_dir)
+
+            after_paths = sorted(
+                path.relative_to(project_dir) for path in project_dir.rglob("*")
+            )
+
+        self.assertEqual(status["status"], manager.PROJECT_STATUS_LEGACY_ADMIN)
+        self.assertEqual(before_paths, after_paths)
+        self.assertFalse(sentinel.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

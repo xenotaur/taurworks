@@ -1864,6 +1864,124 @@ class CliCommandTest(unittest.TestCase):
         self.assertEqual("child-project", project_root.name, msg=failure_message)
         self.assertIn("activation_command: none", result.stdout, msg=failure_message)
 
+    def test_projects_lists_workspace_entries_with_status_classification(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            initialized = workspace / "Initialized"
+            initialized_repo = initialized / "repo"
+            initialized_config = initialized / ".taurworks" / "config.toml"
+            workspace_only = workspace / "WorkspaceOnly"
+            legacy_admin = workspace / "LegacyAdmin"
+            legacy_setup = legacy_admin / "Admin" / "project-setup.source"
+
+            initialized_repo.mkdir(parents=True)
+            initialized_config.parent.mkdir(parents=True, exist_ok=True)
+            initialized_config.write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "Initialized"\n\n'
+                    '[paths]\nworking_dir = "repo"\n'
+                ),
+                encoding="utf-8",
+            )
+            workspace_only.mkdir()
+            legacy_setup.parent.mkdir(parents=True)
+            legacy_setup.write_text("echo should-not-run\n", encoding="utf-8")
+
+            env = _subprocess_env()
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [sys.executable, "-m", "taurworks.cli", "projects"]
+            result = subprocess.run(
+                cmd,
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("- Initialized    initialized", result.stdout)
+        self.assertIn("- WorkspaceOnly    workspace-only", result.stdout)
+        self.assertIn("- LegacyAdmin    legacy-admin", result.stdout)
+
+    def test_projects_details_include_activation_paths_and_legacy_status(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            initialized = workspace / "Initialized"
+            initialized_repo = initialized / "repo"
+            initialized_config = initialized / ".taurworks" / "config.toml"
+            legacy_admin = workspace / "LegacyAdmin"
+            legacy_setup = legacy_admin / "Admin" / "project-setup.source"
+
+            initialized_repo.mkdir(parents=True)
+            initialized_config.parent.mkdir(parents=True, exist_ok=True)
+            initialized_config.write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "Initialized"\n\n'
+                    '[paths]\nworking_dir = "repo"\n'
+                ),
+                encoding="utf-8",
+            )
+            legacy_setup.parent.mkdir(parents=True)
+            legacy_setup.write_text("echo should-not-run\n", encoding="utf-8")
+
+            env = _subprocess_env()
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [sys.executable, "-m", "taurworks.cli", "projects", "--details"]
+            result = subprocess.run(
+                cmd,
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("Status: initialized", result.stdout)
+        self.assertIn(f"Path: {initialized}", result.stdout)
+        self.assertIn(f"Config: {initialized_config}", result.stdout)
+        self.assertIn("Activation Eligible: ✔", result.stdout)
+        self.assertIn("Working Dir: repo", result.stdout)
+        self.assertIn(f"Resolved Working Dir: {initialized_repo}", result.stdout)
+        self.assertIn("Status: legacy-admin", result.stdout)
+        self.assertIn("not sourced by `tw activate`", result.stdout)
+
+    def test_compat_activate_explains_non_initialized_project_status(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            (workspace / "WorkspaceOnly").mkdir()
+
+            env = _subprocess_env()
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "activate",
+                "WorkspaceOnly",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("listed as workspace-only", result.stdout)
+        self.assertIn("taurworks project init", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
