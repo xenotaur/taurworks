@@ -1,7 +1,7 @@
 # Current Status
 
 ## Maturity snapshot
-Taurworks is in a design-alignment phase moving from basic project scaffolding/discovery and the initial `project_root` / `working_dir` metadata model toward refined project lifecycle semantics that resolve dogfood findings while preserving current behavior.
+Taurworks is in a design-alignment phase moving from successful `tw activate` dogfooding toward shell UX polish, project-list status classification, a minimal read-only `dev` scaffold, and activation-extension design while preserving current activation behavior.
 
 ## Current direction (documented)
 - One primary executable: `taurworks`.
@@ -9,6 +9,7 @@ Taurworks is in a design-alignment phase moving from basic project scaffolding/d
 - Namespaced repo workflow commands: `taurworks dev ...`.
 - Shared discovery/configuration core across namespaces.
 - Compatibility coverage for existing top-level commands (`create`, `refresh`, `activate`, `projects`).
+- Explicit separation between read-only activation guidance and shell-mutating `tw activate`.
 
 ## Implemented minimal project slice
 - `taurworks project --help` documents the project namespace and available discovery commands.
@@ -17,18 +18,22 @@ Taurworks is in a design-alignment phase moving from basic project scaffolding/d
 - `taurworks project refresh`, `taurworks project create`, and `taurworks project activate --print` provide safe scaffolding and inspectable guidance, but dogfooding showed they need configured working-directory metadata before shell activation can be useful.
 
 ## What this phase prioritizes
-- Aligning design/control-plane docs around `.taurworks/config.toml` project metadata.
-- Defining `project_root` as the directory containing `.taurworks/` and `working_dir` as a relative path from that root.
-- Distinguishing `project init` for existing/current roots from `project create` for new project roots.
-- Centralizing target resolution with diagnostics that show `input`, selected `project_root`, and `resolved_by`.
-- Making `working-dir show` target-aware, preferring `working-dir set DIR --project PATH_OR_NAME`, and requiring explicit opt-in before creating missing working directories.
-- Preventing accidental nested same-name projects unless `--nested` is supplied.
-- Completing this dogfood-resolution sequence before adding `tw activate` or shell-wrapper mutation.
+- Making default `tw activate` output concise while preserving successful activation behavior.
+- Moving detailed activation diagnostics behind `--verbose` or `--debug`.
+- Adding `tw help` as an alias for `tw --help`.
+- Classifying `tw projects` / `taurworks projects` output as initialized, workspace-only, or legacy-admin.
+- Keeping activation limited to initialized projects with `.taurworks/config.toml` for now.
+- Adding a minimal read-only `taurworks dev ...` scaffold with safe diagnostics before workflow automation.
+- Designing activation extensions for readiness messages, environment strategies, trusted startup hooks, and legacy migration.
 
 ## What remains future implementation work
-- Implementing the documented `project init`, resolver, `project create`, `working-dir`, and `activate --print` refinements.
-- Full command implementation across all `taurworks dev` verbs.
-- Automatic shell mutation through aliases, wrappers, or shell functions.
+- Implementing the documented `tw` UX polish.
+- Implementing project-list status classification.
+- Implementing a minimal read-only `taurworks dev ...` scaffold.
+- Designing and later implementing activation extensions in separate slices.
+- Automatic legacy `Admin/project-setup.source` migration tooling.
 - Multi-repo project management.
 - Finalized migration/deprecation mechanics for compatibility commands.
 - Expanded diagnostics and dry-run support across all command paths.
+
+Automatic sourcing of legacy `Admin/project-setup.source` scripts is intentionally deferred because it crosses a stronger trust boundary than `cd`-only activation.

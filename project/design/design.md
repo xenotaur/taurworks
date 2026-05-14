@@ -1,7 +1,7 @@
 # Design Overview
 
 ## Status note
-The `taurworks project ...` and `taurworks dev ...` namespaces described below are the target design direction and are not yet fully implemented. The current project command slice can create/refresh visible metadata, discover projects, and print read-only activation guidance; dogfooding showed that the `project_root` / `working_dir` model is useful, but the command semantics need refinement before shell activation can be useful: existing-directory initialization must be separated from new-root creation, target resolution must be centralized, working-directory creation must be explicit, and accidental nested same-name projects must be guarded.
+The `taurworks project ...` and `taurworks dev ...` namespaces described below are the target design direction and are not yet fully implemented. The current project command slice can create/refresh visible metadata, discover projects, initialize existing roots, record working-directory metadata, and print read-only activation guidance. Dogfooding has now shown that the explicit `tw activate` shell helper can safely change into the configured working directory, so the next sequence is UX polish, project-list classification, a minimal read-only `dev` namespace scaffold, and activation-extension design without adding stronger shell trust behavior yet.
 
 ## Product model
 Taurworks uses one executable, `taurworks`, with two namespaces:
@@ -58,16 +58,34 @@ Absolute working-directory paths are deferred unless a later design explicitly a
 - `taurworks dev validate`
 
 ## Immediate design-aligned implementation sequence
-Dogfooding the current `taurworks project ...` command family showed that this sequence should be completed before adding any shell wrapper that mutates the user shell:
+Dogfooding confirmed this activation path works for the first validation workflow:
 
-1. Add `taurworks project init [PATH] [--working-dir DIR] [--create-working-dir]` for safe, idempotent initialization of an existing/current project root. It should reuse the same refresh/config logic instead of growing a competing scaffold path.
-2. Refine `taurworks project create NAME [--working-dir DIR] [--create-working-dir] [--nested]` so it means creating a new project root directory and then delegating initialization to init/refresh. It should refuse accidental nested same-name creation when the current project or current directory already has the requested name unless `--nested` is supplied.
-3. Centralize shared project target resolution across lifecycle commands and include diagnostic output describing the input, selected `project_root`, and `resolved_by` reason.
-4. Extend `taurworks project working-dir show [PATH_OR_NAME]` to accept an optional target, and prefer `taurworks project working-dir set DIR --project PATH_OR_NAME` over ambiguous positional overloads.
-5. Require explicit opt-in before creating a missing working directory: `project create NAME --working-dir repo --create-working-dir` or `project working-dir set repo --create`.
-6. Keep `taurworks project activate [PATH_OR_NAME] --print` read-only while making it use the shared resolver and configured `working_dir`.
+```bash
+tw project create TestProject --working-dir test_repo --create-working-dir
+tw activate TestProject
+```
 
-Automatic shell mutation through `tw activate` or another shell wrapper remains a later slice. Full `taurworks dev ...` behavior and multi-repo project management are also deferred.
+The wrapper changes into the configured working directory, and missing project activation fails safely. The next implementation sequence should therefore polish the current behavior without changing the core activation semantics:
+
+1. **`tw` UX polish:** make default `tw activate` output concise, move detailed activation diagnostics behind `--verbose` or `--debug`, keep missing project/working-directory failures as concise warnings by default, add `tw help` as an alias for `tw --help`, and preserve the current successful activation behavior.
+2. **Project-list status classification:** make `tw projects` / `taurworks projects` distinguish initialized projects with `.taurworks/config.toml`, workspace-only directories, and legacy-admin directories with `Admin/project-setup.source`. Activation should continue to support initialized projects only for now.
+3. **Minimal `dev` namespace scaffold:** add a read-only `taurworks dev ...` namespace with safe diagnostics such as `dev where` and/or `dev status`; do not add broad repo workflow automation in this slice.
+4. **Activation-extension design:** design, but do not implement, readiness messages, environment activation strategies, trusted per-project startup hooks, and legacy `Admin/project-setup.source` migration.
+
+The safety boundary for this sequence is:
+
+```text
+taurworks project activate --print
+  read-only activation guidance
+
+tw activate
+  explicit shell-mutating wrapper
+
+legacy Admin/project-setup.source
+  migration/design topic, not automatic fallback
+```
+
+Automatic sourcing of legacy `Admin/project-setup.source` scripts is intentionally deferred because it crosses a stronger trust boundary than `cd`-only activation. Full repo workflow automation and multi-repo management remain deferred.
 
 ## Compatibility commands
 Existing top-level commands such as `create`, `refresh`, `activate`, and `projects` remain documented compatibility commands until a migration plan is finalized.
@@ -98,7 +116,7 @@ Working-directory commands should use the same resolver. `taurworks project work
 
 Missing working directories should only be created with explicit opt-in. Accepted forms are `taurworks project create NAME --working-dir repo --create-working-dir` and `taurworks project working-dir set repo --create`. Without the opt-in, commands may record or validate metadata according to their command contract, but must not silently create a code/work directory.
 
-`taurworks project activate [PATH_OR_NAME] --print` remains read-only: it should use the shared resolver, print diagnostics and guidance, and avoid shell mutation. `tw activate` and any actual parent-shell mutation remain future work after the dogfood-resolution sequence above lands.
+`taurworks project activate [PATH_OR_NAME] --print` remains read-only: it should use the shared resolver, print diagnostics and guidance, and avoid shell mutation. `tw activate` is the explicit shell-mutating wrapper for changing directory only; future activation-extension work should be designed before adding environment activation or project-script execution.
 
 ## Dev command resolution model
 For `taurworks dev <command>`, resolution should follow this order:

@@ -30,14 +30,14 @@ Align `project/` control-plane documentation to a unified Taurworks command mode
 Implementation remains future work and should proceed in small, reviewable phases after design alignment is agreed.
 
 ## Current follow-up slice
-Dogfooding the implemented project command slice showed that the `project_root` / `working_dir` model is useful, but the lifecycle command semantics need refinement before activation can be useful. The next work should keep `project_root` as the directory containing `.taurworks/` and `working_dir` as the default code/work directory stored relative to that root, while resolving dogfood findings around target resolution and explicit creation behavior.
+Dogfooding confirmed that the first shell activation path works: `tw project create TestProject --working-dir test_repo --create-working-dir` followed by `tw activate TestProject` changes into the configured working directory, and missing project activation fails safely.
 
 Implementation should proceed in this order:
 
-1. Add `taurworks project init [PATH] [--working-dir DIR] [--create-working-dir]` for safe, idempotent initialization of existing/current project roots, reusing refresh/config logic.
-2. Refine `taurworks project create NAME [--working-dir DIR] [--create-working-dir] [--nested]` so it creates a new root, delegates to init/refresh, and refuses accidental nested same-name creation unless `--nested` is supplied.
-3. Centralize shared target resolution with diagnostics for no input, existing paths, current project-name input, current-directory basename input, and child-path fallback.
-4. Extend `taurworks project working-dir show [PATH_OR_NAME]`, prefer `taurworks project working-dir set DIR --project PATH_OR_NAME`, and require explicit opt-in before creating missing working directories.
-5. Keep `taurworks project activate [PATH_OR_NAME] --print` read-only while making it use the shared resolver and configured `working_dir`.
+1. Polish `tw activate` output so defaults are concise, detailed activation diagnostics require `--verbose` or `--debug`, missing project/working-directory cases print concise warnings by default, `tw help` aliases `tw --help`, and successful activation behavior remains unchanged.
+2. Classify `tw projects` / `taurworks projects` results as initialized projects with `.taurworks/config.toml`, workspace-only directories, or legacy-admin directories with `Admin/project-setup.source`.
+3. Keep activation support limited to initialized projects for now. Do not add legacy-admin fallback sourcing as default behavior; leave old setup scripts for future explicit migration.
+4. Add a minimal read-only `taurworks dev ...` namespace scaffold with safe diagnostics such as `dev where` and/or `dev status`.
+5. Design activation extensions for readiness messages, environment activation strategies, trusted per-project startup hooks, legacy `Admin/project-setup.source` migration, and trust/safety boundaries.
 
-This follow-up remains narrower than full `taurworks dev ...`, automatic shell mutation, or multi-repo project management. It should be completed before adding `tw activate` or any shell wrapper that mutates the user shell.
+This follow-up remains narrower than full `taurworks dev ...` automation, shell startup-file edits, multi-repo project management, or automatic sourcing of legacy project setup scripts. Automatic legacy sourcing is intentionally deferred because it crosses a stronger trust boundary than `cd`-only activation.
