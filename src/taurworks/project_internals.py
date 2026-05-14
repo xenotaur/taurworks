@@ -1,3 +1,5 @@
+import dataclasses
+import enum
 import os
 import pathlib
 import re
@@ -10,6 +12,27 @@ BARE_TOML_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 class ProjectConfigError(ValueError):
     """Raised when Taurworks project config cannot be safely updated."""
+
+
+class ResolutionReason(enum.StrEnum):
+    """Stable reasons for project target resolution."""
+
+    CURRENT_PROJECT = "current_project"
+    EXISTING_PATH = "existing_path"
+    EXISTING_PATH_PROJECT_ROOT = "existing_path_project_root"
+    CURRENT_PROJECT_NAME = "current_project_name"
+    CURRENT_DIRECTORY_BASENAME = "current_directory_basename"
+    CHILD_PATH = "child_path"
+    DEFAULT_CURRENT_DIRECTORY = "default_current_directory"
+
+
+@dataclasses.dataclass(frozen=True)
+class ProjectResolution:
+    """Inspectable result of resolving a project path or name."""
+
+    input: str
+    project_root: pathlib.Path
+    resolved_by: ResolutionReason
 
 
 def project_name_from_path(project_root: pathlib.Path) -> str:
@@ -66,16 +89,95 @@ def discover_projects_from_context(
     )
 
 
-def resolve_project_target(path_or_name: str | None, cwd: pathlib.Path) -> pathlib.Path:
-    """Resolve refresh/create target path using where-compatible rules."""
+def project_name_from_config(project_root: pathlib.Path) -> str:
+    """Return configured project name, falling back to the root basename."""
+    try:
+        config = read_project_config(project_root)
+    except (OSError, ProjectConfigError, tomllib.TOMLDecodeError):
+        return project_name_from_path(project_root)
+
+    project_table = config.get("project")
+    if not isinstance(project_table, dict):
+        return project_name_from_path(project_root)
+
+    project_name = project_table.get("name")
+    if not isinstance(project_name, str) or not project_name.strip():
+        return project_name_from_path(project_root)
+    return project_name
+
+
+def _path_candidate(path_or_name: str, cwd: pathlib.Path) -> pathlib.Path:
+    raw_path = pathlib.Path(path_or_name).expanduser()
+    if raw_path.is_absolute():
+        return raw_path
+    return cwd / raw_path
+
+
+def resolve_project_target(
+    path_or_name: str | None,
+    cwd: pathlib.Path,
+    *,
+    prefer_project_root: bool = False,
+) -> ProjectResolution:
+    """Resolve a project target with stable, inspectable precedence rules."""
+    resolved_cwd = cwd.resolve()
+    display_input = path_or_name or "(current working directory)"
+    current_project_root = find_project_root_candidate(resolved_cwd)
+
     if path_or_name is None:
-        return cwd.resolve()
+        if current_project_root is not None:
+            return ProjectResolution(
+                input=display_input,
+                project_root=current_project_root,
+                resolved_by=ResolutionReason.CURRENT_PROJECT,
+            )
+        return ProjectResolution(
+            input=display_input,
+            project_root=resolved_cwd,
+            resolved_by=ResolutionReason.DEFAULT_CURRENT_DIRECTORY,
+        )
 
-    candidate = pathlib.Path(path_or_name).expanduser()
+    candidate = _path_candidate(path_or_name, resolved_cwd)
     if candidate.exists():
-        return candidate.resolve()
+        resolved_candidate = candidate.resolve()
+        if prefer_project_root:
+            search_base = resolved_candidate
+            if not search_base.is_dir():
+                search_base = search_base.parent
+            project_root = find_project_root_candidate(search_base)
+            if project_root is not None:
+                return ProjectResolution(
+                    input=display_input,
+                    project_root=project_root,
+                    resolved_by=ResolutionReason.EXISTING_PATH_PROJECT_ROOT,
+                )
+        return ProjectResolution(
+            input=display_input,
+            project_root=resolved_candidate,
+            resolved_by=ResolutionReason.EXISTING_PATH,
+        )
 
-    return (cwd / candidate).resolve()
+    if current_project_root is not None:
+        current_project_name = project_name_from_config(current_project_root)
+        if path_or_name == current_project_name:
+            return ProjectResolution(
+                input=display_input,
+                project_root=current_project_root,
+                resolved_by=ResolutionReason.CURRENT_PROJECT_NAME,
+            )
+
+    if resolved_cwd.name == path_or_name and (resolved_cwd / ".taurworks").is_dir():
+        return ProjectResolution(
+            input=display_input,
+            project_root=resolved_cwd,
+            resolved_by=ResolutionReason.CURRENT_DIRECTORY_BASENAME,
+        )
+
+    return ProjectResolution(
+        input=display_input,
+        project_root=candidate.resolve(),
+        resolved_by=ResolutionReason.CHILD_PATH,
+    )
 
 
 def project_config_path(project_root: pathlib.Path) -> pathlib.Path:
