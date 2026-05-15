@@ -7,7 +7,7 @@ import tomllib
 import unittest
 
 
-def _subprocess_env() -> dict[str, str]:
+def _subprocess_env(overrides: dict[str, str] | None = None) -> dict[str, str]:
     repo_root = pathlib.Path(__file__).resolve().parents[1]
     src_path = repo_root / "src"
     env = dict(os.environ)
@@ -15,10 +15,16 @@ def _subprocess_env() -> dict[str, str]:
     env["PYTHONPATH"] = (
         f"{src_path}{os.pathsep}{existing}" if existing else str(src_path)
     )
+    if overrides is not None:
+        env.update(overrides)
     return env
 
 
-def _run_cli(args: list[str], cwd: pathlib.Path) -> subprocess.CompletedProcess[str]:
+def _run_cli(
+    args: list[str],
+    cwd: pathlib.Path,
+    env_overrides: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     cmd = [sys.executable, "-m", "taurworks.cli", *args]
     return subprocess.run(
         cmd,
@@ -27,7 +33,7 @@ def _run_cli(args: list[str], cwd: pathlib.Path) -> subprocess.CompletedProcess[
         text=True,
         check=False,
         timeout=10,
-        env=_subprocess_env(),
+        env=_subprocess_env(env_overrides),
     )
 
 
@@ -53,6 +59,66 @@ def _single_output_path(output: str, key: str) -> pathlib.Path:
 
 
 class CliCommandTest(unittest.TestCase):
+
+    def test_config_where_reports_xdg_path_read_only(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            config_home = root_path / "xdg"
+            result = _run_cli(
+                ["config", "where"],
+                root_path,
+                {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root_path)},
+            )
+        failure_message = _failure_message(["config", "where"], result)
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn(
+            f"config_path: {config_home / 'taurworks' / 'config.toml'}",
+            result.stdout,
+            msg=failure_message,
+        )
+        self.assertIn("exists: False", result.stdout, msg=failure_message)
+        self.assertIn("xdg_source: XDG_CONFIG_HOME", result.stdout, msg=failure_message)
+        self.assertIn("read_only: True", result.stdout, msg=failure_message)
+        self.assertIn("mutation_performed: False", result.stdout, msg=failure_message)
+
+    def test_workspace_show_without_config_does_not_write(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            result = _run_cli(
+                ["workspace", "show"],
+                root_path,
+                {"HOME": str(root_path), "XDG_CONFIG_HOME": str(root_path / "xdg")},
+            )
+            config_path = root_path / "xdg" / "taurworks" / "config.toml"
+        failure_message = _failure_message(["workspace", "show"], result)
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("workspace_root: none", result.stdout, msg=failure_message)
+        self.assertIn("workspace_root_source: unconfigured", result.stdout)
+        self.assertIn("mutation_performed: False", result.stdout, msg=failure_message)
+        self.assertFalse(config_path.exists())
+
+    def test_workspace_set_and_show_use_configured_root(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            config_home = root_path / "xdg"
+            workspace = root_path / "workspace"
+            workspace.mkdir()
+            env = {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root_path)}
+            set_result = _run_cli(["workspace", "set", str(workspace)], root_path, env)
+            show_result = _run_cli(["workspace", "show"], root_path, env)
+            config_data = tomllib.loads(
+                (config_home / "taurworks" / "config.toml").read_text(encoding="utf-8")
+            )
+
+        set_message = _failure_message(["workspace", "set", str(workspace)], set_result)
+        show_message = _failure_message(["workspace", "show"], show_result)
+        self.assertEqual(set_result.returncode, 0, msg=set_message)
+        self.assertIn(f"workspace_root: {workspace.resolve()}", set_result.stdout)
+        self.assertIn("mutation_performed: True", set_result.stdout)
+        self.assertEqual(show_result.returncode, 0, msg=show_message)
+        self.assertIn("workspace_root_source: configured", show_result.stdout)
+        self.assertIn(f"workspace_root: {workspace.resolve()}", show_result.stdout)
+        self.assertEqual(str(workspace.resolve()), config_data["workspace"]["root"])
 
     def test_dev_namespace_help_lists_read_only_diagnostics(self):
         result = _run_cli(["dev", "--help"], pathlib.Path.cwd())

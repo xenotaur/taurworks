@@ -2,9 +2,37 @@ import argparse
 import sys
 
 from taurworks import dev
+from taurworks import global_config
 from taurworks import manager
 from taurworks import project_resolution
 from taurworks import shell_resources
+
+
+def _handle_config_command(args):
+    """Handle `taurworks config ...` commands."""
+    if args.config_command == "where":
+        diagnostics = global_config.gather_config_where_diagnostics()
+        print(global_config.format_config_where_output(diagnostics))
+        return
+
+    args.config_parser.print_help()
+
+
+def _handle_workspace_command(args):
+    """Handle `taurworks workspace ...` commands."""
+    if args.workspace_command == "show":
+        diagnostics = global_config.gather_workspace_show_diagnostics()
+        print(global_config.format_workspace_show_output(diagnostics))
+        return
+
+    if args.workspace_command == "set":
+        diagnostics = global_config.gather_workspace_set_diagnostics(args.path)
+        print(global_config.format_workspace_set_output(diagnostics))
+        if not diagnostics["ok"]:
+            raise SystemExit(1)
+        return
+
+    args.workspace_parser.print_help()
 
 
 def _handle_project_command(args):
@@ -170,6 +198,67 @@ def main():
     parser_activate.add_argument(
         "project_name", type=str, help="Name of the project to activate."
     )
+
+    # `config` namespace
+    parser_config = subparsers.add_parser(
+        "config",
+        help="User-global Taurworks configuration commands.",
+        description=(
+            "Inspect user-global Taurworks configuration. Read-only commands do "
+            "not create config files."
+        ),
+    )
+    config_subparsers = parser_config.add_subparsers(
+        dest="config_command",
+        required=False,
+    )
+    parser_config_where = config_subparsers.add_parser(
+        "where",
+        help="Show the resolved global config path (read-only).",
+        description=(
+            "Report the XDG-style global config path, whether it exists, and "
+            "that no mutation is performed."
+        ),
+    )
+    parser_config_where.set_defaults(config_parser=parser_config)
+    parser_config.set_defaults(config_parser=parser_config)
+
+    # `workspace` namespace
+    parser_workspace = subparsers.add_parser(
+        "workspace",
+        help="User-global workspace root commands.",
+        description=(
+            "Show or set the user-global workspace root in the Taurworks "
+            "XDG-style global config."
+        ),
+    )
+    workspace_subparsers = parser_workspace.add_subparsers(
+        dest="workspace_command",
+        required=False,
+    )
+    parser_workspace_show = workspace_subparsers.add_parser(
+        "show",
+        help="Show configured or inferred workspace root (read-only).",
+        description=(
+            "Read global config if present and display a configured workspace "
+            "root, or a clearly labeled inferred ~/Workspace when available."
+        ),
+    )
+    parser_workspace_show.set_defaults(workspace_parser=parser_workspace)
+    parser_workspace_set = workspace_subparsers.add_parser(
+        "set",
+        help="Set the configured workspace root in global config.",
+        description=(
+            "Write the workspace root to the XDG-style global config. The path "
+            "must already be an existing directory."
+        ),
+    )
+    parser_workspace_set.add_argument(
+        "path",
+        help="Existing workspace directory to store as [workspace].root.",
+    )
+    parser_workspace_set.set_defaults(workspace_parser=parser_workspace)
+    parser_workspace.set_defaults(workspace_parser=parser_workspace)
 
     # `project` namespace
     parser_project = subparsers.add_parser(
@@ -461,6 +550,10 @@ def main():
             packages=args.packages,
             env_file=args.file,
         )
+    elif args.command == "config":
+        _handle_config_command(args)
+    elif args.command == "workspace":
+        _handle_workspace_command(args)
     elif args.command == "dev":
         _handle_dev_command(args)
     elif args.command == "activate":
