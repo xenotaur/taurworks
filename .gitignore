@@ -51,3 +51,6 @@ htmlcov/
 
 # Ignore documentation files
 docs/_build/
+
+# Ignore temp files.
+tmp/
