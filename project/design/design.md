@@ -1,7 +1,7 @@
 # Design Overview
 
 ## Status note
-The `taurworks project ...` and `taurworks dev ...` namespaces described below are the target design direction and are not yet fully implemented. The current project command slice can create/refresh visible metadata, discover projects, initialize existing roots, record working-directory metadata, and print read-only activation guidance. Dogfooding has now shown that the explicitly sourced `taurworks-shell.sh` `tw activate` shell helper can safely change into the configured working directory, so the next sequence is UX polish, project-list classification, a minimal read-only `dev` namespace scaffold, and activation-extension design without adding stronger shell trust behavior yet.
+The `taurworks project ...` and `taurworks dev ...` namespaces described below are the target design direction and are not yet fully implemented. The current project command slice can create/refresh visible metadata, discover nearby projects, initialize existing roots, record working-directory metadata, and print read-only activation guidance. Dogfooding has now shown that Taurworks needs global resolution before richer activation: an XDG-style user config, explicit workspace root, and global project registry should let `tw projects` and `tw activate` resolve projects from anywhere without recursive scanning or automatic legacy script sourcing.
 
 ## Product model
 Taurworks uses one executable, `taurworks`, with two namespaces:
@@ -58,20 +58,15 @@ Absolute working-directory paths are deferred unless a later design explicitly a
 - `taurworks dev validate`
 
 ## Immediate design-aligned implementation sequence
-Dogfooding confirmed this activation path works for the first validation workflow:
+Dogfooding confirmed that local initialized-project activation works, but also exposed the global resolution gap: a project created in a nested working directory may be valid locally while remaining undiscoverable from the workspace root unless it is registered. The accepted direction is to find projects reliably first, then activate them richly.
 
-```bash
-source /path/to/taurworks-shell.sh
-tw project create TestProject --working-dir test_repo --create-working-dir
-tw activate TestProject
-```
+The next sequence is design-first and should not implement behavior changes in the control-plane alignment PR:
 
-The wrapper changes into the configured working directory, and missing project activation fails safely. The next implementation sequence should therefore polish the current behavior without changing the core activation semantics:
-
-1. **`tw` UX polish:** make default `tw activate` output concise, move detailed activation diagnostics behind `--verbose` or `--debug`, keep missing project/working-directory failures as concise warnings by default, add `tw help` as an alias for `tw --help`, and preserve the current successful activation behavior.
-2. **Project-list status classification:** make `tw projects` / `taurworks projects` distinguish initialized projects with `.taurworks/config.toml`, workspace-only directories, and legacy-admin directories with `Admin/project-setup.source`. Activation should continue to support initialized projects only for now.
-3. **Minimal `dev` namespace scaffold:** add a read-only `taurworks dev ...` namespace with safe diagnostics such as `dev where` and/or `dev status`; do not add broad repo workflow automation in this slice.
-4. **Activation-extension design:** design, but do not implement, readiness messages, environment activation strategies, trusted per-project startup hooks, and legacy `Admin/project-setup.source` migration.
+1. **Phase 1a — XDG global config and workspace root:** use `$XDG_CONFIG_HOME/taurworks/config.toml`, falling back to `~/.config/taurworks/config.toml`, with schema version 1 and explicit `[workspace].root`. Planned commands are `taurworks config where`, `taurworks workspace show`, and `taurworks workspace set PATH`. `~/Workspace` may be inferred only as a non-mutating convenience when it already exists and no config exists; explicit configuration is required before persisting or treating it as authoritative.
+2. **Phase 1b — Global project registry:** support `[projects.NAME].root` entries in global config and planned commands `taurworks project register NAME PATH`, `taurworks project unregister NAME`, and `taurworks project registry list`. Registered projects cover intentionally weird or nested locations without recursive scanning by default.
+3. **Phase 1c — Workspace/registry-aware listing and activation:** make `tw projects` / `taurworks projects` merge registered projects, immediate workspace-root children, initialized projects, legacy-admin projects, and workspace-only projects. Make `tw activate NAME` resolve from anywhere by stable priority: registered project, initialized workspace project, legacy-admin workspace project, workspace-only directory, local/enclosing fallback, then child path only for explicitly local commands.
+4. **Phase 2 — Declarative activation config:** design and then implement `.taurworks/config.toml` activation data for readiness messages, environment strategies, and exports without arbitrary user-script sourcing.
+5. **Future phase — Safe user-script support:** support scripts/hooks only behind explicit opt-in with warnings, inspection/dry-run modes, per-project trust, and no default automatic legacy setup sourcing.
 
 The safety boundary for this sequence is:
 
@@ -82,8 +77,14 @@ taurworks project activate --print
 tw activate
   explicit shell-mutating function from sourced taurworks-shell.sh
 
+workspace-only / legacy-admin fallback
+  cd only, with warning
+
 legacy Admin/project-setup.source
-  migration/design topic, not automatic fallback
+  recognized for migration/design, not automatic sourcing
+
+user scripts/hooks
+  future explicit opt-in only
 ```
 
 Automatic sourcing of legacy `Admin/project-setup.source` scripts is intentionally deferred because it crosses a stronger trust boundary than `cd`-only activation. Full repo workflow automation and multi-repo management remain deferred.

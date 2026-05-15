@@ -1,41 +1,38 @@
 ---
-updated: 2026-05-14
-basis: tw_activate_dogfood
+updated: 2026-05-15
+basis: global_config_activation_design
 confidence: high
 ---
 
 # Current Focus
 
-Taurworks is currently focused on **post-dogfood shell and control-plane polish**. The `project_root` / `working_dir` metadata model remains correct, and dogfooding confirmed that the explicitly sourced `taurworks-shell.sh` `tw activate` shell helper can change into a configured working directory while missing project activation fails safely.
+Taurworks is currently focused on **global resolution and activation design alignment**. The `project_root` / `working_dir` metadata model remains correct, and dogfooding showed that Taurworks now needs a configured workspace root and explicit project registry so `tw projects` and `tw activate` can resolve projects reliably from anywhere before activation becomes richer.
 
 ## Active direction
 
-1. Polish the `tw` shell UX without changing successful activation semantics.
-2. Make default `tw activate` output concise, with detailed activation diagnostics available only through `--verbose` or `--debug`.
-3. Keep missing project and missing working-directory failures concise by default.
-4. Add `tw help` as an alias for `tw --help`.
-5. Classify `tw projects` / `taurworks projects` entries as initialized, workspace-only, or legacy-admin.
-6. Keep activation limited to initialized projects with `.taurworks/config.toml` for now.
-7. Add a minimal read-only `taurworks dev ...` namespace scaffold, preferring safe diagnostics such as `dev where` and/or `dev status`.
-8. Design future activation extensions before implementing readiness messages, environment activation, trusted startup hooks, or legacy setup migration.
+1. Design Phase 1a XDG-style global config and explicit workspace root commands.
+2. Design Phase 1b global project registry commands for projects outside immediate workspace discovery.
+3. Design Phase 1c workspace/registry-aware `tw projects` and `tw activate` resolution from anywhere.
+4. Preserve `taurworks project activate --print` as read-only guidance and `tw activate` as the explicit shell-mutating wrapper.
+5. Keep workspace-only and legacy-admin fallback activation to `cd`-only with warnings.
+6. Design Phase 2 declarative `.taurworks/config.toml` activation for messages, environment strategies, and exports without arbitrary script sourcing.
+7. Defer user scripts/hooks to a future explicit opt-in trust model with inspection and dry-run support.
 
 ## In scope now
 
-- Control-plane documentation for the next PR sequence after successful sourced `taurworks-shell.sh` `tw activate` dogfooding.
-- UX polish for existing activation output and help aliasing.
-- Project-list status vocabulary:
-  - initialized projects with `.taurworks/config.toml`;
-  - workspace-only directories;
-  - legacy-admin directories with `Admin/project-setup.source`.
-- A safe, read-only `dev` namespace scaffold.
-- Activation-extension design that explicitly covers readiness messages, Conda/venv/Docker environment strategies, trusted startup hooks, legacy migration, and trust boundaries.
+- Control-plane documentation for the next PR sequence after the global resolution gap found during dogfooding.
+- XDG-style global config and workspace-root design.
+- Global project registry design for intentionally nested or unusual project locations.
+- Workspace/registry-aware project listing and activation resolution design.
+- Declarative activation config design for readiness messages, Conda/venv-style environments, and exports.
+- Future safe user-script support boundaries: explicit opt-in, warnings, inspection/dry-run, per-project trust, and no default legacy sourcing.
 
 ## Out of scope now
 
 - Implementing behavior changes in this design-alignment PR.
-- Changing the core `tw activate` activation behavior.
+- Changing the core `tw activate` activation behavior in this design PR.
 - Adding automatic legacy `Admin/project-setup.source` fallback sourcing.
-- Treating legacy-admin projects as activation targets before migration.
+- Sourcing legacy-admin scripts or treating them as more than `cd`-only warning fallbacks before explicit migration/trust design.
 - Broad repo workflow automation under `taurworks dev ...`.
 - Shell startup-file edits.
 - Multi-repo project management.
@@ -50,8 +47,14 @@ taurworks project activate --print
 tw activate
   explicit shell-mutating function from sourced taurworks-shell.sh
 
+workspace-only / legacy-admin fallback
+  cd only, with warning
+
 legacy Admin/project-setup.source
-  migration/design topic, not automatic fallback
+  recognized for migration/design, not automatic sourcing
+
+user scripts/hooks
+  future explicit opt-in only
 ```
 
 Automatic sourcing of legacy project setup scripts is intentionally deferred because it crosses a stronger trust boundary than `cd`-only activation.
