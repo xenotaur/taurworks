@@ -153,6 +153,28 @@ taurworks project --help
 `taurworks project list` is also non-mutating and reports discoverable projects plus discovery limitations.
 All non-activation `tw ...` commands delegate to `taurworks ...`; `tw help` delegates to `taurworks --help`. Only `tw activate ...` has shell-mutating behavior, and detailed activation diagnostics stay available through `tw activate ... --verbose`, `tw activate ... --debug`, or direct `taurworks project activate ... --print`.
 
+## `taurworks projects` / `tw projects` workspace statuses
+
+The top-level `taurworks projects` command scans the configured workspace (`TAURWORKS_WORKSPACE`, defaulting to `~/Workspace`) and classifies each direct child directory. `tw projects` delegates to the same command, so both outputs use the same status labels.
+
+Statuses are intentionally descriptive rather than promises that every listed directory is immediately activatable:
+
+- `initialized`: the directory contains `.taurworks/config.toml`. It is eligible for `tw activate` only when `[paths].working_dir` is configured in that file and the resolved working directory exists on disk.
+- `workspace-only`: the directory exists in the workspace but does not contain `.taurworks/config.toml`. It is visible in workspace listings, but it is not currently eligible for `tw activate`. If `.taurworks/` exists without a readable `config.toml`, detailed output reports that partial metadata explicitly. Initialize it with `taurworks project init PATH --working-dir DIR` after choosing an existing work directory, or add `--create-working-dir` when Taurworks should create that work directory.
+- `legacy-admin`: the directory contains `Admin/project-setup.source`, which Taurworks recognizes as a legacy Taurworks-style setup. Taurworks lists the project with this status for visibility, but `tw activate` does not source that file automatically. A future migration tool or script may convert legacy setups into `.taurworks/config.toml`; migration is not implemented in this slice.
+
+Default output stays compact:
+
+```text
+Available projects:
+
+- TestProject    initialized
+- Taurworks      workspace-only
+- EmbodiedAI     legacy-admin
+```
+
+Use `taurworks projects --details` when you need paths, metadata-directory presence, config presence, legacy setup presence, working-directory metadata, and activation-eligibility diagnostics. Classification is read-only: listing projects does not source scripts, activate environments, edit startup files, or create/migrate project metadata.
+
 Breaking command removals/renames are intentionally deferred until a migration path is explicitly documented and implemented.
 
 
