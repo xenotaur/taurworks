@@ -117,6 +117,47 @@ class ShellHelperTest(unittest.TestCase):
         self.assertIn("delegated:project list", result.stdout)
         self.assertEqual(delegated_args, "project list")
 
+    def test_tw_dev_delegates_to_taurworks_dev(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            bin_dir.mkdir()
+            log_path = temp_path / "delegated.txt"
+            taurworks = bin_dir / "taurworks"
+            taurworks.write_text(
+                (
+                    "#!/bin/sh\n"
+                    'printf \'%s\\n\' "$*" > "$TAURWORKS_DELEGATION_LOG"\n'
+                    "printf 'delegated:%s\\n' \"$*\"\n"
+                ),
+                encoding="utf-8",
+            )
+            taurworks.chmod(taurworks.stat().st_mode | stat.S_IXUSR)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_DELEGATION_LOG"] = str(log_path)
+            cmd = [
+                "bash",
+                "-c",
+                'source "$1" && tw dev where',
+                "bash",
+                str(SHELL_HELPER),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+            delegated_args = log_path.read_text(encoding="utf-8").strip()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("delegated:dev where", result.stdout)
+        self.assertEqual(delegated_args, "dev where")
+
     def test_tw_projects_delegates_to_taurworks_projects(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)

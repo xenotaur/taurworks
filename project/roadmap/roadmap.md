@@ -86,7 +86,8 @@ This roadmap is phased and conservative. It prioritizes command-model alignment,
 ## Phase 4 — Add minimal read-only `taurworks dev` scaffold
 
 - Introduce `taurworks dev ...` conservatively.
-- Prefer safe diagnostics such as `dev where` and/or `dev status`.
+- Provide safe diagnostics such as `dev where` and `dev status`.
+- Keep the scaffold read-only: report workspace context and future VCS automation boundaries without running workflow commands.
 - Defer `dev test`, `dev clean`, and other workflow automation until the scaffold and trust boundaries are clear.
 
 ## Phase 5 — Design activation extensions before implementation

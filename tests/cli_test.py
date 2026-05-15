@@ -53,6 +53,90 @@ def _single_output_path(output: str, key: str) -> pathlib.Path:
 
 
 class CliCommandTest(unittest.TestCase):
+
+    def test_dev_namespace_help_lists_read_only_diagnostics(self):
+        result = _run_cli(["dev", "--help"], pathlib.Path.cwd())
+        failure_message = _failure_message(["dev", "--help"], result)
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("repository/developer workflow", result.stdout.lower())
+        self.assertIn("where", result.stdout, msg=failure_message)
+        self.assertIn("status", result.stdout, msg=failure_message)
+        self.assertIn("read-only", result.stdout, msg=failure_message)
+
+    def test_dev_where_outside_project_is_read_only(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            before_entries = sorted(path.name for path in root_path.iterdir())
+            result = _run_cli(["dev", "where"], root_path)
+            after_entries = sorted(path.name for path in root_path.iterdir())
+        failure_message = _failure_message(["dev", "where"], result)
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertEqual(before_entries, after_entries)
+        self.assertIn("Taurworks dev workspace diagnostics", result.stdout)
+        self.assertIn("project_root: unresolved", result.stdout)
+        self.assertIn("working_dir: none", result.stdout)
+        self.assertIn("inside_working_dir: False", result.stdout)
+        self.assertIn("mutation_performed: False", result.stdout)
+
+    def test_dev_where_inside_configured_working_dir_is_read_only(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            project_dir = workspace / "TestProject"
+            repo_dir = project_dir / "repo"
+            create_result = _run_cli(
+                [
+                    "project",
+                    "create",
+                    "TestProject",
+                    "--working-dir",
+                    "repo",
+                    "--create-working-dir",
+                ],
+                workspace,
+            )
+            create_message = _failure_message(
+                [
+                    "project",
+                    "create",
+                    "TestProject",
+                    "--working-dir",
+                    "repo",
+                    "--create-working-dir",
+                ],
+                create_result,
+            )
+            self.assertEqual(create_result.returncode, 0, msg=create_message)
+            before_config = (project_dir / ".taurworks" / "config.toml").read_text(
+                encoding="utf-8"
+            )
+            result = _run_cli(["dev", "where"], repo_dir)
+            after_config = (project_dir / ".taurworks" / "config.toml").read_text(
+                encoding="utf-8"
+            )
+        failure_message = _failure_message(["dev", "where"], result)
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertEqual(before_config, after_config)
+        self.assertIn(f"project_root: {project_dir.resolve()}", result.stdout)
+        self.assertIn("working_dir_configured: True", result.stdout)
+        self.assertIn("working_dir: repo", result.stdout)
+        self.assertIn(f"resolved_working_dir: {repo_dir.resolve()}", result.stdout)
+        self.assertIn("inside_working_dir: True", result.stdout)
+        self.assertIn("mutation_performed: False", result.stdout)
+
+    def test_dev_status_reports_future_vcs_work_without_mutation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            before_entries = sorted(path.name for path in root_path.iterdir())
+            result = _run_cli(["dev", "status"], root_path)
+            after_entries = sorted(path.name for path in root_path.iterdir())
+        failure_message = _failure_message(["dev", "status"], result)
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertEqual(before_entries, after_entries)
+        self.assertIn("Taurworks dev status", result.stdout)
+        self.assertIn("detailed_vcs_status: not implemented", result.stdout)
+        self.assertIn("no git commands were run", result.stdout)
+        self.assertIn("mutation_performed: False", result.stdout)
+
     def test_project_namespace_help_lists_read_only_commands(self):
         cmd = [sys.executable, "-m", "taurworks.cli", "project", "--help"]
         result = subprocess.run(
