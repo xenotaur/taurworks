@@ -30,14 +30,16 @@ Align `project/` control-plane documentation to a unified Taurworks command mode
 Implementation remains future work and should proceed in small, reviewable phases after design alignment is agreed.
 
 ## Current follow-up slice
-Dogfooding confirmed that the first shell activation path works after loading the sourceable helper: `source /path/to/taurworks-shell.sh`, `taurworks project create TestProject --working-dir test_repo --create-working-dir`, then `tw activate TestProject` changes into the configured working directory, and missing project activation fails safely.
+Dogfooding confirmed that local initialized-project activation works after loading the sourceable helper, but also exposed a global resolution gap: initialized projects in nested locations are not reliably discoverable from a workspace root unless they are registered, and `tw activate NAME` remains too dependent on the current directory.
 
-Implementation should proceed in this order:
+Design and implementation should proceed in this order:
 
-1. Polish `tw activate` output so defaults are concise, detailed activation diagnostics require `--verbose` or `--debug`, missing project/working-directory cases print concise warnings by default, `tw help` aliases `tw --help`, and successful activation behavior remains unchanged.
-2. Classify `tw projects` / `taurworks projects` results as initialized projects with `.taurworks/config.toml`, workspace-only directories, or legacy-admin directories with `Admin/project-setup.source`.
-3. Keep activation support limited to initialized projects for now. Do not add legacy-admin fallback sourcing as default behavior; leave old setup scripts for future explicit migration.
-4. Add a minimal read-only `taurworks dev ...` namespace scaffold with safe diagnostics such as `dev where` and/or `dev status`.
-5. Design activation extensions for readiness messages, environment activation strategies, trusted per-project startup hooks, legacy `Admin/project-setup.source` migration, and trust/safety boundaries.
+1. Add XDG-style user-global config design for `$XDG_CONFIG_HOME/taurworks/config.toml`, with `~/.config/taurworks/config.toml` fallback, schema version 1, and explicit `[workspace].root`. Planned commands are `taurworks config where`, `taurworks workspace show`, and `taurworks workspace set PATH`.
+2. Add global project registry design under `[projects.NAME]` with planned commands `taurworks project register NAME PATH`, `taurworks project unregister NAME`, and `taurworks project registry list`; support intentionally weird locations without recursive scanning by default.
+3. Make `tw projects` / `taurworks projects` design merge registered projects, immediate workspace-root children, initialized projects, legacy-admin projects, and workspace-only projects.
+4. Make `tw activate NAME` design resolve from anywhere using the canonical priority list in `project/design/config_model.md`: registered project, initialized workspace project, legacy-admin workspace project, workspace-only directory, local/enclosing fallback, then child path only for explicitly local commands.
+5. Preserve conservative activation semantics: initialized with `working_dir` changes there; initialized without `working_dir`, workspace-only, and legacy-admin fall back to project root with warnings; legacy scripts are recognized but not sourced by default.
+6. Design Phase 2 declarative activation config for readiness messages, environment strategies such as Conda/venv, and `[activation.exports]` data without arbitrary user-script sourcing.
+7. Defer user scripts/hooks to a future explicit opt-in trust model with warnings, inspection/dry-run modes, per-project trust, and a possible migration path from `Admin/project-setup.source`.
 
-This follow-up remains narrower than full `taurworks dev ...` automation, shell startup-file edits, multi-repo project management, or automatic sourcing of legacy project setup scripts. Automatic legacy sourcing is intentionally deferred because it crosses a stronger trust boundary than `cd`-only activation.
+This follow-up remains a design/control-plane alignment slice. It should not implement global config, registry commands, activation behavior changes, declarative activation, user-script execution, or automatic legacy setup sourcing.

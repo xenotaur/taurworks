@@ -15,6 +15,120 @@ This precedence keeps repository-defined dev behavior authoritative while still 
 ## Global model (user scope)
 Use XDG-style directories for user-level settings and registries, including workspace/project registration and user defaults.
 
+
+## Planned global config and workspace root (Phase 1a)
+
+Implementation status: planned design only. No global-config behavior is implemented by this document.
+
+Taurworks should introduce a user-global configuration file using XDG-style conventions:
+
+```text
+$XDG_CONFIG_HOME/taurworks/config.toml
+```
+
+When `XDG_CONFIG_HOME` is unset, Taurworks should fall back to:
+
+```text
+~/.config/taurworks/config.toml
+```
+
+The minimal global config should be explicit and stable:
+
+```toml
+schema_version = 1
+
+[workspace]
+root = "/Users/example/Workspace"
+```
+
+Planned commands:
+
+```bash
+taurworks config where
+taurworks workspace show
+taurworks workspace set PATH
+```
+
+Discovery stance:
+
+- `taurworks config where` may report both the configured path and whether the file exists.
+- Taurworks may infer `~/Workspace` only as a non-mutating first-run convenience when no config exists and that directory already exists.
+- Taurworks should require explicit configuration before persisting workspace state, registering projects, or treating an inferred path as authoritative.
+- If no global config exists and `~/Workspace` does not exist, workspace-aware commands should give actionable guidance rather than recursively scanning from the current directory.
+
+## Planned global project registry (Phase 1b)
+
+Implementation status: planned design only. No project-registry behavior is implemented by this document.
+
+Taurworks should support explicit registration of projects that are outside normal workspace discovery or intentionally nested in unusual locations. The registry should live in the user-global config so activation and listing can resolve projects from anywhere without recursive scans.
+
+Example config shape:
+
+```toml
+[projects.HiddenProject]
+root = "/Users/example/Workspace/TestProject/test_repo/HiddenProject"
+```
+
+Planned commands:
+
+```bash
+taurworks project register NAME PATH
+taurworks project unregister NAME
+taurworks project registry list
+```
+
+Registry rules:
+
+- A registered project name is explicit user intent and should be preferred over workspace discovery when names collide.
+- Registered roots may point to intentionally weird or nested locations.
+- Taurworks should not recursively scan the workspace by default to find those locations.
+- Registry listing should make stale or missing paths visible without silently deleting entries.
+- The registry resolves project roots; normal project status handling still decides whether the target is initialized, legacy-admin, or workspace-only.
+
+## Planned workspace and registry resolution (Phase 1c)
+
+Implementation status: planned design only. Existing commands remain current behavior until a later implementation PR.
+
+`tw projects` and `taurworks projects` should eventually merge these sources into a single status-aware view:
+
+1. registered projects;
+2. immediate children of the configured workspace root;
+3. initialized projects;
+4. legacy-admin projects;
+5. workspace-only projects.
+
+The listing should avoid recursive discovery by default. Registered projects cover nested or unusual locations that immediate-child workspace discovery intentionally does not find.
+
+`tw activate NAME` should resolve from anywhere using a stable order:
+
+1. explicit registered project by name;
+2. initialized project under the configured workspace root;
+3. legacy-admin project under the configured workspace root;
+4. workspace-only directory under the configured workspace root;
+5. local/enclosing project fallback;
+6. child path relative to the current directory only for explicitly local commands.
+
+After the canonical priority list selects a candidate project, activation fallback semantics should be conservative:
+
+```text
+initialized with working_dir
+  cd to working_dir
+
+initialized without working_dir
+  cd to project root with warning
+
+workspace-only
+  cd to project root with warning
+
+legacy-admin
+  cd to project root with warning; do not source legacy script by default
+
+registered
+  selected first by the priority list; resolve root by registry, then apply normal project status behavior
+```
+
+The guiding principle for this phase is: find projects reliably first, then activate them richly.
+
 ## Project/workspace metadata (filesystem-visible)
 Keep project/workspace operational metadata visible and inspectable under `.taurworks/`.
 

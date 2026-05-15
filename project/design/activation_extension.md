@@ -69,11 +69,11 @@ The boundary matters because shell state changes are not all equivalent:
 - sourcing startup hooks executes project-controlled code in the user's current
   shell and can perform arbitrary shell actions.
 
-## Future configuration shape
+## Phase 2 declarative activation configuration
 
-Activation extensions should be represented declaratively in
-`.taurworks/config.toml` before any imperative hook is considered. A future
-configuration may look like this:
+Implementation status: planned design only. No declarative activation behavior is implemented by this document.
+
+Activation extensions should be represented declaratively in `.taurworks/config.toml` before any imperative hook is considered. A future configuration may look like this:
 
 ```toml
 [activation]
@@ -82,6 +82,10 @@ message = "Ready for work on project Taurworks"
 [activation.environment]
 type = "conda"
 name = "Taurworks"
+
+[activation.exports]
+CREDENTIALS = "~/Workspace/Taurworks/secrets/example.pem"
+NODE_OPTIONS = "--max-old-space-size=8192"
 ```
 
 or:
@@ -95,15 +99,14 @@ type = "venv"
 path = ".venv"
 ```
 
-A future trusted hook, if accepted, should remain explicit:
+Phase 2 should design and implement declarative activation in small slices:
 
-```toml
-[activation]
-startup_script = ".taurworks/activate.source"
-```
+1. activation success message;
+2. declarative environment strategy such as Conda or venv;
+3. declarative exported environment variables;
+4. clear verbose/debug diagnostics and failure modes.
 
-These examples are proposed design shapes only. They are not currently
-implemented.
+The `[activation.exports]` table is data, not shell code. Values should be treated as literal export values with documented path-expansion rules rather than evaluated command substitutions. This phase should avoid arbitrary user-script sourcing.
 
 ## Readiness message
 
@@ -189,6 +192,40 @@ Design considerations:
 
 Recommendation: add declarative environment activation after message-only polish,
 starting with a narrow type registry and documented failure modes.
+
+## Future safe user-script support
+
+Implementation status: future design only. User scripts and hooks must not be sourced by default.
+
+Taurworks should eventually support user scripts or hooks only behind explicit opt-in, such as a per-project config flag or a `tw config` trust command. This future phase is intentionally separate from Phase 2 declarative activation.
+
+Required safety properties:
+
+1. Hooks are trusted code, not configuration data.
+2. `tw activate` should warn clearly before first use of a trusted hook and when trust changes.
+3. Inspection and dry-run modes should show what would run without running it.
+4. Opt-in should be per project, not inherited globally by accident.
+5. Legacy `Admin/project-setup.source` files are recognized for migration visibility but are not sourced by default.
+6. A later migration path may help users convert `Admin/project-setup.source` into declarative activation config plus an explicitly trusted hook when necessary.
+
+The safety boundary remains:
+
+```text
+taurworks project activate --print
+  read-only activation guidance
+
+tw activate
+  explicit shell-mutating wrapper
+
+workspace-only / legacy-admin fallback
+  cd only, with warning
+
+legacy Admin/project-setup.source
+  recognized, but not sourced by default
+
+user scripts/hooks
+  future explicit opt-in only
+```
 
 ## Trusted startup hooks
 

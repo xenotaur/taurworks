@@ -64,7 +64,7 @@ The current phase follows successful dogfooding of the sourced `taurworks-shell.
 
 1. Polish the `tw` shell UX: concise default `tw activate` output, detailed diagnostics only with `--verbose` or `--debug`, concise default warnings for missing projects or working directories, `tw help` as an alias for `tw --help`, and no change to successful activation semantics.
 2. Classify project-list entries for `tw projects` / `taurworks projects` as initialized projects with `.taurworks/config.toml`, workspace-only directories, or legacy-admin directories with `Admin/project-setup.source`.
-3. Keep activation limited to initialized projects for now. Legacy-admin fallback sourcing must not become default behavior; a future migration script may handle old `Admin/project-setup.source` projects.
+3. Follow the canonical activation contract in `project/design/config_model.md`: initialized projects remain the richest activation targets, while initialized-without-working-dir, workspace-only, and legacy-admin projects may be `cd`-only warning fallbacks. Legacy-admin fallback sourcing must not become default behavior; a future migration or trust flow may handle old `Admin/project-setup.source` scripts.
 4. Add a minimal read-only `taurworks dev ...` scaffold, preferring safe diagnostics such as `dev where` and/or `dev status` before any `dev test`/automation expansion.
 5. Design activation extensions for readiness messages, Conda/venv/Docker-style environment strategies, trusted per-project startup hooks, and legacy setup migration without implementing those behaviors in the polish slice.
 

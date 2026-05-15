@@ -20,4 +20,4 @@ Frontmatter metadata is authoritative; bucket directories are a human-friendly o
 
 ## Current active work
 
-The active unified-command-model work item now tracks post-dogfood shell polish: concise sourced `taurworks-shell.sh` `tw activate` UX, project-list status classification, a minimal read-only `taurworks dev ...` scaffold, and activation-extension design. Legacy `Admin/project-setup.source` projects should be classified for migration planning, not automatically sourced as an activation fallback.
+The active unified-command-model work item now tracks global resolution design after dogfooding: XDG-style global config, explicit workspace root, global project registry, workspace/registry-aware project listing and activation resolution, declarative activation config planning, and future user-script support only behind explicit opt-in. Legacy `Admin/project-setup.source` projects should be classified for migration planning and may be `cd`-only warning fallbacks, but must not be automatically sourced.
