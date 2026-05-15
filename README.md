@@ -59,6 +59,9 @@ you want activation details without changing directories.
 Non-activation `tw ...` commands delegate to `taurworks ...`; `tw help` is an
 alias for `tw --help`. Only `tw activate ...` uses validated
 `taurworks project activate --print` output to run `cd` in the current shell.
+Future readiness messages, environment activation, trusted startup hooks, and
+legacy `Admin/project-setup.source` migration are design-only topics documented
+in `project/design/activation_extension.md`.
 
 ## Developer setup
 
