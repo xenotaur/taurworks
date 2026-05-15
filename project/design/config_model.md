@@ -108,7 +108,7 @@ The listing should avoid recursive discovery by default. Registered projects cov
 5. local/enclosing project fallback;
 6. child path relative to the current directory only for explicitly local commands.
 
-Activation fallback semantics should be conservative:
+After the canonical priority list selects a candidate project, activation fallback semantics should be conservative:
 
 ```text
 initialized with working_dir
@@ -124,7 +124,7 @@ legacy-admin
   cd to project root with warning; do not source legacy script by default
 
 registered
-  resolve root by registry, then apply normal project status behavior
+  selected first by the priority list; resolve root by registry, then apply normal project status behavior
 ```
 
 The guiding principle for this phase is: find projects reliably first, then activate them richly.

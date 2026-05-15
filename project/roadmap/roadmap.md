@@ -62,7 +62,7 @@ This roadmap is phased and conservative. It prioritizes command-model alignment,
 ## Phase 2A2 — Make listing and activation workspace/registry-aware
 
 - Merge registered projects, immediate workspace-root children, initialized projects, legacy-admin projects, and workspace-only projects in `tw projects` / `taurworks projects`.
-- Resolve `tw activate NAME` from anywhere using stable priority: registered project, initialized workspace project, legacy-admin workspace project, workspace-only directory, local/enclosing fallback, then child path only for explicitly local commands.
+- Resolve `tw activate NAME` from anywhere using the canonical priority in `project/design/config_model.md`: registered project, initialized workspace project, legacy-admin workspace project, workspace-only directory, local/enclosing fallback, then child path only for explicitly local commands.
 - Keep fallback activation conservative: initialized projects with `working_dir` cd there; initialized without `working_dir`, workspace-only, and legacy-admin cd to project root with warnings; legacy scripts are not sourced by default.
 
 ## Phase 2A — Align project-root and working-directory metadata
@@ -95,9 +95,9 @@ This roadmap is phased and conservative. It prioritizes command-model alignment,
 ## Phase 2D — Classify project-list status
 
 - Make `tw projects` / `taurworks projects` distinguish initialized projects with `.taurworks/config.toml`, workspace-only directories, and legacy-admin directories with `Admin/project-setup.source`.
-- Keep activation support limited to initialized projects for now.
+- Superseded by Phase 2A2 for activation targets: initialized projects remain the richest activation targets, while initialized-without-working-dir, workspace-only, and legacy-admin projects may be `cd`-only warning fallbacks.
 - Do not add legacy-admin fallback sourcing as default behavior.
-- Leave old `Admin/project-setup.source` projects for a future explicit migration script.
+- Leave old `Admin/project-setup.source` scripts for a future explicit migration or trust flow.
 
 ## Phase 3 — Introduce/document namespaced project lifecycle
 

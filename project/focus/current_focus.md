@@ -12,7 +12,7 @@ Taurworks is currently focused on **global resolution and activation design alig
 
 1. Design Phase 1a XDG-style global config and explicit workspace root commands.
 2. Design Phase 1b global project registry commands for projects outside immediate workspace discovery.
-3. Design Phase 1c workspace/registry-aware `tw projects` and `tw activate` resolution from anywhere.
+3. Design Phase 1c workspace/registry-aware `tw projects` and `tw activate` resolution from anywhere, with the canonical priority list maintained in `project/design/config_model.md`.
 4. Preserve `taurworks project activate --print` as read-only guidance and `tw activate` as the explicit shell-mutating wrapper.
 5. Keep workspace-only and legacy-admin fallback activation to `cd`-only with warnings.
 6. Design Phase 2 declarative `.taurworks/config.toml` activation for messages, environment strategies, and exports without arbitrary script sourcing.

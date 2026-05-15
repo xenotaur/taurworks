@@ -1,8 +1,8 @@
 ---
-prompt_id: "PROMPT(TAURWORKS_GLOBAL_CONFIG_ACTIVATION_DESIGN)[DESIGN/2026-05-15]"
+prompt_id: "PROMPT(AD_HOC:TAURWORKS_GLOBAL_CONFIG_ACTIVATION_DESIGN)[2026-05-15T00:00:00+00:00]"
 work_item: "AD_HOC"
 slug: "taurworks-global-config-activation-design"
-status: "landed"
+status: "in_progress"
 date: "2026-05-15"
 ---
 
@@ -18,10 +18,13 @@ Updated Taurworks control-plane design documentation for the next global-resolut
 - Updated README/status/focus/roadmap/work-item artifacts touched by this design alignment.
 
 # Validation
-- Passed: `./scripts/test`.
-- Passed: `./scripts/lint`.
+- Blocked: `scripts/version tools` because `scripts/version` is not present in this checkout, so the expected Black/Ruff versions could not be confirmed before formatter/linter/test validation.
+- Not run after the missing version entrypoint: `scripts/format --check --diff`.
+- Not run after the missing version entrypoint: `scripts/lint`.
+- Not run after the missing version entrypoint: `scripts/test`.
+- Passed: `git diff --check`.
 - Blocked: `lrh validate` because `lrh` is not installed in this environment.
-- Blocked: `scripts/prompts/record-execution --prompt-id "PROMPT(TAURWORKS_GLOBAL_CONFIG_ACTIVATION_DESIGN)[DESIGN/2026-05-15]" --work-item AD_HOC --slug taurworks-global-config-activation-design --status landed` because `scripts/prompts/record-execution` is not present in this checkout; this record was created manually using `project/executions/README.md` conventions.
+- Blocked: `scripts/prompts/record-execution --prompt-id "PROMPT(AD_HOC:TAURWORKS_GLOBAL_CONFIG_ACTIVATION_DESIGN)[2026-05-15T00:00:00+00:00]" --work-item AD_HOC --slug taurworks-global-config-activation-design --status in_progress` because `scripts/prompts/record-execution` is not present in this checkout; this record was created manually using `project/executions/README.md` conventions.
 
 # Follow-up
 - Implement Phase 1a global config/workspace commands in a separate PR.

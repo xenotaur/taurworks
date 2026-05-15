@@ -24,7 +24,7 @@ Taurworks is in a design-alignment phase moving from successful local `tw activa
 - Designing Phase 1a global config commands: `taurworks config where`, `taurworks workspace show`, and `taurworks workspace set PATH`.
 - Designing Phase 1b registry commands: `taurworks project register NAME PATH`, `taurworks project unregister NAME`, and `taurworks project registry list`.
 - Designing Phase 1c workspace/registry-aware `tw projects` and `taurworks projects` list merging.
-- Designing stable `tw activate NAME` resolution from anywhere, preferring registered projects before workspace and local fallbacks.
+- Designing stable `tw activate NAME` resolution from anywhere, with the canonical priority list maintained in `project/design/config_model.md` and registered projects preferred before workspace and local fallbacks.
 - Keeping initialized-without-working-dir, workspace-only, and legacy-admin fallbacks to `cd`-only with warnings.
 - Designing Phase 2 declarative activation for readiness messages, environment strategies, and exports without arbitrary script sourcing.
 - Deferring scripts/hooks to future explicit opt-in trust design with warnings, inspection/dry-run, and per-project trust.

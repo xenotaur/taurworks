@@ -77,14 +77,14 @@ Activation extensions should be represented declaratively in `.taurworks/config.
 
 ```toml
 [activation]
-message = "Ready for work on project LCATS"
+message = "Ready for work on project Taurworks"
 
 [activation.environment]
 type = "conda"
-name = "LCATS"
+name = "Taurworks"
 
 [activation.exports]
-CREDENTIALS = "~/Workspace/Novarc/Celeste/NovarcCelesteBuilder.pem"
+CREDENTIALS = "~/Workspace/Taurworks/secrets/example.pem"
 NODE_OPTIONS = "--max-old-space-size=8192"
 ```
 
