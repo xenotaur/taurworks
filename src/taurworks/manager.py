@@ -14,6 +14,7 @@ TAURWORKS_WORKSPACE = os.getenv(
 PROJECT_STATUS_INITIALIZED = "initialized"
 PROJECT_STATUS_WORKSPACE_ONLY = "workspace-only"
 PROJECT_STATUS_LEGACY_ADMIN = "legacy-admin"
+CONDA_ENV_LIST_TIMEOUT_SECONDS = 2
 
 
 def workspace_path():
@@ -27,7 +28,11 @@ def get_conda_environments():
     """Returns a set of existing Conda environment names."""
     try:
         result = subprocess.run(
-            ["conda", "env", "list"], capture_output=True, text=True, check=True
+            ["conda", "env", "list"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=CONDA_ENV_LIST_TIMEOUT_SECONDS,
         )
         envs = set()
         for line in result.stdout.split("\n"):
@@ -36,6 +41,12 @@ def get_conda_environments():
                 # Conda paths might appear
                 envs.add(os.path.basename(env_name))
         return envs
+    except subprocess.TimeoutExpired:
+        print(
+            "Warning: Could not fetch Conda environments: "
+            f"`conda env list` timed out after {CONDA_ENV_LIST_TIMEOUT_SECONDS} seconds"
+        )
+        return set()
     except Exception as e:
         print(f"Warning: Could not fetch Conda environments: {e}")
         return set()

@@ -1,6 +1,8 @@
 import pathlib
+import subprocess
 import tempfile
 import unittest
+import unittest.mock
 
 from taurworks import manager
 
@@ -19,6 +21,23 @@ class ManagerModuleTest(unittest.TestCase):
             size, count = manager.get_directory_info(str(root))
         self.assertEqual(count, 2)
         self.assertGreaterEqual(size, 3)
+
+    def test_get_conda_environments_returns_empty_set_on_timeout(self):
+        with unittest.mock.patch.object(
+            manager.subprocess,
+            "run",
+            side_effect=subprocess.TimeoutExpired(["conda", "env", "list"], 2),
+        ) as run_mock:
+            envs = manager.get_conda_environments()
+
+        self.assertEqual(envs, set())
+        run_mock.assert_called_once_with(
+            ["conda", "env", "list"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=manager.CONDA_ENV_LIST_TIMEOUT_SECONDS,
+        )
 
     def test_project_status_classification_for_workspace_entries(self):
         with tempfile.TemporaryDirectory() as temp_dir:
