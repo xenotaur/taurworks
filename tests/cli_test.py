@@ -1903,9 +1903,9 @@ class CliCommandTest(unittest.TestCase):
 
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
-        self.assertIn("- Initialized    initialized", result.stdout)
+        self.assertIn("- Initialized      initialized", result.stdout)
         self.assertIn("- WorkspaceOnly    workspace-only", result.stdout)
-        self.assertIn("- LegacyAdmin    legacy-admin", result.stdout)
+        self.assertIn("- LegacyAdmin      legacy-admin", result.stdout)
 
     def test_projects_details_include_activation_paths_and_legacy_status(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1953,6 +1953,42 @@ class CliCommandTest(unittest.TestCase):
         self.assertIn("Status: legacy-admin", result.stdout)
         self.assertIn("not sourced by `tw activate`", result.stdout)
 
+    def test_projects_details_reports_missing_working_dir_as_not_eligible(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            project_dir = workspace / "MissingWorkdir"
+            config_path = project_dir / ".taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "MissingWorkdir"\n\n'
+                    '[paths]\nworking_dir = "missing"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            env = _subprocess_env()
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [sys.executable, "-m", "taurworks.cli", "projects", "--details"]
+            result = subprocess.run(
+                cmd,
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("Status: initialized", result.stdout)
+        self.assertIn("Activation Eligible: ✘", result.stdout)
+        self.assertIn("Working Dir: missing", result.stdout)
+        self.assertIn("Working Dir Exists: False", result.stdout)
+        self.assertIn("missing on disk", result.stdout)
+
     def test_compat_activate_explains_non_initialized_project_status(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = pathlib.Path(temp_dir)
@@ -1978,9 +2014,10 @@ class CliCommandTest(unittest.TestCase):
             )
 
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertEqual(result.returncode, 1, msg=failure_message)
         self.assertIn("listed as workspace-only", result.stdout)
         self.assertIn("taurworks project init", result.stdout)
+        self.assertNotIn("migrate the legacy setup", result.stdout)
 
 
 if __name__ == "__main__":

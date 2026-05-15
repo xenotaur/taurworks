@@ -15,7 +15,8 @@ Implemented a focused project-listing status classification pass for top-level `
 - Kept legacy `Admin/project-setup.source` recognition read-only; it is not sourced by listing or activation guidance.
 - Updated compatibility activation messaging for non-initialized workspace entries.
 - Documented status meanings, initialization guidance, and legacy migration expectations.
-- Added tests for status classification, read-only classification behavior, detailed listing diagnostics, delegated `tw projects`, and concise activation messaging.
+- Added tests for status classification, read-only classification behavior, detailed listing diagnostics, missing working-directory eligibility, delegated `tw projects`, and concise activation messaging.
+- Addressed review feedback by requiring existing working directories for activation eligibility, aligning compact status columns, clarifying workspace-only activation guidance, making compatibility activation failures exit non-zero, and surfacing partial `.taurworks/` metadata explicitly.
 
 # Validation
 - Passed: `./scripts/test`

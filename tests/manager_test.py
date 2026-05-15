@@ -26,8 +26,11 @@ class ManagerModuleTest(unittest.TestCase):
             initialized = workspace / "Initialized"
             workspace_only = workspace / "WorkspaceOnly"
             legacy_admin = workspace / "LegacyAdmin"
+            metadata_only = workspace / "MetadataOnly"
+            missing_workdir = workspace / "MissingWorkdir"
             initialized_repo = initialized / "repo"
             initialized_config = initialized / ".taurworks" / "config.toml"
+            missing_workdir_config = missing_workdir / ".taurworks" / "config.toml"
             legacy_setup = legacy_admin / "Admin" / "project-setup.source"
 
             initialized_config.parent.mkdir(parents=True)
@@ -41,12 +44,24 @@ class ManagerModuleTest(unittest.TestCase):
                 encoding="utf-8",
             )
             workspace_only.mkdir()
+            metadata_only.joinpath(".taurworks").mkdir(parents=True)
+            missing_workdir_config.parent.mkdir(parents=True)
+            missing_workdir_config.write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "MissingWorkdir"\n\n'
+                    '[paths]\nworking_dir = "missing"\n'
+                ),
+                encoding="utf-8",
+            )
             legacy_setup.parent.mkdir(parents=True)
             legacy_setup.write_text("echo should-not-run\n", encoding="utf-8")
 
             initialized_status = manager.classify_project_entry(initialized)
             workspace_only_status = manager.classify_project_entry(workspace_only)
             legacy_admin_status = manager.classify_project_entry(legacy_admin)
+            metadata_only_status = manager.classify_project_entry(metadata_only)
+            missing_workdir_status = manager.classify_project_entry(missing_workdir)
 
         self.assertEqual(
             initialized_status["status"], manager.PROJECT_STATUS_INITIALIZED
@@ -63,6 +78,18 @@ class ManagerModuleTest(unittest.TestCase):
         )
         self.assertFalse(legacy_admin_status["activation_eligible"])
         self.assertIn("not sourced", legacy_admin_status["status_message"])
+        self.assertEqual(
+            metadata_only_status["status"], manager.PROJECT_STATUS_WORKSPACE_ONLY
+        )
+        self.assertTrue(metadata_only_status["metadata_dir_exists"])
+        self.assertIn("config.toml is missing", metadata_only_status["status_message"])
+        self.assertEqual(
+            missing_workdir_status["status"], manager.PROJECT_STATUS_INITIALIZED
+        )
+        self.assertTrue(missing_workdir_status["working_dir_configured"])
+        self.assertFalse(missing_workdir_status["working_dir_exists"])
+        self.assertFalse(missing_workdir_status["activation_eligible"])
+        self.assertIn("missing on disk", missing_workdir_status["status_message"])
 
     def test_classification_does_not_mutate_files_or_source_legacy_admin(self):
         with tempfile.TemporaryDirectory() as temp_dir:

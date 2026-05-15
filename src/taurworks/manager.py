@@ -145,6 +145,7 @@ def classify_project_entry(project_dir):
     project_path = pathlib.Path(project_dir)
     config_path = project_internals.project_config_path(project_path)
     legacy_setup_path = project_path / "Admin" / "project-setup.source"
+    metadata_dir_exists = (project_path / ".taurworks").is_dir()
     status = PROJECT_STATUS_WORKSPACE_ONLY
     if config_path.is_file():
         status = PROJECT_STATUS_INITIALIZED
@@ -156,7 +157,13 @@ def classify_project_entry(project_dir):
     working_dir_configured = False
     working_dir_exists = False
     activation_eligible = False
-    status_message = "not initialized for `tw activate`"
+    if metadata_dir_exists:
+        status_message = (
+            "workspace metadata directory exists but config.toml is missing; "
+            "not initialized for `tw activate`"
+        )
+    else:
+        status_message = "not initialized for `tw activate`"
 
     if status == PROJECT_STATUS_INITIALIZED:
         status_message = "initialized but no working_dir is configured"
@@ -174,8 +181,14 @@ def classify_project_entry(project_dir):
                 working_dir = relative_working_dir.as_posix()
                 resolved_working_dir = str(absolute_working_dir)
                 working_dir_configured = True
-                activation_eligible = True
-                status_message = "eligible for `tw activate`"
+                activation_eligible = working_dir_exists
+                if working_dir_exists:
+                    status_message = "eligible for `tw activate`"
+                else:
+                    status_message = (
+                        "working_dir is configured but missing on disk; "
+                        "not eligible for `tw activate`"
+                    )
         except (
             project_internals.ProjectConfigError,
             OSError,
@@ -192,6 +205,7 @@ def classify_project_entry(project_dir):
         "path": str(project_path),
         "status": status,
         "config_path": str(config_path),
+        "metadata_dir_exists": metadata_dir_exists,
         "config_exists": config_path.is_file(),
         "legacy_setup_path": str(legacy_setup_path),
         "legacy_setup_exists": legacy_setup_path.is_file(),
@@ -204,32 +218,29 @@ def classify_project_entry(project_dir):
     }
 
 
-def discover_workspace_projects():
-    """Return classified direct child directories from the configured workspace."""
-    workspace = workspace_path()
-    if not workspace.exists():
-        return workspace, []
-
-    projects = [
+def discover_workspace_projects(workspace):
+    """Return classified direct child directories from an existing workspace."""
+    return [
         classify_project_entry(child)
         for child in sorted(workspace.iterdir(), key=lambda path: path.name)
         if child.is_dir()
     ]
-    return workspace, projects
 
 
 def list_projects(show_details=False):
     """Lists available projects in the workspace, with status classification."""
-    workspace, projects = discover_workspace_projects()
+    workspace = workspace_path()
     if not workspace.exists():
         print(f"No workspace found at {workspace}.")
         return
 
+    projects = discover_workspace_projects(workspace)
     if not projects:
         print("No projects found.")
         return
 
     conda_envs = get_conda_environments() if show_details else set()
+    name_width = max(len(project["name"]) for project in projects)
 
     print("Available projects:\n")
     for project in projects:
@@ -241,6 +252,7 @@ def list_projects(show_details=False):
             print(f"- {project['name']}")
             print(f"  ├── Status: {project['status']}")
             print(f"  ├── Path: {project['path']}")
+            print(f"  ├── Metadata Dir Exists: {project['metadata_dir_exists']}")
             print(f"  ├── Config: {project['config_path']}")
             print(f"  ├── Config Exists: {'✔' if project['config_exists'] else '✘'}")
             print(
@@ -262,7 +274,7 @@ def list_projects(show_details=False):
             )
             print(f"  ├── Files: {file_count}, Size: {size_str}\n")
         else:
-            print(f"- {project['name']}    {project['status']}")
+            print(f"- {project['name'].ljust(name_width)}    {project['status']}")
 
 
 def create_project(project_name, python_version="3.11", packages=None, env_file=None):
@@ -344,16 +356,17 @@ def activate_project(project_name):
             f"Project {project_name} is initialized but is not eligible for `tw activate`."
         )
         print("Run `taurworks project working-dir set [DIR]` to configure it.")
-        return
+        sys.exit(1)
 
     if project["status"] == PROJECT_STATUS_LEGACY_ADMIN:
         print(
             f"Project {project_name} is listed as legacy-admin but is not initialized for `tw activate`."
         )
         print("Run `taurworks project init ...` or migrate the legacy setup.")
-        return
+        sys.exit(1)
 
     print(
         f"Project {project_name} is listed as workspace-only but is not initialized for `tw activate`."
     )
-    print("Run `taurworks project init ...` or migrate the legacy setup.")
+    print("Run `taurworks project init ...` to initialize it.")
+    sys.exit(1)
