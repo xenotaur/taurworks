@@ -1,6 +1,7 @@
 import argparse
 import sys
 
+from taurworks import dev
 from taurworks import manager
 from taurworks import project_resolution
 from taurworks import shell_resources
@@ -76,6 +77,21 @@ def _handle_project_command(args):
         return
 
     args.project_parser.print_help()
+
+
+def _handle_dev_command(args):
+    """Handle minimal read-only `taurworks dev ...` commands."""
+    if args.dev_command == "where":
+        diagnostics = dev.gather_dev_where_diagnostics()
+        print(dev.format_dev_where_output(diagnostics))
+        return
+
+    if args.dev_command == "status":
+        diagnostics = dev.gather_dev_status_diagnostics()
+        print(dev.format_dev_status_output(diagnostics))
+        return
+
+    args.dev_parser.print_help()
 
 
 def _handle_shell_command(args):
@@ -365,6 +381,43 @@ def main():
 
     parser_project.set_defaults(project_parser=parser_project)
 
+    # `dev` namespace
+    parser_dev = subparsers.add_parser(
+        "dev",
+        help="Repository/developer workflow commands and diagnostics.",
+        description=(
+            "Repository/developer workflow namespace. This scaffold is minimal: "
+            "it currently provides read-only diagnostics and does not run "
+            "workflow automation."
+        ),
+    )
+    dev_subparsers = parser_dev.add_subparsers(
+        dest="dev_command",
+        required=False,
+    )
+
+    parser_dev_where = dev_subparsers.add_parser(
+        "where",
+        help="Show repository/workspace diagnostics (read-only).",
+        description=(
+            "Report current repository/developer workspace context without "
+            "changing files, shell state, or environments."
+        ),
+    )
+    parser_dev_where.set_defaults(dev_parser=parser_dev)
+
+    parser_dev_status = dev_subparsers.add_parser(
+        "status",
+        help="Show a minimal repository/workspace status summary (read-only).",
+        description=(
+            "Report a small read-only developer workspace summary. Detailed "
+            "VCS and workflow automation are future work and no git commands "
+            "are run."
+        ),
+    )
+    parser_dev_status.set_defaults(dev_parser=parser_dev)
+    parser_dev.set_defaults(dev_parser=parser_dev)
+
     # `shell` namespace
     parser_shell = subparsers.add_parser(
         "shell",
@@ -408,6 +461,8 @@ def main():
             packages=args.packages,
             env_file=args.file,
         )
+    elif args.command == "dev":
+        _handle_dev_command(args)
     elif args.command == "activate":
         manager.activate_project(args.project_name)
     elif args.command == "shell":

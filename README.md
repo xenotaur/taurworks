@@ -117,9 +117,9 @@ Both namespaces are expected to share a common configuration/discovery core.
 
 ### Implementation status and compatibility
 
-Status note: `taurworks project ...` now includes implemented discovery, scaffold, existing-root initialization, working-directory metadata, and read-only guidance commands (`where`, `list`, `refresh`, `init`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` remains planned and is not implemented yet.
+Status note: `taurworks project ...` now includes implemented discovery, scaffold, existing-root initialization, working-directory metadata, and read-only guidance commands (`where`, `list`, `refresh`, `init`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` now exists as a minimal read-only diagnostics namespace for repository/developer workflow context (`where` and `status`); full workflow automation remains future work.
 Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, `taurworks project init`, `taurworks project create`, `taurworks project working-dir show [PATH_OR_NAME]`, and `taurworks project activate [PATH_OR_NAME] --print` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior where appropriate.
-Design note: dogfooding confirmed the `project_root` (the directory containing `.taurworks/`) and `working_dir` (the default code/work directory, stored relative to `project_root`) model. The accepted design separates `project init` for existing/current roots from `project create` for new roots, centralizes target resolution diagnostics, makes working-directory creation explicit, and prevents accidental nested same-name projects. `tw activate` is now the explicit opt-in shell-mutating wrapper for changing the current shell directory. Full `taurworks dev ...`, automatic shell startup-file edits, environment activation, and multi-repo management remain out of scope.
+Design note: dogfooding confirmed the `project_root` (the directory containing `.taurworks/`) and `working_dir` (the default code/work directory, stored relative to `project_root`) model. The accepted design separates `project init` for existing/current roots from `project create` for new roots, centralizes target resolution diagnostics, makes working-directory creation explicit, and prevents accidental nested same-name projects. `tw activate` is now the explicit opt-in shell-mutating wrapper for changing the current shell directory. Broad `taurworks dev ...` automation, automatic shell startup-file edits, environment activation, and multi-repo management remain out of scope.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 
@@ -138,6 +138,8 @@ The scaffolded `project` namespace currently includes implemented discovery and 
 - `taurworks project working-dir set [DIR]` (implemented, safe project working-directory metadata update; `set DIR --project PATH_OR_NAME` is the preferred planned target-aware shape)
 - `taurworks project create [PATH_OR_NAME] [--working-dir DIR]` (implemented, safe idempotent create wrapper around refresh with optional working-directory metadata)
 - `taurworks project activate [PATH_OR_NAME] --print` (implemented, read-only activation guidance output)
+- `taurworks dev where` (implemented, read-only repository/workspace diagnostics)
+- `taurworks dev status` (implemented, read-only summary that explicitly leaves detailed VCS automation for future work)
 - `taurworks shell print` (implemented, prints the packaged sourceable `tw` shell helper)
 - `tw activate [PATH_OR_NAME]` after manually sourcing the printed helper (implemented, explicit shell function that changes directory only)
 - `tw activate [PATH_OR_NAME] --verbose` or `--debug` (implemented, prints detailed activation diagnostics on failure)
@@ -147,11 +149,14 @@ Quick namespace help:
 
 ```bash
 taurworks project --help
+taurworks dev --help
 ```
+
+`taurworks dev where` reports the current directory, detected Taurworks project root, configured working directory, repository/work-directory guess, whether the current directory is inside that configured working directory, and that no mutation was performed. `taurworks dev status` reports a smaller read-only summary and states that detailed VCS workflow automation is future work; it does not shell out to `git`.
 
 `taurworks project where` intentionally does not mutate files, environments, or shell state.
 `taurworks project list` is also non-mutating and reports discoverable projects plus discovery limitations.
-All non-activation `tw ...` commands delegate to `taurworks ...`; `tw help` delegates to `taurworks --help`. Only `tw activate ...` has shell-mutating behavior, and detailed activation diagnostics stay available through `tw activate ... --verbose`, `tw activate ... --debug`, or direct `taurworks project activate ... --print`.
+All non-activation `tw ...` commands delegate to `taurworks ...`, so `tw dev where` and `tw dev status` use the same read-only diagnostics; `tw help` delegates to `taurworks --help`. Only `tw activate ...` has shell-mutating behavior, and detailed activation diagnostics stay available through `tw activate ... --verbose`, `tw activate ... --debug`, or direct `taurworks project activate ... --print`.
 
 ## `taurworks projects` / `tw projects` workspace statuses
 
@@ -486,7 +491,7 @@ Current phase work is focused on:
 
 Out of scope for this phase:
 
-- Immediate implementation of every planned `taurworks dev` command.
+- Immediate implementation of every planned `taurworks dev` command beyond the minimal read-only diagnostics scaffold.
 - Breaking removals of compatibility commands.
 - Broad refactors unrelated to command-model alignment.
 
