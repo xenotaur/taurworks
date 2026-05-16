@@ -90,12 +90,12 @@ class CliCommandTest(unittest.TestCase):
                 {"HOME": str(root_path), "XDG_CONFIG_HOME": str(root_path / "xdg")},
             )
             config_path = root_path / "xdg" / "taurworks" / "config.toml"
+            self.assertFalse(config_path.exists())
         failure_message = _failure_message(["workspace", "show"], result)
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("workspace_root: none", result.stdout, msg=failure_message)
         self.assertIn("workspace_root_source: unconfigured", result.stdout)
         self.assertIn("mutation_performed: False", result.stdout, msg=failure_message)
-        self.assertFalse(config_path.exists())
 
     def test_workspace_set_and_show_use_configured_root(self):
         with tempfile.TemporaryDirectory() as temp_dir:

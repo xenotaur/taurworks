@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import os
 import pathlib
 import re
@@ -7,6 +8,8 @@ from typing import Any
 
 GLOBAL_CONFIG_SCHEMA_VERSION = 1
 BARE_TOML_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+TOML_TABLE_HEADER_PATTERN = re.compile(r"^\s*\[+\s*([^\[\]]+?)\s*\]+\s*(?:#.*)?$")
+TOML_ROOT_KEY_PATTERN = re.compile(r"^(?P<indent>\s*)root\s*=.*$")
 
 
 class GlobalConfigError(ValueError):
@@ -42,13 +45,16 @@ def read_config(path: pathlib.Path | None = None) -> dict[str, Any]:
     resolved_path = path if path is not None else config_path().path
     if not resolved_path.exists():
         return {}
+    if not resolved_path.is_file():
+        raise GlobalConfigError(
+            f"config path exists but is not a file: {resolved_path}"
+        )
     with resolved_path.open("rb") as config_file:
         return tomllib.load(config_file)
 
 
 def _toml_quote(value: str) -> str:
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
+    return json.dumps(value, ensure_ascii=False)
 
 
 def _toml_scalar(value: Any) -> str:
@@ -151,9 +157,30 @@ def configured_workspace_root(config: dict[str, Any]) -> str | None:
     return root
 
 
+def _validate_schema_version(config: dict[str, Any]) -> None:
+    schema_version = config.get("schema_version")
+    if schema_version is None:
+        return
+    if schema_version != GLOBAL_CONFIG_SCHEMA_VERSION:
+        raise GlobalConfigError(
+            "unsupported global config schema_version: "
+            f"{schema_version!r}; expected {GLOBAL_CONFIG_SCHEMA_VERSION}"
+        )
+
+
 def normalize_workspace_root(path_text: str) -> pathlib.Path:
     """Expand and resolve a workspace root path for persistent config."""
     return pathlib.Path(path_text).expanduser().resolve()
+
+
+def configured_workspace_root_path(path_text: str) -> pathlib.Path:
+    """Return an absolute configured workspace root path or fail safely."""
+    candidate = pathlib.Path(path_text).expanduser()
+    if not candidate.is_absolute():
+        raise GlobalConfigError(
+            "configured workspace root must be absolute; run `taurworks workspace set PATH`"
+        )
+    return candidate.resolve()
 
 
 def inferred_workspace_root() -> pathlib.Path | None:
@@ -164,25 +191,55 @@ def inferred_workspace_root() -> pathlib.Path | None:
     return None
 
 
+def _config_error_diagnostics(
+    resolved: GlobalConfigPath,
+    error: Exception,
+    *,
+    config_exists: bool,
+) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "config_path": str(resolved.path),
+        "config_exists": config_exists,
+        "xdg_source": resolved.source,
+        "workspace_root": "none",
+        "workspace_root_source": "invalid_config",
+        "configured_workspace_root": "none",
+        "inferred_workspace_root": "none",
+        "error": str(error),
+        "read_only": True,
+        "mutation_performed": False,
+    }
+
+
 def gather_workspace_show_diagnostics() -> dict[str, Any]:
     """Gather read-only diagnostics for the configured or inferred workspace root."""
     resolved = config_path()
-    config = read_config(resolved.path)
-    configured_root = configured_workspace_root(config)
-    inferred_root = None
-    root_source = "unconfigured"
-    workspace_root = None
-    if configured_root is not None:
-        workspace_root = str(normalize_workspace_root(configured_root))
-        root_source = "configured"
-    elif not resolved.path.exists():
-        inferred_root_path = inferred_workspace_root()
-        if inferred_root_path is not None:
-            inferred_root = str(inferred_root_path)
-            workspace_root = inferred_root
-            root_source = "inferred"
+    try:
+        config = read_config(resolved.path)
+        _validate_schema_version(config)
+        configured_root = configured_workspace_root(config)
+        inferred_root = None
+        root_source = "unconfigured"
+        workspace_root = None
+        if configured_root is not None:
+            workspace_root = str(configured_workspace_root_path(configured_root))
+            root_source = "configured"
+        elif not resolved.path.exists():
+            inferred_root_path = inferred_workspace_root()
+            if inferred_root_path is not None:
+                inferred_root = str(inferred_root_path)
+                workspace_root = inferred_root
+                root_source = "inferred"
+    except (GlobalConfigError, OSError, tomllib.TOMLDecodeError) as error:
+        return _config_error_diagnostics(
+            resolved,
+            error,
+            config_exists=resolved.path.exists(),
+        )
 
     return {
+        "ok": True,
         "config_path": str(resolved.path),
         "config_exists": resolved.path.is_file(),
         "xdg_source": resolved.source,
@@ -190,6 +247,7 @@ def gather_workspace_show_diagnostics() -> dict[str, Any]:
         "workspace_root_source": root_source,
         "configured_workspace_root": configured_root or "none",
         "inferred_workspace_root": inferred_root or "none",
+        "error": "none",
         "read_only": True,
         "mutation_performed": False,
     }
@@ -197,58 +255,145 @@ def gather_workspace_show_diagnostics() -> dict[str, Any]:
 
 def format_workspace_show_output(diagnostics: dict[str, Any]) -> str:
     """Format workspace root diagnostics."""
-    return "\n".join(
+    lines = [
+        "Taurworks workspace",
+        f"- config_path: {diagnostics['config_path']}",
+        f"- config_exists: {diagnostics['config_exists']}",
+        f"- xdg_source: {diagnostics['xdg_source']}",
+        f"- workspace_root: {diagnostics['workspace_root']}",
+        f"- workspace_root_source: {diagnostics['workspace_root_source']}",
+        f"- configured_workspace_root: {diagnostics['configured_workspace_root']}",
+        f"- inferred_workspace_root: {diagnostics['inferred_workspace_root']}",
+    ]
+    if diagnostics["error"] != "none":
+        lines.append(f"- error: {diagnostics['error']}")
+    lines.extend(
         [
-            "Taurworks workspace",
-            f"- config_path: {diagnostics['config_path']}",
-            f"- config_exists: {diagnostics['config_exists']}",
-            f"- xdg_source: {diagnostics['xdg_source']}",
-            f"- workspace_root: {diagnostics['workspace_root']}",
-            f"- workspace_root_source: {diagnostics['workspace_root_source']}",
-            f"- configured_workspace_root: {diagnostics['configured_workspace_root']}",
-            f"- inferred_workspace_root: {diagnostics['inferred_workspace_root']}",
             f"- read_only: {diagnostics['read_only']}",
             f"- mutation_performed: {diagnostics['mutation_performed']}",
         ]
     )
+    return "\n".join(lines)
+
+
+def _toml_table_name(line: str) -> str | None:
+    match = TOML_TABLE_HEADER_PATTERN.match(line)
+    if match is None:
+        return None
+    return match.group(1).strip()
+
+
+def _ensure_schema_version_text(config_text: str) -> str:
+    if not config_text.strip():
+        return f"schema_version = {GLOBAL_CONFIG_SCHEMA_VERSION}\n"
+    return f"schema_version = {GLOBAL_CONFIG_SCHEMA_VERSION}\n" + config_text
+
+
+def _set_workspace_root_in_toml(config_text: str, workspace_root: pathlib.Path) -> str:
+    root_line = f"root = {_toml_quote(str(workspace_root))}"
+    lines = config_text.splitlines()
+    workspace_start = None
+    workspace_end = len(lines)
+    for index, line in enumerate(lines):
+        table_name = _toml_table_name(line)
+        if table_name == "workspace":
+            workspace_start = index
+            continue
+        if workspace_start is not None and table_name is not None:
+            workspace_end = index
+            break
+
+    if workspace_start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.extend(["[workspace]", root_line])
+        return "\n".join(lines) + "\n"
+
+    for index in range(workspace_start + 1, workspace_end):
+        match = TOML_ROOT_KEY_PATTERN.match(lines[index])
+        if match is not None:
+            lines[index] = f"{match.group('indent')}{root_line}"
+            return "\n".join(lines) + "\n"
+
+    lines.insert(workspace_end, root_line)
+    return "\n".join(lines) + "\n"
+
+
+def _write_workspace_root_preserving_config(
+    config_path_to_write: pathlib.Path,
+    config: dict[str, Any],
+    workspace_root: pathlib.Path,
+) -> bool:
+    parent_existed = config_path_to_write.parent.exists()
+    if config_path_to_write.is_symlink():
+        raise GlobalConfigError(
+            f"config path is a symlink and is not modified for safety: {config_path_to_write}"
+        )
+    if config_path_to_write.parent.is_symlink():
+        raise GlobalConfigError(
+            "config directory is a symlink and is not modified for safety: "
+            f"{config_path_to_write.parent}"
+        )
+
+    if config_path_to_write.exists():
+        config_text = config_path_to_write.read_text(encoding="utf-8")
+    else:
+        config_text = ""
+    if "schema_version" not in config:
+        config_text = _ensure_schema_version_text(config_text)
+    updated_text = _set_workspace_root_in_toml(config_text, workspace_root)
+    tomllib.loads(updated_text)
+    config_path_to_write.parent.mkdir(parents=True, exist_ok=True)
+    config_path_to_write.write_text(updated_text, encoding="utf-8")
+    return not parent_existed
+
+
+def _workspace_set_failure(
+    error: str,
+    workspace_root: pathlib.Path | str,
+) -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error": error,
+        "workspace_root": str(workspace_root),
+        "created_config_parent": False,
+        "mutation_performed": False,
+    }
 
 
 def gather_workspace_set_diagnostics(path_text: str) -> dict[str, Any]:
     """Set the configured workspace root in user-global Taurworks config."""
     workspace_root = normalize_workspace_root(path_text)
     if not workspace_root.is_dir():
-        return {
-            "ok": False,
-            "error": f"workspace root must be an existing directory: {workspace_root}",
-            "workspace_root": str(workspace_root),
-            "mutation_performed": False,
-        }
+        return _workspace_set_failure(
+            f"workspace root must be an existing directory: {workspace_root}",
+            workspace_root,
+        )
 
     resolved = config_path()
-    config = read_config(resolved.path)
-    updated_config = dict(config)
-    workspace_table = updated_config.get("workspace")
-    if workspace_table is None:
-        workspace_table = {}
-    if not isinstance(workspace_table, dict):
-        return {
-            "ok": False,
-            "error": "global config [workspace] value is not a table",
-            "workspace_root": str(workspace_root),
-            "mutation_performed": False,
-        }
-    updated_workspace_table = dict(workspace_table)
-    updated_workspace_table["root"] = str(workspace_root)
-    updated_config["workspace"] = updated_workspace_table
-    if "schema_version" not in updated_config:
-        updated_config["schema_version"] = GLOBAL_CONFIG_SCHEMA_VERSION
-    write_config(updated_config, resolved.path)
+    try:
+        config = read_config(resolved.path)
+        _validate_schema_version(config)
+        workspace_table = config.get("workspace")
+        if workspace_table is not None and not isinstance(workspace_table, dict):
+            return _workspace_set_failure(
+                "global config [workspace] value is not a table",
+                workspace_root,
+            )
+        created_config_parent = _write_workspace_root_preserving_config(
+            resolved.path,
+            config,
+            workspace_root,
+        )
+    except (GlobalConfigError, OSError, tomllib.TOMLDecodeError) as error:
+        return _workspace_set_failure(str(error), workspace_root)
+
     return {
         "ok": True,
         "config_path": str(resolved.path),
         "xdg_source": resolved.source,
         "workspace_root": str(workspace_root),
-        "created_config_parent": True,
+        "created_config_parent": created_config_parent,
         "mutation_performed": True,
     }
 
@@ -270,6 +415,7 @@ def format_workspace_set_output(diagnostics: dict[str, Any]) -> str:
             f"- config_path: {diagnostics['config_path']}",
             f"- xdg_source: {diagnostics['xdg_source']}",
             f"- workspace_root: {diagnostics['workspace_root']}",
+            f"- created_config_parent: {diagnostics['created_config_parent']}",
             f"- mutation_performed: {diagnostics['mutation_performed']}",
         ]
     )

@@ -38,6 +38,7 @@ class GlobalConfigTest(unittest.TestCase):
             workspace.mkdir()
             with mock.patch.dict(os.environ, {"HOME": str(home)}, clear=True):
                 diagnostics = global_config.gather_workspace_show_diagnostics()
+            self.assertFalse((home / ".config" / "taurworks" / "config.toml").exists())
 
         self.assertFalse(diagnostics["config_exists"])
         self.assertEqual(str(workspace.resolve()), diagnostics["workspace_root"])
@@ -46,7 +47,6 @@ class GlobalConfigTest(unittest.TestCase):
         self.assertEqual(
             str(workspace.resolve()), diagnostics["inferred_workspace_root"]
         )
-        self.assertFalse((home / ".config" / "taurworks" / "config.toml").exists())
 
     def test_workspace_show_with_configured_root(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -93,7 +93,7 @@ class GlobalConfigTest(unittest.TestCase):
                 diagnostics = global_config.gather_workspace_set_diagnostics(
                     str(workspace)
                 )
-
+            self.assertFalse(diagnostics["created_config_parent"])
             written = tomllib.loads(config_path.read_text(encoding="utf-8"))
 
         self.assertTrue(diagnostics["ok"])
@@ -116,9 +116,154 @@ class GlobalConfigTest(unittest.TestCase):
                 diagnostics = global_config.gather_workspace_set_diagnostics(
                     str(missing_workspace)
                 )
+            self.assertFalse((config_home / "taurworks" / "config.toml").exists())
 
         self.assertFalse(diagnostics["ok"])
-        self.assertFalse((config_home / "taurworks" / "config.toml").exists())
+
+    def test_workspace_set_preserves_nested_tables(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config_home = root / "config-home"
+            workspace = root / "workspace"
+            workspace.mkdir()
+            config_path = config_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "schema_version = 1",
+                        "",
+                        "[projects.HiddenProject]",
+                        'root = "/tmp/hidden"',
+                        'conda_environment = "hidden-env"',
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root)},
+                clear=True,
+            ):
+                diagnostics = global_config.gather_workspace_set_diagnostics(
+                    str(workspace)
+                )
+            written_text = config_path.read_text(encoding="utf-8")
+            written = tomllib.loads(written_text)
+
+        self.assertTrue(diagnostics["ok"])
+        self.assertIn("[projects.HiddenProject]", written_text)
+        self.assertEqual("/tmp/hidden", written["projects"]["HiddenProject"]["root"])
+        self.assertEqual(str(workspace.resolve()), written["workspace"]["root"])
+
+    def test_workspace_show_reports_malformed_config_without_traceback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config_home = root / "config-home"
+            config_path = config_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text("schema_version = ", encoding="utf-8")
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root)},
+                clear=True,
+            ):
+                diagnostics = global_config.gather_workspace_show_diagnostics()
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertEqual("invalid_config", diagnostics["workspace_root_source"])
+        self.assertIn("Invalid value", diagnostics["error"])
+
+    def test_workspace_set_reports_malformed_config_without_writing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config_home = root / "config-home"
+            workspace = root / "workspace"
+            workspace.mkdir()
+            config_path = config_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            original_text = "schema_version = "
+            config_path.write_text(original_text, encoding="utf-8")
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root)},
+                clear=True,
+            ):
+                diagnostics = global_config.gather_workspace_set_diagnostics(
+                    str(workspace)
+                )
+            written_text = config_path.read_text(encoding="utf-8")
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertEqual(original_text, written_text)
+        self.assertIn("Invalid value", diagnostics["error"])
+
+    def test_workspace_set_rejects_unsupported_schema_version(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config_home = root / "config-home"
+            workspace = root / "workspace"
+            workspace.mkdir()
+            config_path = config_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            original_text = "schema_version = 2\n"
+            config_path.write_text(original_text, encoding="utf-8")
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root)},
+                clear=True,
+            ):
+                diagnostics = global_config.gather_workspace_set_diagnostics(
+                    str(workspace)
+                )
+            written_text = config_path.read_text(encoding="utf-8")
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertEqual(original_text, written_text)
+        self.assertIn("unsupported global config schema_version", diagnostics["error"])
+
+    def test_workspace_show_reports_relative_configured_root_as_invalid(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config_home = root / "config-home"
+            config_path = config_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                'schema_version = 1\n\n[workspace]\nroot = "relative-workspace"\n',
+                encoding="utf-8",
+            )
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root)},
+                clear=True,
+            ):
+                diagnostics = global_config.gather_workspace_show_diagnostics()
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertEqual("invalid_config", diagnostics["workspace_root_source"])
+        self.assertIn("must be absolute", diagnostics["error"])
+
+    def test_workspace_set_writes_parseable_paths_with_control_characters(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config_home = root / "config-home"
+            workspace = root / "workspace\nwith-newline"
+            workspace.mkdir()
+            config_path = config_home / "taurworks" / "config.toml"
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root)},
+                clear=True,
+            ):
+                diagnostics = global_config.gather_workspace_set_diagnostics(
+                    str(workspace)
+                )
+            written = tomllib.loads(config_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(diagnostics["ok"])
+        self.assertTrue(diagnostics["created_config_parent"])
+        self.assertEqual(str(workspace.resolve()), written["workspace"]["root"])
 
 
 if __name__ == "__main__":

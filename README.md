@@ -118,7 +118,7 @@ The intended command model is namespaced:
 - `taurworks dev ...` for repository/developer workflow operations.
 - `taurworks shell ...` for printing explicit, sourceable shell integration.
 
-Both namespaces are expected to share a common configuration/discovery core.
+These namespaces are expected to share a common configuration/discovery core where their responsibilities overlap.
 
 ### Implementation status and compatibility
 
@@ -133,7 +133,7 @@ The namespaced model is the active design direction. The currently shipped CLI r
 - `taurworks activate`
 - `taurworks projects`
 
-The scaffolded `project` namespace currently includes implemented discovery and safe scaffold commands:
+The currently implemented namespaced commands are:
 
 - `taurworks config where` (implemented, read-only global config path diagnostics)
 - `taurworks workspace show` (implemented, read-only configured/inferred workspace root display)
