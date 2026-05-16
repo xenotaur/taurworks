@@ -119,17 +119,6 @@ _tw_activate() {
     working_dir_exists=$(printf '%s\n' "$output" | _tw_activation_field "working_dir_exists")
     resolved_working_dir=$(printf '%s\n' "$output" | _tw_activation_field "resolved_working_dir")
 
-    if [ "$working_dir_configured" != "True" ]; then
-        if [ "$verbose" = "1" ]; then
-            printf '%s\n' "$output" >&2
-        else
-            target_label=$(_tw_activation_target_label "$path_or_name")
-            printf '%s\n' "tw activate: no configured working directory is available for $target_label." >&2
-            _tw_activation_detail_command "$path_or_name"
-        fi
-        return 1
-    fi
-
     if [ "$resolved_working_dir" = "" ] || [ "$resolved_working_dir" = "none" ]; then
         if [ "$verbose" = "1" ]; then
             printf '%s\n' "$output" >&2
@@ -155,6 +144,10 @@ _tw_activate() {
         return 1
     fi
 
+    guidance=$(printf '%s\n' "$output" | _tw_activation_field "guidance")
+    if [ "$working_dir_configured" != "True" ] && [ "$guidance" != "" ]; then
+        printf '%s\n' "tw activate: warning: $guidance" >&2
+    fi
     printf '%s\n' "tw activate: changed directory to $resolved_working_dir"
 }
 

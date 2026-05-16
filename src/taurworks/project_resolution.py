@@ -2,6 +2,7 @@ import pathlib
 import shlex
 import tomllib
 
+from taurworks import manager
 from taurworks import project_internals
 
 
@@ -32,26 +33,27 @@ def gather_project_where_diagnostics() -> dict[str, str | bool | None]:
 
 
 def gather_project_list_diagnostics() -> dict[str, str | int | list[dict[str, str]]]:
-    """Collect read-only diagnostics for `taurworks project list`."""
+    """Collect global workspace/registry diagnostics for `taurworks project list`."""
     cwd = pathlib.Path.cwd().resolve()
-    discovered_projects, discovery_source, limitation = (
-        project_internals.discover_projects_from_context(cwd)
-    )
+    discovered_projects = manager.gather_global_projects()
 
     projects = [
         {
-            "name": project_internals.project_name_from_path(project),
-            "path": str(project),
+            "name": str(project["name"]),
+            "path": str(project["path"]),
+            "status": str(project["status"]),
+            "source": str(project["source"]),
+            "registered": str(project["registered"]),
         }
         for project in discovered_projects
     ]
 
     return {
         "cwd": str(cwd),
-        "discovery_source": discovery_source,
+        "discovery_source": "configured workspace direct children plus global project registry",
         "project_count": len(projects),
         "projects": projects,
-        "limitations": limitation,
+        "limitations": "Workspace discovery scans only immediate children; recursive scans and script sourcing are not performed.",
     }
 
 
@@ -86,7 +88,10 @@ def format_project_list_output(
     if project_entries:
         lines.append("- projects:")
         for project in project_entries:
-            lines.append(f"  - {project['name']}: {project['path']}")
+            lines.append(
+                f"  - {project['name']}: {project['path']} "
+                f"[{project['status']}; {project['source']}]"
+            )
     else:
         lines.append("- projects: none")
 
@@ -118,6 +123,111 @@ def resolve_project_init_target(
             resolved_by=project_internals.ResolutionReason.DEFAULT_CURRENT_DIRECTORY,
         )
     return project_internals.resolve_project_target(path_or_name, cwd)
+
+
+def _is_path_like_input(path_or_name: str) -> bool:
+    """Return whether activation input is explicitly path-oriented."""
+    candidate = pathlib.PurePath(path_or_name)
+    return (
+        candidate.is_absolute()
+        or len(candidate.parts) != 1
+        or path_or_name in {".", ".."}
+        or path_or_name.startswith(("./", "../"))
+    )
+
+
+def _resolution_reason_for_project(
+    project: dict[str, object],
+) -> project_internals.ResolutionReason:
+    source = str(project.get("source", ""))
+    status = str(project["status"])
+    if source == manager.PROJECT_SOURCE_REGISTERED:
+        return project_internals.ResolutionReason.REGISTERED_PROJECT
+    if source == manager.PROJECT_SOURCE_CURRENT:
+        return project_internals.ResolutionReason.CURRENT_PROJECT
+    if status == manager.PROJECT_STATUS_INITIALIZED:
+        return project_internals.ResolutionReason.WORKSPACE_INITIALIZED_PROJECT
+    if status == manager.PROJECT_STATUS_LEGACY_ADMIN:
+        return project_internals.ResolutionReason.WORKSPACE_LEGACY_ADMIN_PROJECT
+    return project_internals.ResolutionReason.WORKSPACE_ONLY_PROJECT
+
+
+def resolve_global_activation_project(
+    path_or_name: str | None,
+    cwd: pathlib.Path,
+) -> tuple[project_internals.ProjectResolution, dict[str, object]]:
+    """Resolve activation using registry, workspace, then current project fallback."""
+    display_input = path_or_name or "(current working directory)"
+
+    if path_or_name is not None and not _is_path_like_input(path_or_name):
+        registered_project = manager.find_registered_project(path_or_name)
+        if registered_project is not None:
+            return (
+                project_internals.ProjectResolution(
+                    input=display_input,
+                    project_root=pathlib.Path(str(registered_project["path"])),
+                    resolved_by=project_internals.ResolutionReason.REGISTERED_PROJECT,
+                ),
+                registered_project,
+            )
+
+        workspace_project = manager.find_workspace_project(path_or_name)
+        if workspace_project is not None:
+            return (
+                project_internals.ProjectResolution(
+                    input=display_input,
+                    project_root=pathlib.Path(str(workspace_project["path"])),
+                    resolved_by=_resolution_reason_for_project(workspace_project),
+                ),
+                workspace_project,
+            )
+
+    current_project = manager.find_current_project(cwd)
+    if current_project is not None:
+        current_root = pathlib.Path(str(current_project["path"]))
+        if path_or_name is None or path_or_name in {
+            str(current_project["name"]),
+            current_root.name,
+        }:
+            reason = project_internals.ResolutionReason.CURRENT_PROJECT
+            if path_or_name is not None:
+                reason = project_internals.ResolutionReason.CURRENT_PROJECT_NAME
+            return (
+                project_internals.ProjectResolution(
+                    input=display_input,
+                    project_root=current_root,
+                    resolved_by=reason,
+                ),
+                current_project,
+            )
+
+    if path_or_name is not None and _is_path_like_input(path_or_name):
+        resolution = project_internals.resolve_project_target(
+            path_or_name,
+            cwd,
+            prefer_project_root=False,
+        )
+        project = manager.classify_project_entry(resolution.project_root)
+        row = dict(project)
+        row["source"] = "path"
+        row["registered"] = False
+        row["registered_name"] = "none"
+        return resolution, row
+
+    unresolved_root = (cwd / (path_or_name or ".")).resolve()
+    project = manager.classify_project_entry(unresolved_root)
+    row = dict(project)
+    row["source"] = "unresolved"
+    row["registered"] = False
+    row["registered_name"] = "none"
+    return (
+        project_internals.ProjectResolution(
+            input=display_input,
+            project_root=unresolved_root,
+            resolved_by=project_internals.ResolutionReason.CHILD_PATH,
+        ),
+        row,
+    )
 
 
 def _project_init_failure_diagnostics(
@@ -769,29 +879,48 @@ def format_project_working_dir_set_output(
     return "\n".join(lines)
 
 
+def _activation_target_diagnostics(
+    base_diagnostics: dict[str, str | bool],
+    target_dir: pathlib.Path,
+    guidance: str,
+    *,
+    ok: bool = True,
+) -> dict[str, str | bool]:
+    base_diagnostics["ok"] = ok
+    base_diagnostics["resolved_working_dir"] = str(target_dir)
+    base_diagnostics["working_dir_exists"] = target_dir.is_dir()
+    base_diagnostics["activation_command"] = f"cd {shlex.quote(str(target_dir))}"
+    base_diagnostics["guidance"] = guidance
+    return base_diagnostics
+
+
 def gather_project_activate_print_diagnostics(
     path_or_name: str | None,
 ) -> dict[str, str | bool]:
-    """Collect read-only activation-print diagnostics for a resolved project."""
+    """Collect read-only activation-print diagnostics using global resolution."""
     cwd = pathlib.Path.cwd().resolve()
-    resolution = project_internals.resolve_project_target(
-        path_or_name,
-        cwd,
-        prefer_project_root=True,
-    )
+    resolution, project = resolve_global_activation_project(path_or_name, cwd)
     project_root = resolution.project_root
 
     config_path = project_internals.project_config_path(project_root)
     config_exists = config_path.is_file()
+    project_status = str(project["status"])
     base_diagnostics: dict[str, str | bool] = {
         "ok": True,
         "cwd": str(cwd),
         "input": resolution.input,
         "project_root": str(project_root),
+        "project_name": str(project["name"]),
         "resolved_by": resolution.resolved_by.value,
+        "source": str(project.get("source", "unknown")),
+        "registered": bool(project.get("registered", False)),
+        "registered_name": str(project.get("registered_name", "none")),
+        "project_status": project_status,
         "config_path": str(config_path),
         "project_metadata_found": (project_root / ".taurworks").is_dir(),
         "activation_config_exists": config_exists,
+        "legacy_setup_exists": bool(project["legacy_setup_exists"]),
+        "legacy_setup_path": str(project["legacy_setup_path"]),
         "working_dir_configured": False,
         "working_dir": "none",
         "resolved_working_dir": "none",
@@ -801,10 +930,35 @@ def gather_project_activate_print_diagnostics(
         "read_only": True,
     }
 
-    if not config_exists:
+    if base_diagnostics["source"] == "unresolved":
+        base_diagnostics["ok"] = False
         base_diagnostics["guidance"] = (
-            "No project config was found. Run `taurworks project refresh` or "
-            "`taurworks project create` before configuring a working directory."
+            "Project name was not found in the global registry, configured workspace, "
+            "or current project fallback; use an explicit path for local child directories."
+        )
+        return base_diagnostics
+
+    if project_status == manager.PROJECT_STATUS_WORKSPACE_ONLY:
+        return _activation_target_diagnostics(
+            base_diagnostics,
+            project_root,
+            "Project is not initialized; activation only changes directory to the project root.",
+            ok=project_root.is_dir(),
+        )
+
+    if project_status == manager.PROJECT_STATUS_LEGACY_ADMIN:
+        return _activation_target_diagnostics(
+            base_diagnostics,
+            project_root,
+            "Legacy Admin/project-setup.source exists but was not sourced; activation only changes directory to the project root.",
+            ok=project_root.is_dir(),
+        )
+
+    if not config_exists:
+        base_diagnostics["ok"] = False
+        base_diagnostics["guidance"] = (
+            "No project config was found. Register an existing root, initialize a "
+            "workspace child, or use an explicit path for local path-oriented commands."
         )
         return base_diagnostics
 
@@ -812,11 +966,12 @@ def gather_project_activate_print_diagnostics(
         config = project_internals.read_project_config(project_root)
         working_dir = project_internals.working_dir_from_config(config)
         if working_dir is None:
-            base_diagnostics["guidance"] = (
-                "No working_dir is configured for this project. Run "
-                "`taurworks project working-dir set [DIR]` to configure activation guidance."
+            return _activation_target_diagnostics(
+                base_diagnostics,
+                project_root,
+                "No working_dir is configured for this initialized project; activation changes directory to the project root.",
+                ok=project_root.is_dir(),
             )
-            return base_diagnostics
 
         (
             relative_working_dir,
@@ -865,10 +1020,17 @@ def format_project_activate_print_output(
         f"- cwd: {diagnostics['cwd']}",
         f"- input: {diagnostics['input']}",
         f"- project_root: {diagnostics['project_root']}",
+        f"- project_name: {diagnostics['project_name']}",
         f"- resolved_by: {diagnostics['resolved_by']}",
+        f"- source: {diagnostics['source']}",
+        f"- registered: {diagnostics['registered']}",
+        f"- registered_name: {diagnostics['registered_name']}",
+        f"- project_status: {diagnostics['project_status']}",
         f"- config_path: {diagnostics['config_path']}",
         f"- project_metadata_found: {diagnostics['project_metadata_found']}",
         f"- activation_config_exists: {diagnostics['activation_config_exists']}",
+        f"- legacy_setup_exists: {diagnostics['legacy_setup_exists']}",
+        f"- legacy_setup_path: {diagnostics['legacy_setup_path']}",
         f"- working_dir_configured: {diagnostics['working_dir_configured']}",
         f"- working_dir: {diagnostics['working_dir']}",
         f"- resolved_working_dir: {diagnostics['resolved_working_dir']}",

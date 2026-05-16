@@ -242,6 +242,7 @@ class ShellHelperTest(unittest.TestCase):
 
             env = _subprocess_env()
             env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
             cmd = [
                 "bash",
                 "-c",
@@ -270,7 +271,7 @@ class ShellHelperTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertEqual(result.stdout.strip(), str(expected_dir))
 
-    def test_tw_activate_failure_does_not_change_directory_or_startup_files(self):
+    def test_tw_activate_without_working_dir_changes_to_root_with_warning(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)
             bin_dir = temp_path / "bin"
@@ -287,6 +288,7 @@ class ShellHelperTest(unittest.TestCase):
 
             env = _subprocess_env()
             env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
             env["HOME"] = str(home_dir)
             cmd = [
                 "bash",
@@ -295,10 +297,7 @@ class ShellHelperTest(unittest.TestCase):
                     'source "$1" && '
                     'cd "$2" && '
                     "taurworks project create TestProject >/dev/null && "
-                    "before=$(pwd) && "
-                    "if tw activate TestProject >/tmp/tw-activate.out 2>/tmp/tw-activate.err; "
-                    "then exit 20; fi && "
-                    'test "$(pwd)" = "$before" && '
+                    "tw activate TestProject >/tmp/tw-activate.out 2>/tmp/tw-activate.err && "
                     "pwd && cat /tmp/tw-activate.err"
                 ),
                 "bash",
@@ -316,11 +315,11 @@ class ShellHelperTest(unittest.TestCase):
             bashrc_text = bashrc.read_text(encoding="utf-8")
             profile_text = profile.read_text(encoding="utf-8")
 
+        expected_root = workspace / "TestProject"
         self.assertEqual(result.returncode, 0, msg=result.stderr)
-        self.assertTrue(result.stdout.startswith(str(workspace)))
-        self.assertIn("no configured working directory", result.stdout)
+        self.assertTrue(result.stdout.startswith(str(expected_root)))
+        self.assertIn("No working_dir is configured", result.stdout)
         self.assertNotIn("working_dir_configured: False", result.stdout)
-        self.assertIn("taurworks project activate TestProject --print", result.stdout)
         self.assertEqual(bashrc_text, "original bashrc\n")
         self.assertEqual(profile_text, "original profile\n")
 
@@ -347,6 +346,7 @@ class ShellHelperTest(unittest.TestCase):
 
             env = _subprocess_env()
             env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
             cmd = [
                 "bash",
                 "-c",
@@ -403,6 +403,7 @@ class ShellHelperTest(unittest.TestCase):
 
             env = _subprocess_env()
             env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
             cmd = [
                 "bash",
                 "-c",
@@ -442,6 +443,7 @@ class ShellHelperTest(unittest.TestCase):
 
             env = _subprocess_env()
             env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
             cmd = [
                 "bash",
                 "-c",
@@ -471,7 +473,7 @@ class ShellHelperTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue(result.stdout.startswith(str(workspace)))
-        self.assertIn("resolved working directory does not exist", result.stdout)
+        self.assertIn("directory does not exist", result.stdout)
         self.assertNotIn("working_dir_exists: False", result.stdout)
         self.assertIn("taurworks project activate TestProject --print", result.stdout)
 
