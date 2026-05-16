@@ -7,6 +7,8 @@ import sys
 import tempfile
 import unittest
 
+from helpers import assert_same_path
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 SHELL_HELPER = (
     REPO_ROOT / "src" / "taurworks" / "resources" / "shell" / "taurworks-shell.sh"
@@ -15,11 +17,17 @@ SHELL_HELPER = (
 
 def _subprocess_env() -> dict[str, str]:
     src_path = REPO_ROOT / "src"
+    isolated_root = (
+        pathlib.Path(tempfile.gettempdir()) / f"taurworks-shell-test-{os.getpid()}"
+    )
     env = dict(os.environ)
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = (
         f"{src_path}{os.pathsep}{existing}" if existing else str(src_path)
     )
+    env["HOME"] = str(isolated_root / "home")
+    env["XDG_CONFIG_HOME"] = str(isolated_root / "xdg")
+    env.pop("TAURWORKS_WORKSPACE", None)
     return env
 
 
@@ -269,7 +277,7 @@ class ShellHelperTest(unittest.TestCase):
 
         expected_dir = workspace / "TestProject" / "test_repo"
         self.assertEqual(result.returncode, 0, msg=result.stderr)
-        self.assertEqual(result.stdout.strip(), str(expected_dir))
+        assert_same_path(self, result.stdout.strip(), expected_dir)
 
     def test_tw_activate_without_working_dir_changes_to_root_with_warning(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -317,7 +325,8 @@ class ShellHelperTest(unittest.TestCase):
 
         expected_root = workspace / "TestProject"
         self.assertEqual(result.returncode, 0, msg=result.stderr)
-        self.assertTrue(result.stdout.startswith(str(expected_root)))
+        first_stdout_line = result.stdout.splitlines()[0]
+        assert_same_path(self, first_stdout_line, expected_root)
         self.assertIn("No working_dir is configured", result.stdout)
         self.assertNotIn("working_dir_configured: False", result.stdout)
         self.assertEqual(bashrc_text, "original bashrc\n")
@@ -373,7 +382,7 @@ class ShellHelperTest(unittest.TestCase):
             )
 
         self.assertEqual(result.returncode, 0, msg=result.stderr)
-        self.assertTrue(result.stdout.startswith(str(workspace)))
+        assert_same_path(self, result.stdout.splitlines()[0], workspace)
         self.assertIn("activation failed for TestProject", result.stdout)
         self.assertIn("Configured working_dir is invalid", result.stdout)
         self.assertNotIn("no configured working directory", result.stdout)
@@ -472,7 +481,7 @@ class ShellHelperTest(unittest.TestCase):
             )
 
         self.assertEqual(result.returncode, 0, msg=result.stderr)
-        self.assertTrue(result.stdout.startswith(str(workspace)))
+        assert_same_path(self, result.stdout.splitlines()[0], workspace)
         self.assertIn("directory does not exist", result.stdout)
         self.assertNotIn("working_dir_exists: False", result.stdout)
         self.assertIn("taurworks project activate TestProject --print", result.stdout)

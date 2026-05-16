@@ -5,16 +5,25 @@ import sys
 import tempfile
 import tomllib
 import unittest
+from unittest import mock
+
+from helpers import assert_same_path, parse_cli_fields
 
 
 def _subprocess_env(overrides: dict[str, str] | None = None) -> dict[str, str]:
     repo_root = pathlib.Path(__file__).resolve().parents[1]
     src_path = repo_root / "src"
+    isolated_root = (
+        pathlib.Path(tempfile.gettempdir()) / f"taurworks-test-env-{os.getpid()}"
+    )
     env = dict(os.environ)
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = (
         f"{src_path}{os.pathsep}{existing}" if existing else str(src_path)
     )
+    env["HOME"] = str(isolated_root / "home")
+    env["XDG_CONFIG_HOME"] = str(isolated_root / "xdg")
+    env.pop("TAURWORKS_WORKSPACE", None)
     if overrides is not None:
         env.update(overrides)
     return env
@@ -48,14 +57,32 @@ def _failure_message(args: list[str], result: subprocess.CompletedProcess[str]) 
 
 
 def _single_output_path(output: str, key: str) -> pathlib.Path:
-    prefix = f"- {key}: "
-    matching_lines = [line for line in output.splitlines() if line.startswith(prefix)]
-    if len(matching_lines) != 1:
+    fields = parse_cli_fields(output)
+    if key not in fields:
+        raise AssertionError(f"Expected {key!r} in output:\n{output}")
+    return pathlib.Path(fields[key])
+
+
+def _activation_command_path(output: str) -> pathlib.Path:
+    fields = parse_cli_fields(output)
+    command = fields.get("activation_command", "")
+    prefix = "cd "
+    if not command.startswith(prefix):
         raise AssertionError(
-            f"Expected exactly one {prefix!r} line, found {len(matching_lines)} "
-            f"in output:\n{output}"
+            f"Expected activation_command to start with {prefix!r}: {command!r}"
         )
-    return pathlib.Path(matching_lines[0].removeprefix(prefix))
+    return pathlib.Path(command.removeprefix(prefix))
+
+
+def _project_detail_path(output: str, label: str) -> pathlib.Path:
+    prefix = f"├── {label}: "
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if line.startswith(prefix):
+            return pathlib.Path(line.removeprefix(prefix))
+    raise AssertionError(
+        f"Expected project detail label {label!r} in output:\n{output}"
+    )
 
 
 class CliCommandTest(unittest.TestCase):
@@ -71,9 +98,11 @@ class CliCommandTest(unittest.TestCase):
             )
         failure_message = _failure_message(["config", "where"], result)
         self.assertEqual(result.returncode, 0, msg=failure_message)
-        self.assertIn(
-            f"config_path: {config_home / 'taurworks' / 'config.toml'}",
-            result.stdout,
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(
+            self,
+            fields["config_path"],
+            config_home / "taurworks" / "config.toml",
             msg=failure_message,
         )
         self.assertIn("exists: False", result.stdout, msg=failure_message)
@@ -113,12 +142,16 @@ class CliCommandTest(unittest.TestCase):
         set_message = _failure_message(["workspace", "set", str(workspace)], set_result)
         show_message = _failure_message(["workspace", "show"], show_result)
         self.assertEqual(set_result.returncode, 0, msg=set_message)
-        self.assertIn(f"workspace_root: {workspace.resolve()}", set_result.stdout)
+        set_fields = parse_cli_fields(set_result.stdout)
+        assert_same_path(self, set_fields["workspace_root"], workspace, msg=set_message)
         self.assertIn("mutation_performed: True", set_result.stdout)
         self.assertEqual(show_result.returncode, 0, msg=show_message)
-        self.assertIn("workspace_root_source: configured", show_result.stdout)
-        self.assertIn(f"workspace_root: {workspace.resolve()}", show_result.stdout)
-        self.assertEqual(str(workspace.resolve()), config_data["workspace"]["root"])
+        show_fields = parse_cli_fields(show_result.stdout)
+        self.assertEqual("configured", show_fields["workspace_root_source"])
+        assert_same_path(
+            self, show_fields["workspace_root"], workspace, msg=show_message
+        )
+        assert_same_path(self, config_data["workspace"]["root"], workspace)
 
     def test_dev_namespace_help_lists_read_only_diagnostics(self):
         result = _run_cli(["dev", "--help"], pathlib.Path.cwd())
@@ -182,10 +215,13 @@ class CliCommandTest(unittest.TestCase):
         failure_message = _failure_message(["dev", "where"], result)
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertEqual(before_config, after_config)
-        self.assertIn(f"project_root: {project_dir.resolve()}", result.stdout)
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(self, fields["project_root"], project_dir, msg=failure_message)
         self.assertIn("working_dir_configured: True", result.stdout)
         self.assertIn("working_dir: repo", result.stdout)
-        self.assertIn(f"resolved_working_dir: {repo_dir.resolve()}", result.stdout)
+        assert_same_path(
+            self, fields["resolved_working_dir"], repo_dir, msg=failure_message
+        )
         self.assertIn("inside_working_dir: True", result.stdout)
         self.assertIn("mutation_performed: False", result.stdout)
 
@@ -202,6 +238,75 @@ class CliCommandTest(unittest.TestCase):
         self.assertIn("detailed_vcs_status: not implemented", result.stdout)
         self.assertIn("no git commands were run", result.stdout)
         self.assertIn("mutation_performed: False", result.stdout)
+
+    def test_project_list_ignores_real_home_when_env_is_isolated(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            real_home = root_path / "real-home"
+            real_workspace = root_path / "real-workspace"
+            real_project = real_workspace / "RealProject"
+            isolated_home = root_path / "isolated-home"
+            isolated_xdg = root_path / "isolated-xdg"
+            real_project_config = real_project / ".taurworks" / "config.toml"
+            real_project_config.parent.mkdir(parents=True)
+            real_project_config.write_text(
+                'schema_version = 1\n\n[project]\nname = "RealProject"\n',
+                encoding="utf-8",
+            )
+            real_config = real_home / ".config" / "taurworks" / "config.toml"
+            real_config.parent.mkdir(parents=True)
+            real_config.write_text(
+                f'schema_version = 1\n\n[workspace]\nroot = "{real_workspace}"\n',
+                encoding="utf-8",
+            )
+
+            unisolated_env = _subprocess_env({"HOME": str(real_home)})
+            unisolated_env.pop("XDG_CONFIG_HOME", None)
+            unisolated = subprocess.run(
+                [sys.executable, "-m", "taurworks.cli", "project", "list"],
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=unisolated_env,
+            )
+            isolated = _run_cli(
+                ["project", "list"],
+                root_path,
+                {"HOME": str(isolated_home), "XDG_CONFIG_HOME": str(isolated_xdg)},
+            )
+
+        unisolated_message = _failure_message(["project", "list"], unisolated)
+        self.assertEqual(unisolated.returncode, 0, msg=unisolated_message)
+        self.assertIn("project_count: 1", unisolated.stdout, msg=unisolated_message)
+        self.assertIn("RealProject", unisolated.stdout, msg=unisolated_message)
+        isolated_message = _failure_message(["project", "list"], isolated)
+        self.assertEqual(isolated.returncode, 0, msg=isolated_message)
+        self.assertIn("project_count: 0", isolated.stdout, msg=isolated_message)
+        self.assertNotIn("RealProject", isolated.stdout, msg=isolated_message)
+
+    def test_project_list_ignores_caller_taurworks_workspace_by_default(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            caller_workspace = root_path / "caller-workspace"
+            caller_project_config = (
+                caller_workspace / "CallerProject" / ".taurworks" / "config.toml"
+            )
+            caller_project_config.parent.mkdir(parents=True)
+            caller_project_config.write_text(
+                'schema_version = 1\n\n[project]\nname = "CallerProject"\n',
+                encoding="utf-8",
+            )
+            with mock.patch.dict(
+                os.environ, {"TAURWORKS_WORKSPACE": str(caller_workspace)}
+            ):
+                result = _run_cli(["project", "list"], root_path)
+
+        failure_message = _failure_message(["project", "list"], result)
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("project_count: 0", result.stdout, msg=failure_message)
+        self.assertNotIn("CallerProject", result.stdout, msg=failure_message)
 
     def test_project_namespace_help_lists_read_only_commands(self):
         cmd = [sys.executable, "-m", "taurworks.cli", "project", "--help"]
@@ -717,7 +822,10 @@ class CliCommandTest(unittest.TestCase):
             failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             self.assertEqual(result.returncode, 0, msg=failure_message)
             self.assertTrue((nested_project / ".taurworks" / "config.toml").is_file())
-            self.assertIn(f"project_root: {nested_project}", result.stdout)
+            fields = parse_cli_fields(result.stdout)
+            assert_same_path(
+                self, fields["project_root"], nested_project, msg=failure_message
+            )
 
     def test_project_create_without_name_is_init_compatibility_alias(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -896,8 +1004,9 @@ class CliCommandTest(unittest.TestCase):
             file_text = existing_file.read_text(encoding="utf-8")
             self.assertEqual(root_path.name, config["project"]["name"])
             self.assertEqual("keep me", file_text)
-            self.assertIn(
-                f"project_root: {root_path}", result.stdout, msg=failure_message
+            fields = parse_cli_fields(result.stdout)
+            assert_same_path(
+                self, fields["project_root"], root_path, msg=failure_message
             )
             self.assertIn("root_exists: True", result.stdout, msg=failure_message)
             self.assertIn("root_created: False", result.stdout, msg=failure_message)
@@ -927,8 +1036,9 @@ class CliCommandTest(unittest.TestCase):
             failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             self.assertEqual(result.returncode, 0, msg=failure_message)
             self.assertTrue((target_dir / ".taurworks" / "config.toml").is_file())
-            self.assertIn(
-                f"project_root: {target_dir}", result.stdout, msg=failure_message
+            fields = parse_cli_fields(result.stdout)
+            assert_same_path(
+                self, fields["project_root"], target_dir, msg=failure_message
             )
             self.assertIn(
                 "working_dir_requested: False", result.stdout, msg=failure_message
@@ -1196,8 +1306,9 @@ class CliCommandTest(unittest.TestCase):
             )
             failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             self.assertEqual(result.returncode, 0, msg=failure_message)
-            self.assertIn(
-                f"project_root: {project_dir}", result.stdout, msg=failure_message
+            fields = parse_cli_fields(result.stdout)
+            assert_same_path(
+                self, fields["project_root"], project_dir, msg=failure_message
             )
             self.assertIn(
                 "resolved_by: current_project_name",
@@ -1238,8 +1349,9 @@ class CliCommandTest(unittest.TestCase):
             )
             failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             self.assertEqual(result.returncode, 0, msg=failure_message)
-            self.assertIn(
-                f"project_root: {project_dir}", result.stdout, msg=failure_message
+            fields = parse_cli_fields(result.stdout)
+            assert_same_path(
+                self, fields["project_root"], project_dir, msg=failure_message
             )
             self.assertIn(
                 "resolved_by: current_directory_basename",
@@ -1482,9 +1594,8 @@ class CliCommandTest(unittest.TestCase):
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("input: TestProject", result.stdout, msg=failure_message)
-        self.assertIn(
-            f"project_root: {project_dir}", result.stdout, msg=failure_message
-        )
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(self, fields["project_root"], project_dir, msg=failure_message)
         self.assertIn(
             "resolved_by: existing_path_project_root",
             result.stdout,
@@ -1754,17 +1865,18 @@ class CliCommandTest(unittest.TestCase):
         self.assertIn(
             "activation guidance (read-only)", result.stdout, msg=failure_message
         )
-        self.assertIn(f"project_root: {target_dir}", result.stdout, msg=failure_message)
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(self, fields["project_root"], target_dir, msg=failure_message)
         self.assertIn(
             "working_dir_configured: True", result.stdout, msg=failure_message
         )
         self.assertIn("working_dir: repo", result.stdout, msg=failure_message)
-        self.assertIn(
-            f"resolved_working_dir: {repo_dir}", result.stdout, msg=failure_message
+        assert_same_path(
+            self, fields["resolved_working_dir"], repo_dir, msg=failure_message
         )
         self.assertIn("working_dir_exists: True", result.stdout, msg=failure_message)
-        self.assertIn(
-            f"activation_command: cd {repo_dir}", result.stdout, msg=failure_message
+        assert_same_path(
+            self, _activation_command_path(result.stdout), repo_dir, msg=failure_message
         )
         self.assertIn(
             "shell_mutation: not performed", result.stdout, msg=failure_message
@@ -1808,12 +1920,13 @@ class CliCommandTest(unittest.TestCase):
             )
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
-        self.assertIn(f"project_root: {target_dir}", result.stdout, msg=failure_message)
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(self, fields["project_root"], target_dir, msg=failure_message)
         self.assertIn(
             "resolved_by: current_project_name", result.stdout, msg=failure_message
         )
-        self.assertIn(
-            f"resolved_working_dir: {repo_dir}", result.stdout, msg=failure_message
+        assert_same_path(
+            self, fields["resolved_working_dir"], repo_dir, msg=failure_message
         )
         self.assertNotIn(str(target_dir / "TestProject"), result.stdout)
 
@@ -1850,8 +1963,11 @@ class CliCommandTest(unittest.TestCase):
             "working_dir_configured: False", result.stdout, msg=failure_message
         )
         self.assertIn("working_dir: none", result.stdout, msg=failure_message)
-        self.assertIn(
-            f"activation_command: cd {target_dir}", result.stdout, msg=failure_message
+        assert_same_path(
+            self,
+            _activation_command_path(result.stdout),
+            target_dir,
+            msg=failure_message,
         )
         self.assertIn(
             "No working_dir is configured",
@@ -1903,12 +2019,16 @@ class CliCommandTest(unittest.TestCase):
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("working_dir: missing-repo", result.stdout, msg=failure_message)
-        self.assertIn(
-            f"resolved_working_dir: {missing_dir}", result.stdout, msg=failure_message
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(
+            self, fields["resolved_working_dir"], missing_dir, msg=failure_message
         )
         self.assertIn("working_dir_exists: False", result.stdout, msg=failure_message)
-        self.assertIn(
-            f"activation_command: cd {missing_dir}", result.stdout, msg=failure_message
+        assert_same_path(
+            self,
+            _activation_command_path(result.stdout),
+            missing_dir,
+            msg=failure_message,
         )
         self.assertIn("directory does not exist", result.stdout, msg=failure_message)
         self.assertFalse(missing_dir.exists(), msg=failure_message)
@@ -2000,26 +2120,18 @@ class CliCommandTest(unittest.TestCase):
             )
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
-        project_root_prefix = "- project_root: "
-        project_root_lines = [
-            line
-            for line in result.stdout.splitlines()
-            if line.startswith(project_root_prefix)
-        ]
-        self.assertEqual(len(project_root_lines), 1, msg=failure_message)
-
-        project_root = pathlib.Path(
-            project_root_lines[0].removeprefix(project_root_prefix)
-        )
+        fields = parse_cli_fields(result.stdout)
+        project_root = pathlib.Path(fields["project_root"])
         self.assertEqual(
             (parent_project / "child-project").resolve(),
             project_root.resolve(),
             msg=failure_message,
         )
         self.assertEqual("child-project", project_root.name, msg=failure_message)
-        self.assertIn(
-            f"activation_command: cd {parent_project / 'child-project'}",
-            result.stdout,
+        assert_same_path(
+            self,
+            _activation_command_path(result.stdout),
+            parent_project / "child-project",
             msg=failure_message,
         )
 
@@ -2104,11 +2216,17 @@ class CliCommandTest(unittest.TestCase):
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("Status: initialized", result.stdout)
-        self.assertIn(f"Path: {initialized}", result.stdout)
-        self.assertIn(f"Config: {initialized_config}", result.stdout)
+        assert_same_path(self, _project_detail_path(result.stdout, "Path"), initialized)
+        assert_same_path(
+            self, _project_detail_path(result.stdout, "Config"), initialized_config
+        )
         self.assertIn("Activation Eligible: ✔", result.stdout)
         self.assertIn("Working Dir: repo", result.stdout)
-        self.assertIn(f"Resolved Working Dir: {initialized_repo}", result.stdout)
+        assert_same_path(
+            self,
+            _project_detail_path(result.stdout, "Resolved Working Dir"),
+            initialized_repo,
+        )
         self.assertIn("Status: legacy-admin", result.stdout)
         self.assertIn("not sourced by `tw activate`", result.stdout)
 
@@ -2210,7 +2328,10 @@ class ProjectRegistryCliTest(unittest.TestCase):
         self.assertEqual(register.returncode, 0, msg=register_message)
         self.assertIn("Taurworks project register", register.stdout)
         self.assertIn("name: HiddenProject", register.stdout)
-        self.assertIn(f"project_root: {project_root.resolve()}", register.stdout)
+        register_fields = parse_cli_fields(register.stdout)
+        assert_same_path(
+            self, register_fields["project_root"], project_root, msg=register_message
+        )
         self.assertIn("project_config_exists: False", register.stdout)
         self.assertIn("project-local config not found", register.stdout)
 
@@ -2221,7 +2342,10 @@ class ProjectRegistryCliTest(unittest.TestCase):
         self.assertIn("Taurworks project registry", list_before.stdout)
         self.assertIn("project_count: 1", list_before.stdout)
         self.assertIn("name: HiddenProject", list_before.stdout)
-        self.assertIn(f"root: {project_root.resolve()}", list_before.stdout)
+        list_before_fields = parse_cli_fields(list_before.stdout)
+        assert_same_path(
+            self, list_before_fields["root"], project_root, msg=list_before_message
+        )
         self.assertIn("path_exists: True", list_before.stdout)
         self.assertIn("project_config_exists: False", list_before.stdout)
         self.assertNotIn("collision_policy", list_before.stdout)
@@ -2280,9 +2404,11 @@ class ProjectRegistryCliTest(unittest.TestCase):
         self.assertNotEqual(duplicate.returncode, 0)
         self.assertIn("already registered", duplicate.stdout)
         self.assertIn("--force", duplicate.stdout)
-        self.assertIn(
-            f"config_path: {config_home / 'taurworks' / 'config.toml'}",
-            duplicate.stdout,
+        duplicate_fields = parse_cli_fields(duplicate.stdout)
+        assert_same_path(
+            self,
+            duplicate_fields["config_path"],
+            config_home / "taurworks" / "config.toml",
         )
         forced_message = _failure_message(
             ["project", "register", "HiddenProject", str(second_project), "--force"],

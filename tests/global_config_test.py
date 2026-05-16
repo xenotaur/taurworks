@@ -5,6 +5,8 @@ import tomllib
 import unittest
 from unittest import mock
 
+from helpers import assert_same_path
+
 from taurworks import global_config
 
 
@@ -15,8 +17,8 @@ class GlobalConfigTest(unittest.TestCase):
             env = {"XDG_CONFIG_HOME": temp_dir, "HOME": "/unused-home"}
             with mock.patch.dict(os.environ, env, clear=True):
                 resolved = global_config.config_path()
-        self.assertEqual(
-            pathlib.Path(temp_dir) / "taurworks" / "config.toml", resolved.path
+        assert_same_path(
+            self, resolved.path, pathlib.Path(temp_dir) / "taurworks" / "config.toml"
         )
         self.assertEqual("XDG_CONFIG_HOME", resolved.source)
 
@@ -25,9 +27,10 @@ class GlobalConfigTest(unittest.TestCase):
             env = {"HOME": temp_dir}
             with mock.patch.dict(os.environ, env, clear=True):
                 resolved = global_config.config_path()
-        self.assertEqual(
-            pathlib.Path(temp_dir) / ".config" / "taurworks" / "config.toml",
+        assert_same_path(
+            self,
             resolved.path,
+            pathlib.Path(temp_dir) / ".config" / "taurworks" / "config.toml",
         )
         self.assertEqual("default fallback", resolved.source)
 
@@ -41,12 +44,10 @@ class GlobalConfigTest(unittest.TestCase):
             self.assertFalse((home / ".config" / "taurworks" / "config.toml").exists())
 
         self.assertFalse(diagnostics["config_exists"])
-        self.assertEqual(str(workspace.resolve()), diagnostics["workspace_root"])
+        assert_same_path(self, diagnostics["workspace_root"], workspace)
         self.assertEqual("inferred", diagnostics["workspace_root_source"])
         self.assertEqual("none", diagnostics["configured_workspace_root"])
-        self.assertEqual(
-            str(workspace.resolve()), diagnostics["inferred_workspace_root"]
-        )
+        assert_same_path(self, diagnostics["inferred_workspace_root"], workspace)
 
     def test_workspace_show_with_configured_root(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -68,9 +69,9 @@ class GlobalConfigTest(unittest.TestCase):
                 diagnostics = global_config.gather_workspace_show_diagnostics()
 
         self.assertTrue(diagnostics["config_exists"])
-        self.assertEqual(str(workspace.resolve()), diagnostics["workspace_root"])
+        assert_same_path(self, diagnostics["workspace_root"], workspace)
         self.assertEqual("configured", diagnostics["workspace_root_source"])
-        self.assertEqual(str(workspace), diagnostics["configured_workspace_root"])
+        assert_same_path(self, diagnostics["configured_workspace_root"], workspace)
         self.assertEqual("none", diagnostics["inferred_workspace_root"])
 
     def test_workspace_set_writes_config_and_preserves_unrelated_fields(self):
@@ -97,11 +98,11 @@ class GlobalConfigTest(unittest.TestCase):
             written = tomllib.loads(config_path.read_text(encoding="utf-8"))
 
         self.assertTrue(diagnostics["ok"])
-        self.assertEqual(str(workspace.resolve()), diagnostics["workspace_root"])
+        assert_same_path(self, diagnostics["workspace_root"], workspace)
         self.assertEqual(1, written["schema_version"])
         self.assertEqual("keep", written["custom"])
         self.assertEqual("still here", written["other"]["value"])
-        self.assertEqual(str(workspace.resolve()), written["workspace"]["root"])
+        assert_same_path(self, written["workspace"]["root"], workspace)
 
     def test_workspace_set_rejects_missing_path_without_writing(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -155,7 +156,7 @@ class GlobalConfigTest(unittest.TestCase):
         self.assertTrue(diagnostics["ok"])
         self.assertIn("[projects.HiddenProject]", written_text)
         self.assertEqual("/tmp/hidden", written["projects"]["HiddenProject"]["root"])
-        self.assertEqual(str(workspace.resolve()), written["workspace"]["root"])
+        assert_same_path(self, written["workspace"]["root"], workspace)
 
     def test_write_config_omits_empty_parent_table_for_nested_projects(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -280,7 +281,7 @@ class GlobalConfigTest(unittest.TestCase):
 
         self.assertTrue(diagnostics["ok"])
         self.assertTrue(diagnostics["created_config_parent"])
-        self.assertEqual(str(workspace.resolve()), written["workspace"]["root"])
+        assert_same_path(self, written["workspace"]["root"], workspace)
 
 
 if __name__ == "__main__":
