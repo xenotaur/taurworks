@@ -16,9 +16,9 @@ This precedence keeps repository-defined dev behavior authoritative while still 
 Use XDG-style directories for user-level settings and registries, including workspace/project registration and user defaults.
 
 
-## Planned global config and workspace root (Phase 1a)
+## Global config and workspace root (Phase 1a)
 
-Implementation status: planned design only. No global-config behavior is implemented by this document.
+Implementation status: implemented minimal foundation. Taurworks now supports XDG-style global config path diagnostics plus explicit workspace root show/set commands.
 
 Taurworks should introduce a user-global configuration file using XDG-style conventions:
 
@@ -41,7 +41,7 @@ schema_version = 1
 root = "/Users/example/Workspace"
 ```
 
-Planned commands:
+Implemented commands:
 
 ```bash
 taurworks config where
@@ -51,10 +51,12 @@ taurworks workspace set PATH
 
 Discovery stance:
 
-- `taurworks config where` may report both the configured path and whether the file exists.
+- `taurworks config where` reports the resolved path, whether the file exists, the XDG source, and that the command is read-only.
 - Taurworks may infer `~/Workspace` only as a non-mutating first-run convenience when no config exists and that directory already exists.
+- `taurworks workspace set PATH` requires an existing directory, creates config parent directories as needed, stores a normalized absolute root, and preserves unrelated supported TOML fields.
 - Taurworks should require explicit configuration before persisting workspace state, registering projects, or treating an inferred path as authoritative.
-- If no global config exists and `~/Workspace` does not exist, workspace-aware commands should give actionable guidance rather than recursively scanning from the current directory.
+- If no global config exists and `~/Workspace` does not exist, workspace-aware commands show an unconfigured workspace root rather than recursively scanning from the current directory.
+- Registry-backed project listing and activation resolution remain planned Phase 1b/1c work; this phase does not alter `tw activate` resolution.
 
 ## Planned global project registry (Phase 1b)
 

@@ -112,15 +112,17 @@ taurworks
 
 The intended command model is namespaced:
 
+- `taurworks config ...` for user-global configuration diagnostics.
+- `taurworks workspace ...` for user-global workspace root defaults.
 - `taurworks project ...` for project/workspace lifecycle operations.
 - `taurworks dev ...` for repository/developer workflow operations.
 - `taurworks shell ...` for printing explicit, sourceable shell integration.
 
-Both namespaces are expected to share a common configuration/discovery core.
+These namespaces are expected to share a common configuration/discovery core where their responsibilities overlap.
 
 ### Implementation status and compatibility
 
-Status note: `taurworks project ...` now includes implemented discovery, scaffold, existing-root initialization, working-directory metadata, and read-only guidance commands (`where`, `list`, `refresh`, `init`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` now exists as a minimal read-only diagnostics namespace for repository/developer workflow context (`where` and `status`); full workflow automation remains future work.
+Status note: `taurworks config where`, `taurworks workspace show`, and `taurworks workspace set PATH` now provide the first XDG-style user-global config slice. `taurworks project ...` now includes implemented discovery, scaffold, existing-root initialization, working-directory metadata, and read-only guidance commands (`where`, `list`, `refresh`, `init`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` now exists as a minimal read-only diagnostics namespace for repository/developer workflow context (`where` and `status`); full workflow automation remains future work.
 Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, `taurworks project init`, `taurworks project create`, `taurworks project working-dir show [PATH_OR_NAME]`, and `taurworks project activate [PATH_OR_NAME] --print` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior where appropriate.
 Design note: dogfooding confirmed the `project_root` (the directory containing `.taurworks/`) and `working_dir` (the default code/work directory, stored relative to `project_root`) model. The accepted design separates `project init` for existing/current roots from `project create` for new roots, centralizes target resolution diagnostics, makes working-directory creation explicit, and prevents accidental nested same-name projects. `tw activate` is now the explicit opt-in shell-mutating wrapper for changing the current shell directory. Broad `taurworks dev ...` automation, automatic shell startup-file edits, environment activation, and multi-repo management remain out of scope.
 
@@ -131,8 +133,11 @@ The namespaced model is the active design direction. The currently shipped CLI r
 - `taurworks activate`
 - `taurworks projects`
 
-The scaffolded `project` namespace currently includes implemented discovery and safe scaffold commands:
+The currently implemented namespaced commands are:
 
+- `taurworks config where` (implemented, read-only global config path diagnostics)
+- `taurworks workspace show` (implemented, read-only configured/inferred workspace root display)
+- `taurworks workspace set PATH` (implemented, writes `[workspace].root` to user-global config; PATH must already exist)
 - `taurworks project where` (implemented, read-only diagnostics)
 - `taurworks project list` (implemented, read-only discovery listing)
 - `taurworks project refresh [PATH_OR_NAME]` (implemented, safe idempotent metadata scaffolding repair)
@@ -151,9 +156,38 @@ The scaffolded `project` namespace currently includes implemented discovery and 
 Quick namespace help:
 
 ```bash
+taurworks config --help
+taurworks workspace --help
 taurworks project --help
 taurworks dev --help
 ```
+
+## User-global config and workspace root
+
+Taurworks stores user-level defaults in an XDG-style TOML config file:
+
+```text
+$XDG_CONFIG_HOME/taurworks/config.toml
+```
+
+When `XDG_CONFIG_HOME` is unset, Taurworks falls back to:
+
+```text
+~/.config/taurworks/config.toml
+```
+
+The first implemented global setting is the workspace root:
+
+```toml
+schema_version = 1
+
+[workspace]
+root = "/Users/example/Workspace"
+```
+
+Use `taurworks config where` to inspect the resolved config path, whether the file exists, which XDG source selected it, and that the command is read-only. Use `taurworks workspace show` to display the configured workspace root without creating any files. If no config file exists and `~/Workspace` already exists, `workspace show` may report that directory as `inferred`; inferred roots are informational only and are not silently written. Use `taurworks workspace set PATH` to explicitly persist a workspace root. The `PATH` must already exist, parent config directories are created as needed, and unrelated supported TOML keys are preserved.
+
+Project registration, registry-backed listing, and global activation resolution are planned later phases. The current global workspace root commands do not change `tw activate`, do not register projects, and do not scan workspaces recursively.
 
 `taurworks dev where` reports the current directory, detected Taurworks project root, configured working directory, repository/work-directory guess, whether the current directory is inside that configured working directory, and that no mutation was performed. `taurworks dev status` reports a smaller read-only summary and states that detailed VCS workflow automation is future work; it does not shell out to `git`.
 
