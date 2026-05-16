@@ -49,10 +49,13 @@ tw help
 ```
 
 On success, `tw activate` prints a concise confirmation containing the resolved
-destination path and runs `cd` in the current shell. Normal activation failures
-are concise and actionable; use `tw activate [PATH_OR_NAME] --verbose` or
-`tw activate [PATH_OR_NAME] --debug` to print the full read-only diagnostic
-block from `taurworks project activate [PATH_OR_NAME] --print`. That
+destination path and runs `cd` in the current shell. Name-based activation uses
+the user-global registry and configured workspace root, so `tw activate NAME`
+works from outside the workspace and after switching into another project's
+working directory. Normal activation failures are concise and actionable; use
+`tw activate [PATH_OR_NAME] --verbose` or `tw activate [PATH_OR_NAME] --debug`
+to print the full read-only diagnostic block from
+`taurworks project activate [PATH_OR_NAME] --print`. That
 `taurworks project activate --print` command remains safe to run directly when
 you want activation details without changing directories.
 
@@ -195,7 +198,7 @@ Use `taurworks config where` to inspect the resolved config path, whether the fi
 
 The project registry is for projects that should be globally discoverable even when they live outside the configured workspace root, under nested/weird paths, or in locations that direct workspace child discovery should not scan recursively. Register a project with `taurworks project register NAME PATH`; Taurworks normalizes `PATH`, requires it to exist by default, stores it as `[projects.NAME].root`, warns when `.taurworks/config.toml` is missing, and refuses duplicate names unless `--force` is supplied. Use `--allow-missing` only when recording an intentional future path; existing paths must still be directories. Remove only the global entry with `taurworks project unregister NAME`; this command does not delete project files or project-local `.taurworks/config.toml`. Inspect the registry without mutation using `taurworks project registry list`, which reports root paths, whether those paths exist, whether project-local config exists, and whether a registry name collides with a direct child of the configured workspace root.
 
-Registry entries differ from workspace discovery: workspace discovery remains direct and non-recursive in this phase, while the registry is an explicit allow-list of named roots. If a registry name matches a direct workspace child project name, registry output makes the collision visible and documents the simple policy: explicit registry commands treat the registry entry as authoritative, while broad activation resolution is not changed in this phase. A later phase will wire global activation resolution to use the registry.
+Registry entries differ from workspace discovery: workspace discovery remains direct and non-recursive in this phase, while the registry is an explicit allow-list of named roots. If a registry name matches a direct workspace child project name, registry commands and activation treat the explicit registry entry as authoritative. Broad project listing collapses duplicate registry/workspace roots into one row and marks the row as registered.
 
 `taurworks dev where` reports the current directory, detected Taurworks project root, configured working directory, repository/work-directory guess, whether the current directory is inside that configured working directory, and that no mutation was performed. `taurworks dev status` reports a smaller read-only summary and states that detailed VCS workflow automation is future work; it does not shell out to `git`.
 
@@ -205,7 +208,7 @@ All non-activation `tw ...` commands delegate to `taurworks ...`, so `tw dev whe
 
 ## `taurworks projects` / `tw projects` workspace statuses
 
-The top-level `taurworks projects` command scans the configured workspace (`TAURWORKS_WORKSPACE`, defaulting to `~/Workspace`) and classifies each direct child directory. `tw projects` delegates to the same command, so both outputs use the same status labels.
+The top-level `taurworks projects` command lists direct children of the configured global workspace root plus explicit global registry entries. If no global workspace is configured, it falls back to `TAURWORKS_WORKSPACE` and then `~/Workspace` for compatibility. `tw projects` delegates to the same command, so both outputs use the same status labels.
 
 Statuses are intentionally descriptive rather than promises that every listed directory is immediately activatable:
 
@@ -261,7 +264,11 @@ Implemented target-aware `working-dir show` behavior:
 
 `working-dir set` remains scoped to the current project in this slice. Working-directory paths remain relative to `project_root`; absolute paths and paths that escape `project_root` via `..` are rejected/deferred until a later design explicitly accepts them. `taurworks project init --working-dir DIR --create-working-dir` is the implemented explicit opt-in for creating a missing working directory during existing-root initialization; without that flag, missing working directories fail safely.
 
-`taurworks project activate [PATH_OR_NAME] --print` reads this metadata, uses the shared project target resolver, and prints activation guidance for the configured work directory. It remains read-only. `tw activate [PATH_OR_NAME]`, provided by the manually sourced helper from `taurworks shell print`, is the explicit shell-mutating layer that changes the current directory after validating Taurworks output. Default `tw activate` output is concise; add `--verbose` or `--debug` to a `tw activate` call when you want the full diagnostic block on failure.
+`taurworks project activate [PATH_OR_NAME] --print` reads this metadata, uses global registry/workspace-aware name resolution, and prints activation guidance. It remains read-only. `tw activate [PATH_OR_NAME]`, provided by the manually sourced helper from `taurworks shell print`, is the explicit shell-mutating layer that changes the current directory after validating Taurworks output. Default `tw activate` output is concise; add `--verbose` or `--debug` to a `tw activate` call when you want the full diagnostic block on failure.
+
+Activation resolution for bare names is stable and global-first: explicit registry entry by name; direct initialized child of the configured workspace root; direct legacy-admin child of the configured workspace root; direct workspace-only child of the configured workspace root; current/enclosing project fallback when no name is provided or the name matches the current project; and explicit path-like inputs for local/path-oriented activation. Unresolved bare names do not silently scan the current directory recursively.
+
+Activation behavior is intentionally safe. Initialized projects with `[paths].working_dir` change to that directory when it exists. Initialized projects without `working_dir` change to the project root and warn. Workspace-only projects also change to the project root and warn that the project is not initialized. Legacy-admin projects change to the project root and warn that `Admin/project-setup.source` exists but was not sourced. Registered projects first resolve their registry root, then use the same initialized/workspace-only/legacy-admin behavior. Taurworks still does not source scripts, activate Conda/venv/Docker environments, run hooks, edit shell startup files, or create missing working directories during activation.
 
 ## Dogfood workflows for init/create/activation guidance
 
@@ -376,7 +383,7 @@ Behavior and safety:
 - `project unregister NAME` removes only the global registry entry, preserves unrelated global config text, and never deletes project files.
 - `project registry list` is read-only and shows each registered root, whether that path exists, whether `.taurworks/config.toml` exists, and whether the name collides with a direct child of the configured workspace root.
 
-Collision policy is intentionally simple for this phase: explicit registry commands treat `[projects.NAME]` as the registry entry, and list/register output makes workspace-child name collisions visible. `tw activate` and `taurworks project activate --print` do not broadly resolve through the registry yet; global activation resolution is planned for a later phase.
+Collision policy is intentionally simple for this phase: explicit registry commands and activation treat `[projects.NAME]` as the registry entry, and list/register output makes workspace-child name collisions visible. `taurworks projects` / `tw projects` include both workspace children and registered roots, but collapse duplicate roots into one row with a registered source marker.
 
 ## `taurworks project refresh`
 
@@ -430,15 +437,16 @@ The command prints a summary with `input`, `project_root`, `resolved_by`, `root_
 
 ## Shared project target resolution
 
-Existing project commands use shared target-resolution internals where appropriate. State-changing scaffold commands preserve their documented create/refresh behavior, while read-only commands such as `working-dir show` and `activate --print` prefer resolving inside an existing Taurworks project root:
+Existing project commands use shared target-resolution internals where appropriate. State-changing scaffold commands preserve their documented create/refresh behavior. `taurworks project activate --print`, `tw activate`, `taurworks projects`, and `tw projects` now use global registry/workspace-aware semantics:
 
-1. No input resolves the current project if present; otherwise the command may use its documented default.
-2. Input equal to the current project name resolves to the current project root before accepting an accidental same-name relative child path. This fixes same-name activation from inside a project, such as `taurworks project activate TestProject --print`.
-3. Input equal to the current working-directory basename, when the current directory is or should be the target, resolves to the current directory for init-like behavior.
-4. Existing filesystem paths resolve as paths.
-5. Otherwise, input is treated as a child path relative to the current working directory.
+1. A bare name matching `[projects.NAME]` resolves to the registered root.
+2. A bare name matching a direct initialized child of the configured workspace root resolves to that child.
+3. A bare name matching a direct legacy-admin child of the configured workspace root resolves to that child without sourcing legacy setup.
+4. A bare name matching a direct workspace-only child of the configured workspace root resolves to that child with a warning.
+5. The current/enclosing project is used as a fallback when no name is provided or the name matches the current project.
+6. Explicit path-like inputs, such as `./Project`, `/path/to/Project`, or names containing path separators, use local path resolution.
 
-For read-only project commands, existing paths inside a Taurworks project are reported as the enclosing project root unless the command explicitly requires the exact path. State-changing scaffold commands keep path-only create/refresh target behavior.
+State-changing scaffold commands keep path-only create/refresh target behavior. `taurworks project create NAME` remains cwd-relative in this focused PR; defaulting create to the configured workspace root is deferred rather than changed silently.
 
 Outputs should make this choice inspectable, for example:
 
@@ -463,6 +471,8 @@ Command intent is deliberately split:
 
 - `project init` initializes an existing/current directory.
 - `project create` creates a new project root, then reuses the same safe refresh/config scaffolding used by init.
+
+`project create NAME` remains cwd-relative in this phase. It does not silently default to the configured workspace root yet; cd to the workspace manually or pass an explicit path when you want creation somewhere else. A future focused change can add clearer `--local`, `--path PATH`, or `--register` creation behavior.
 
 Behavior:
 

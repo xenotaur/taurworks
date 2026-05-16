@@ -24,6 +24,10 @@ class ResolutionReason(enum.StrEnum):
     CURRENT_DIRECTORY_BASENAME = "current_directory_basename"
     CHILD_PATH = "child_path"
     DEFAULT_CURRENT_DIRECTORY = "default_current_directory"
+    REGISTERED_PROJECT = "registered_project"
+    WORKSPACE_INITIALIZED_PROJECT = "workspace_initialized_project"
+    WORKSPACE_LEGACY_ADMIN_PROJECT = "workspace_legacy_admin_project"
+    WORKSPACE_ONLY_PROJECT = "workspace_only_project"
 
 
 @dataclasses.dataclass(frozen=True)

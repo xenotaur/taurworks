@@ -5,6 +5,7 @@ import sys
 import subprocess
 import tomllib
 
+from taurworks import global_config
 from taurworks import project_internals
 
 TAURWORKS_WORKSPACE = os.getenv(
@@ -14,11 +15,30 @@ TAURWORKS_WORKSPACE = os.getenv(
 PROJECT_STATUS_INITIALIZED = "initialized"
 PROJECT_STATUS_WORKSPACE_ONLY = "workspace-only"
 PROJECT_STATUS_LEGACY_ADMIN = "legacy-admin"
+PROJECT_SOURCE_REGISTERED = "registered"
+PROJECT_SOURCE_WORKSPACE = "workspace"
+PROJECT_SOURCE_CURRENT = "current"
 CONDA_ENV_LIST_TIMEOUT_SECONDS = 2
 
 
+def configured_workspace_path() -> pathlib.Path | None:
+    """Return the configured global workspace root, if it is safely available."""
+    try:
+        config = global_config.read_config()
+        global_config.validate_schema_version(config)
+        configured_root = global_config.configured_workspace_root(config)
+        if configured_root is None:
+            return None
+        return global_config.configured_workspace_root_path(configured_root)
+    except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError):
+        return None
+
+
 def workspace_path():
-    """Return the configured workspace path using the current environment."""
+    """Return the configured workspace path using global config before env fallback."""
+    configured = configured_workspace_path()
+    if configured is not None:
+        return configured
     return pathlib.Path(
         os.getenv("TAURWORKS_WORKSPACE", os.path.expanduser("~/Workspace"))
     ).expanduser()
@@ -238,30 +258,157 @@ def discover_workspace_projects(workspace):
     ]
 
 
-def list_projects(show_details=False):
-    """Lists available projects in the workspace, with status classification."""
-    workspace = workspace_path()
-    if not workspace.exists():
-        print(f"No workspace found at {workspace}.")
-        return
+def _registered_projects_from_config() -> list[dict[str, object]]:
+    """Return registry entries from global config without mutating files."""
+    try:
+        config = global_config.read_config()
+        global_config.validate_schema_version(config)
+        projects_table = config.get("projects") or {}
+        if not isinstance(projects_table, dict):
+            return []
+    except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError):
+        return []
 
-    projects = discover_workspace_projects(workspace)
+    projects: list[dict[str, object]] = []
+    for name in sorted(projects_table):
+        entry = projects_table[name]
+        if not isinstance(entry, dict):
+            continue
+        root = entry.get("root")
+        if not isinstance(root, str) or not root.strip():
+            continue
+        project_root = pathlib.Path(root).expanduser()
+        if not project_root.is_absolute():
+            continue
+        projects.append(
+            {
+                "name": name,
+                "path": project_root.resolve(),
+            }
+        )
+    return projects
+
+
+def _project_row_key(project: dict[str, object]) -> str:
+    return str(pathlib.Path(str(project["path"])).resolve())
+
+
+def mark_project_registered(
+    project: dict[str, object],
+    registered_name: str,
+) -> dict[str, object]:
+    """Return a project classification row annotated as globally registered."""
+    marked = dict(project)
+    marked["registered"] = True
+    marked["registered_name"] = registered_name
+    marked["source"] = (
+        f"{project.get('source', PROJECT_SOURCE_WORKSPACE)}+{PROJECT_SOURCE_REGISTERED}"
+    )
+    return marked
+
+
+def gather_global_projects() -> list[dict[str, object]]:
+    """Return workspace and registry projects with duplicate roots collapsed."""
+    projects_by_root: dict[str, dict[str, object]] = {}
+
+    workspace = workspace_path()
+    if workspace.is_dir():
+        for project in discover_workspace_projects(workspace):
+            row = dict(project)
+            row["source"] = PROJECT_SOURCE_WORKSPACE
+            row["registered"] = False
+            row["registered_name"] = "none"
+            projects_by_root[_project_row_key(row)] = row
+
+    for registered in _registered_projects_from_config():
+        registered_name = str(registered["name"])
+        project_root = pathlib.Path(str(registered["path"]))
+        project = classify_project_entry(project_root)
+        key = _project_row_key(project)
+        if key in projects_by_root:
+            projects_by_root[key] = mark_project_registered(
+                projects_by_root[key],
+                registered_name,
+            )
+        else:
+            row = dict(project)
+            row["name"] = registered_name
+            row["source"] = PROJECT_SOURCE_REGISTERED
+            row["registered"] = True
+            row["registered_name"] = registered_name
+            projects_by_root[key] = row
+
+    return sorted(
+        projects_by_root.values(),
+        key=lambda project: (str(project["name"]).lower(), str(project["path"])),
+    )
+
+
+def find_registered_project(name: str) -> dict[str, object] | None:
+    """Return a globally registered project by registry name."""
+    for registered in _registered_projects_from_config():
+        if registered["name"] == name:
+            project = classify_project_entry(pathlib.Path(str(registered["path"])))
+            row = dict(project)
+            row["name"] = name
+            row["source"] = PROJECT_SOURCE_REGISTERED
+            row["registered"] = True
+            row["registered_name"] = name
+            return row
+    return None
+
+
+def find_workspace_project(name: str) -> dict[str, object] | None:
+    """Return a direct child of the configured workspace by display name."""
+    workspace = workspace_path()
+    candidate = workspace / name
+    if not candidate.is_dir():
+        return None
+    project = classify_project_entry(candidate)
+    row = dict(project)
+    row["source"] = PROJECT_SOURCE_WORKSPACE
+    row["registered"] = False
+    row["registered_name"] = "none"
+    return row
+
+
+def find_current_project(cwd: pathlib.Path | None = None) -> dict[str, object] | None:
+    """Return the enclosing initialized project for current-directory fallback."""
+    search_cwd = cwd if cwd is not None else pathlib.Path.cwd()
+    project_root = project_internals.find_project_root_candidate(search_cwd.resolve())
+    if project_root is None:
+        return None
+    project = classify_project_entry(project_root)
+    row = dict(project)
+    row["source"] = PROJECT_SOURCE_CURRENT
+    row["registered"] = False
+    row["registered_name"] = "none"
+    return row
+
+
+def list_projects(show_details=False):
+    """List workspace and registered projects with status classification."""
+    projects = gather_global_projects()
     if not projects:
         print("No projects found.")
         return
 
     conda_envs = get_conda_environments() if show_details else set()
-    name_width = max(len(project["name"]) for project in projects)
+    name_width = max(len(str(project["name"])) for project in projects)
+    status_width = max(len(str(project["status"])) for project in projects)
 
     print("Available projects:\n")
     for project in projects:
         if show_details:
-            project_dir = project["path"]
+            project_dir = str(project["path"])
             has_env = project["name"] in conda_envs
             dir_size, file_count = get_directory_info(project_dir)
             size_str = f"{dir_size / (1024*1024):.2f} MB"
             print(f"- {project['name']}")
             print(f"  ├── Status: {project['status']}")
+            print(f"  ├── Source: {project['source']}")
+            print(f"  ├── Registered: {'✔' if project['registered'] else '✘'}")
+            print(f"  ├── Registered Name: {project['registered_name']}")
             print(f"  ├── Path: {project['path']}")
             print(f"  ├── Metadata Dir Exists: {project['metadata_dir_exists']}")
             print(f"  ├── Config: {project['config_path']}")
@@ -285,7 +432,11 @@ def list_projects(show_details=False):
             )
             print(f"  ├── Files: {file_count}, Size: {size_str}\n")
         else:
-            print(f"- {project['name'].ljust(name_width)}    {project['status']}")
+            print(
+                f"- {str(project['name']).ljust(name_width)}    "
+                f"{str(project['status']).ljust(status_width)}    "
+                f"{project['source']}"
+            )
 
 
 def create_project(project_name, python_version="3.11", packages=None, env_file=None):

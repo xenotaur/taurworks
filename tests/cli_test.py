@@ -295,7 +295,9 @@ class CliCommandTest(unittest.TestCase):
             self.assertIn("working_dir: test_repo", show_result.stdout)
 
             activate_args = ["project", "activate", "TestProject", "--print"]
-            activate_result = _run_cli(activate_args, workspace)
+            activate_result = _run_cli(
+                activate_args, workspace, {"TAURWORKS_WORKSPACE": str(workspace)}
+            )
             activate_message = _failure_message(activate_args, activate_result)
             self.assertEqual(activate_result.returncode, 0, msg=activate_message)
             self.assertEqual(
@@ -1848,9 +1850,11 @@ class CliCommandTest(unittest.TestCase):
             "working_dir_configured: False", result.stdout, msg=failure_message
         )
         self.assertIn("working_dir: none", result.stdout, msg=failure_message)
-        self.assertIn("activation_command: none", result.stdout, msg=failure_message)
         self.assertIn(
-            "taurworks project working-dir set [DIR]",
+            f"activation_command: cd {target_dir}", result.stdout, msg=failure_message
+        )
+        self.assertIn(
+            "No working_dir is configured",
             result.stdout,
             msg=failure_message,
         )
@@ -1975,13 +1979,14 @@ class CliCommandTest(unittest.TestCase):
             (parent_project / ".taurworks" / "config.toml").write_text(
                 '[project]\nname = "parent-project"\n', encoding="utf-8"
             )
+            (parent_project / "child-project").mkdir()
             cmd = [
                 sys.executable,
                 "-m",
                 "taurworks.cli",
                 "project",
                 "activate",
-                "child-project",
+                "./child-project",
                 "--print",
             ]
             result = subprocess.run(
@@ -2012,7 +2017,11 @@ class CliCommandTest(unittest.TestCase):
             msg=failure_message,
         )
         self.assertEqual("child-project", project_root.name, msg=failure_message)
-        self.assertIn("activation_command: none", result.stdout, msg=failure_message)
+        self.assertIn(
+            f"activation_command: cd {parent_project / 'child-project'}",
+            result.stdout,
+            msg=failure_message,
+        )
 
     def test_projects_lists_workspace_entries_with_status_classification(self):
         with tempfile.TemporaryDirectory() as temp_dir:
