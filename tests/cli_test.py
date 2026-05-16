@@ -2170,5 +2170,158 @@ class CliCommandTest(unittest.TestCase):
         self.assertNotIn("migrate the legacy setup", result.stdout)
 
 
+class ProjectRegistryCliTest(unittest.TestCase):
+
+    def test_project_register_list_and_unregister_commands(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            config_home = root_path / "xdg"
+            project_root = root_path / "hidden-project"
+            project_root.mkdir()
+            env = {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root_path)}
+            register = _run_cli(
+                ["project", "register", "HiddenProject", str(project_root)],
+                root_path,
+                env,
+            )
+            list_before = _run_cli(["project", "registry", "list"], root_path, env)
+            unregister = _run_cli(
+                ["project", "unregister", "HiddenProject"],
+                root_path,
+                env,
+            )
+            list_after = _run_cli(["project", "registry", "list"], root_path, env)
+            config = tomllib.loads(
+                (config_home / "taurworks" / "config.toml").read_text(encoding="utf-8")
+            )
+
+        register_message = _failure_message(
+            ["project", "register", "HiddenProject", str(project_root)], register
+        )
+        self.assertEqual(register.returncode, 0, msg=register_message)
+        self.assertIn("Taurworks project register", register.stdout)
+        self.assertIn("name: HiddenProject", register.stdout)
+        self.assertIn(f"project_root: {project_root.resolve()}", register.stdout)
+        self.assertIn("project_config_exists: False", register.stdout)
+        self.assertIn("project-local config not found", register.stdout)
+
+        list_before_message = _failure_message(
+            ["project", "registry", "list"], list_before
+        )
+        self.assertEqual(list_before.returncode, 0, msg=list_before_message)
+        self.assertIn("Taurworks project registry", list_before.stdout)
+        self.assertIn("project_count: 1", list_before.stdout)
+        self.assertIn("name: HiddenProject", list_before.stdout)
+        self.assertIn(f"root: {project_root.resolve()}", list_before.stdout)
+        self.assertIn("path_exists: True", list_before.stdout)
+        self.assertIn("project_config_exists: False", list_before.stdout)
+        self.assertNotIn("collision_policy", list_before.stdout)
+        self.assertIn("mutation_performed: False", list_before.stdout)
+
+        unregister_message = _failure_message(
+            ["project", "unregister", "HiddenProject"], unregister
+        )
+        self.assertEqual(unregister.returncode, 0, msg=unregister_message)
+        self.assertIn("Taurworks project unregister", unregister.stdout)
+        self.assertIn("project_files_deleted: False", unregister.stdout)
+        self.assertNotIn("projects", config)
+
+        list_after_message = _failure_message(
+            ["project", "registry", "list"], list_after
+        )
+        self.assertEqual(list_after.returncode, 0, msg=list_after_message)
+        self.assertIn("project_count: 0", list_after.stdout)
+        self.assertIn("projects: none", list_after.stdout)
+
+    def test_project_register_duplicate_name_fails_without_force(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            config_home = root_path / "xdg"
+            first_project = root_path / "first"
+            second_project = root_path / "second"
+            first_project.mkdir()
+            second_project.mkdir()
+            env = {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root_path)}
+            first = _run_cli(
+                ["project", "register", "HiddenProject", str(first_project)],
+                root_path,
+                env,
+            )
+            duplicate = _run_cli(
+                ["project", "register", "HiddenProject", str(second_project)],
+                root_path,
+                env,
+            )
+            forced = _run_cli(
+                [
+                    "project",
+                    "register",
+                    "HiddenProject",
+                    str(second_project),
+                    "--force",
+                ],
+                root_path,
+                env,
+            )
+
+        first_message = _failure_message(
+            ["project", "register", "HiddenProject", str(first_project)], first
+        )
+        self.assertEqual(first.returncode, 0, msg=first_message)
+        self.assertNotEqual(duplicate.returncode, 0)
+        self.assertIn("already registered", duplicate.stdout)
+        self.assertIn("--force", duplicate.stdout)
+        self.assertIn(
+            f"config_path: {config_home / 'taurworks' / 'config.toml'}",
+            duplicate.stdout,
+        )
+        forced_message = _failure_message(
+            ["project", "register", "HiddenProject", str(second_project), "--force"],
+            forced,
+        )
+        self.assertEqual(forced.returncode, 0, msg=forced_message)
+        self.assertIn("overwrote_existing: True", forced.stdout)
+
+    def test_project_register_missing_path_requires_allow_missing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            config_home = root_path / "xdg"
+            missing_project = root_path / "missing"
+            env = {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root_path)}
+            rejected = _run_cli(
+                ["project", "register", "MissingProject", str(missing_project)],
+                root_path,
+                env,
+            )
+            allowed = _run_cli(
+                [
+                    "project",
+                    "register",
+                    "MissingProject",
+                    str(missing_project),
+                    "--allow-missing",
+                ],
+                root_path,
+                env,
+            )
+
+        self.assertNotEqual(rejected.returncode, 0)
+        self.assertIn("--allow-missing", rejected.stdout)
+        allowed_message = _failure_message(
+            [
+                "project",
+                "register",
+                "MissingProject",
+                str(missing_project),
+                "--allow-missing",
+            ],
+            allowed,
+        )
+        self.assertEqual(allowed.returncode, 0, msg=allowed_message)
+        self.assertIn("path_exists: False", allowed.stdout)
+        self.assertIn("registered path does not currently exist", allowed.stdout)
+        self.assertNotIn("project-local config not found", allowed.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()
