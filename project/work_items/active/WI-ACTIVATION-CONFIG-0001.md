@@ -21,7 +21,8 @@ item. The design covers:
 - `[activation.environment] type = "conda"` and `name` as the only initially
   designed environment activation strategy;
 - `[activation.exports]` literal environment variable data with validation,
-  shell quoting, documented leading `~` expansion, and secret-conscious output;
+  shell quoting, documented leading `~` expansion, secret-conscious output, and
+  a separate machine-readable payload channel for `tw activate`;
 - future trusted hooks behind explicit opt-in only;
 - legacy inspect/migrate commands that prefer declarative fields over copying or
   executing scripts.
@@ -33,17 +34,20 @@ This work item must not introduce:
 - arbitrary user-command execution by default;
 - shell startup-file edits;
 - automatic `conda init`;
-- secret values in normal output;
-- shell-state mutation from `taurworks project activate --print`.
+- secret values in normal diagnostic output;
+- shell-state mutation from `taurworks project activate --print`;
+- evaluating human-formatted `--print` diagnostics as shell activation payload.
 
 ## Implementation slices
-1. Implement activation message and exports.
-2. Implement Conda activation in `tw activate` without running `conda init`.
-3. Implement `taurworks legacy inspect PROJECT` as conservative read-only
+1. Implement activation message only.
+2. Implement exports with a separate machine-readable payload channel for
+   `tw activate` and redacted human diagnostics.
+3. Implement Conda activation in `tw activate` without running `conda init`.
+4. Implement `taurworks legacy inspect PROJECT` as conservative read-only
    extraction.
-4. Implement `taurworks legacy migrate PROJECT --apply` for simple scripts while
+5. Implement `taurworks legacy migrate PROJECT --apply` for simple scripts while
    preserving existing config and requiring manual review for unsupported shell.
-5. Design and implement trusted hooks only after declarative activation has been
+6. Design and implement trusted hooks only after declarative activation has been
    dogfooded.
 
 ## Validation expectations

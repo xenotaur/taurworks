@@ -86,20 +86,20 @@ A complete Phase 2 configuration may look like this:
 schema_version = 1
 
 [project]
-name = "LCATS"
+name = "ExampleProject"
 
 [paths]
-working_dir = "LCATS"
+working_dir = "example-project"
 
 [activation]
-message = "Ready for work on project LCATS"
+message = "Ready for work on ExampleProject"
 
 [activation.environment]
 type = "conda"
-name = "LCATS"
+name = "ExampleProject"
 
 [activation.exports]
-CREDENTIALS = "~/Workspace/Novarc/Celeste/NovarcCelesteBuilder.pem"
+PROJECT_RESOURCE = "~/example/project/resource.txt"
 NODE_OPTIONS = "--max-old-space-size=8192"
 ```
 
@@ -119,8 +119,10 @@ Phase 2 implementation must not:
 2. run arbitrary user commands by default;
 3. edit shell startup files such as `.bashrc`, `.zshrc`, or shell profile files;
 4. run `conda init` automatically;
-5. leak secrets in normal output;
-6. make `taurworks project activate --print` mutate shell state.
+5. leak secrets in normal diagnostic output;
+6. make `taurworks project activate --print` mutate shell state;
+7. use one stdout stream for both human diagnostics and secret-bearing shell
+   activation payloads.
 
 ## Activation message
 
@@ -173,8 +175,10 @@ Design expectations for the initial implementation:
 - Conda activation is a shell-state mutation and therefore belongs behind
   explicitly sourced `tw activate`, not direct read-only `taurworks project
   activate --print` execution.
-- `taurworks project activate --print` may print the shell instructions that
-  `tw activate` should evaluate, but the command itself must remain read-only.
+- A future implementation should add a distinct machine-readable activation
+  payload mode for `tw activate` to evaluate. Human-facing `taurworks project
+  activate --print` output should remain diagnostic and redacted; it must not be
+  the only handoff for secret-bearing shell code.
 - Taurworks should not run `conda init` automatically and should not edit shell
   startup files. If the user's shell is not prepared for Conda activation,
   Taurworks should print a clear diagnostic telling the user to initialize or
@@ -196,8 +200,9 @@ Other environment systems are explicitly deferred:
 - If a setup cannot be represented declaratively, Taurworks should require a
   future trusted hook instead of guessing or sourcing scripts implicitly.
 
-Recommendation: add Conda only after message/export behavior is designed and
-reviewed, keeping the environment type handling narrow and explicit.
+Recommendation: add Conda only after message behavior and export payload
+separation are designed and reviewed, keeping the environment type handling
+narrow and explicit.
 
 ## Exports
 
@@ -223,18 +228,25 @@ Design expectations:
 - `~` expansion is allowed only when documented. The proposed rule is to expand
   a leading `~` or `~/` in export values to the current user's home directory
   before shell quoting, while leaving embedded tildes untouched.
-- Normal output must not echo sensitive values. Diagnostics may mention variable
-  names, counts, or redacted placeholders, but should avoid printing full values
-  unless the user requests an explicit debug/dry-run mode that warns about
-  disclosure.
+- Normal diagnostic output must not echo sensitive values. Diagnostics may
+  mention variable names, counts, or redacted placeholders, but should avoid
+  printing full values unless the user requests an explicit debug/dry-run mode
+  that warns about disclosure.
+- Secret-bearing shell code must use a separate machine-readable handoff from
+  redacted diagnostics. The proposed implementation shape is a future flag such
+  as `taurworks project activate --emit-shell` or an equivalent payload channel
+  whose stdout is consumed only by `tw activate`; redacted human diagnostics
+  should stay on `--print` output or stderr.
+- `tw activate` must validate that it is reading the machine payload mode before
+  evaluating output. It should not evaluate human-formatted `--print` diagnostics.
 - Exports preserve the safety boundary: they are data-driven environment
   mutations performed by `tw activate`, not arbitrary code execution.
 - Export failures should stop subsequent activation steps and should not print
   the success message.
 
-Recommendation: implement exports in the same early package as readiness
-messages or immediately after, before Conda activation, because export rendering
-and redaction rules are useful independently of any environment manager.
+Recommendation: implement exports after message-only polish and before Conda
+activation, because export rendering, machine-payload separation, and redaction
+rules are useful independently of any environment manager.
 
 ## User scripts and hooks
 
@@ -352,21 +364,25 @@ and migrate commands later, and avoid automatic legacy fallback sourcing.
 
 Phase 2 should be implemented through small PRs after Phase 1 dogfooding:
 
-1. **Activation message and exports:** parse `[activation].message` and
-   `[activation.exports]`, validate export names, perform documented leading
-   `~` expansion, render shell-quoted exports for `tw activate`, redact values in
-   normal diagnostics, and keep `taurworks project activate --print` read-only.
-2. **Conda activation in `tw activate`:** support `[activation.environment]
+1. **Activation message:** parse `[activation].message`, print it only after
+   successful activation, and keep the current concise output when the field is
+   absent.
+2. **Exports and payload separation:** parse `[activation.exports]`, validate
+   export names, perform documented leading `~` expansion, render shell-quoted
+   exports only through a machine-readable payload channel for `tw activate`,
+   redact values in normal diagnostics, and keep `taurworks project activate
+   --print` read-only and human-safe.
+3. **Conda activation in `tw activate`:** support `[activation.environment]
    type = "conda"` plus `name`, emit/evaluate the required shell setup only in
    the sourceable wrapper path, report missing Conda or shell setup clearly, and
    never run `conda init`.
-3. **Legacy inspect:** add `taurworks legacy inspect PROJECT` to conservatively
+4. **Legacy inspect:** add `taurworks legacy inspect PROJECT` to conservatively
    extract common legacy patterns and report manual-review items without
    executing scripts.
-4. **Legacy migrate for simple scripts:** add `taurworks legacy migrate PROJECT
+5. **Legacy migrate for simple scripts:** add `taurworks legacy migrate PROJECT
    --apply` to write declarative config for simple detected patterns while
    preserving existing values and requiring review for unsupported behavior.
-5. **Trusted hooks after dogfood:** design and implement explicit hook trust only
+6. **Trusted hooks after dogfood:** design and implement explicit hook trust only
    after declarative activation has been dogfooded; include opt-in, warnings,
    revocation, content-change detection, and dry-run/inspection support.
 
@@ -389,11 +405,11 @@ Cons:
 
 Recommendation: do first.
 
-### Option B: Declarative message/export data
+### Option B: Declarative export data
 
-Add configurable readiness messages and literal `[activation.exports]` data with
-validation, safe quoting, documented leading `~` expansion, and redacted
-diagnostics.
+Add literal `[activation.exports]` data with validation, safe quoting, documented
+leading `~` expansion, redacted diagnostics, and a separate machine-readable
+payload channel for `tw activate`.
 
 Pros:
 
@@ -405,9 +421,9 @@ Cons:
 
 - still mutates the shell environment through exports;
 - requires careful shell quoting and failure handling;
-- must avoid leaking sensitive values in normal output.
+- must avoid leaking sensitive values in normal diagnostic output.
 
-Recommendation: do first with message polish or immediately after it.
+Recommendation: do after message-only polish and before Conda activation.
 
 ### Option C: Conda environment activation
 
@@ -425,7 +441,7 @@ Cons:
 - depends on user-managed Conda shell setup;
 - must not run `conda init` or edit startup files.
 
-Recommendation: do second, after message/export rendering is safe.
+Recommendation: do after export rendering and payload separation are safe.
 
 ### Option D: Explicit trusted startup hook
 
@@ -466,16 +482,18 @@ limits and no automatic fallback sourcing.
 
 ## Recommended phased approach
 
-1. **Activation message and exports:** support a future `[activation].message`
-   and `[activation.exports]` while keeping current concise output as the
-   default when the message is absent.
-2. **Conda activation:** add narrow, documented support for
+1. **Activation message:** support a future `[activation].message` while keeping
+   current concise output as the default when the message is absent.
+2. **Exports:** support `[activation.exports]` only after the implementation has
+   a separate machine-readable payload channel for `tw activate` and redacted
+   human diagnostics.
+3. **Conda activation:** add narrow, documented support for
    `[activation.environment] type = "conda"` and `name`; defer venv, Docker,
    and other systems to separate designs.
-3. **Legacy inspect and simple migration:** help users review and migrate
+4. **Legacy inspect and simple migration:** help users review and migrate
    `Admin/project-setup.source` projects to declarative config without executing
    those scripts.
-4. **Explicit trusted startup hook:** add sourceable hooks only after trust,
+5. **Explicit trusted startup hook:** add sourceable hooks only after trust,
    warning, confirmation, revocation, and changed-content behavior is designed.
 
 The default should not become automatic legacy `Admin/project-setup.source`
