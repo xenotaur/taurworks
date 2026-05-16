@@ -606,6 +606,42 @@ class CliCommandTest(unittest.TestCase):
                 f"project_root: {workspace / 'Alpha'}", activate_result.stdout
             )
 
+    def test_project_create_dot_prefixed_name_is_explicit_local_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            workspace = root_path / "workspace"
+            local = root_path / "local"
+            workspace.mkdir()
+            local.mkdir()
+            env = {"XDG_CONFIG_HOME": str(root_path / "xdg"), "HOME": str(root_path)}
+            _run_cli(["workspace", "set", str(workspace)], root_path, env)
+            result = _run_cli(["project", "create", "./Alpha"], local, env)
+
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue((local / "Alpha" / ".taurworks" / "config.toml").is_file())
+            self.assertFalse((workspace / "Alpha").exists())
+            self.assertIn("target_selection: positional_path", result.stdout)
+            self.assertIn("path_argument: ./Alpha", result.stdout)
+
+    def test_project_create_dotdot_is_explicit_path_not_workspace_name(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            workspace = root_path / "workspace"
+            local = root_path / "local"
+            inner = local / "inner"
+            workspace.mkdir()
+            inner.mkdir(parents=True)
+            env = {"XDG_CONFIG_HOME": str(root_path / "xdg"), "HOME": str(root_path)}
+            _run_cli(["workspace", "set", str(workspace)], root_path, env)
+            result = _run_cli(["project", "create", ".."], inner, env)
+
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue((local / ".taurworks" / "config.toml").is_file())
+            self.assertFalse((root_path / ".taurworks").exists())
+            self.assertIn(f"project_root: {local}", result.stdout)
+            self.assertIn("target_selection: positional_path", result.stdout)
+            self.assertIn("path_argument: ..", result.stdout)
+
     def test_project_create_workspace_default_creates_working_dir_under_workspace(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_path = pathlib.Path(temp_dir)

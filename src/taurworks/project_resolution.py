@@ -653,12 +653,22 @@ def _project_create_failure_diagnostics(
     return diagnostics
 
 
+def _is_create_path_like_input(path_or_name: str) -> bool:
+    """Return whether create input is explicitly path-oriented."""
+    candidate = pathlib.PurePath(path_or_name)
+    return (
+        candidate.is_absolute()
+        or len(candidate.parts) != 1
+        or path_or_name in {".", ".."}
+        or path_or_name.startswith(("./", "../"))
+    )
+
+
 def _simple_project_name(path_or_name: str) -> str | None:
     """Return a normalized bare project name, or None when input is a path."""
-    candidate = pathlib.PurePath(path_or_name)
-    if candidate.is_absolute() or len(candidate.parts) != 1:
+    if _is_create_path_like_input(path_or_name):
         return None
-    return candidate.name
+    return pathlib.PurePath(path_or_name).name
 
 
 def _current_project_name(cwd: pathlib.Path) -> str | None:
