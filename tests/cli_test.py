@@ -5,6 +5,7 @@ import sys
 import tempfile
 import tomllib
 import unittest
+from unittest import mock
 
 from helpers import assert_same_path, parse_cli_fields
 
@@ -22,6 +23,7 @@ def _subprocess_env(overrides: dict[str, str] | None = None) -> dict[str, str]:
     )
     env["HOME"] = str(isolated_root / "home")
     env["XDG_CONFIG_HOME"] = str(isolated_root / "xdg")
+    env.pop("TAURWORKS_WORKSPACE", None)
     if overrides is not None:
         env.update(overrides)
     return env
@@ -219,25 +221,70 @@ class CliCommandTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_path = pathlib.Path(temp_dir)
             real_home = root_path / "real-home"
+            real_workspace = root_path / "real-workspace"
+            real_project = real_workspace / "RealProject"
             isolated_home = root_path / "isolated-home"
             isolated_xdg = root_path / "isolated-xdg"
+            real_project_config = real_project / ".taurworks" / "config.toml"
+            real_project_config.parent.mkdir(parents=True)
+            real_project_config.write_text(
+                'schema_version = 1\n\n[project]\nname = "RealProject"\n',
+                encoding="utf-8",
+            )
             real_config = real_home / ".config" / "taurworks" / "config.toml"
             real_config.parent.mkdir(parents=True)
             real_config.write_text(
-                'schema_version = 1\n\n[workspace]\nroot = "/definitely/not/used"\n',
+                f'schema_version = 1\n\n[workspace]\nroot = "{real_workspace}"\n',
                 encoding="utf-8",
             )
 
-            result = _run_cli(
+            unisolated_env = _subprocess_env({"HOME": str(real_home)})
+            unisolated_env.pop("XDG_CONFIG_HOME", None)
+            unisolated = subprocess.run(
+                [sys.executable, "-m", "taurworks.cli", "project", "list"],
+                cwd=root_path,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=unisolated_env,
+            )
+            isolated = _run_cli(
                 ["project", "list"],
                 root_path,
                 {"HOME": str(isolated_home), "XDG_CONFIG_HOME": str(isolated_xdg)},
             )
 
+        unisolated_message = _failure_message(["project", "list"], unisolated)
+        self.assertEqual(unisolated.returncode, 0, msg=unisolated_message)
+        self.assertIn("project_count: 1", unisolated.stdout, msg=unisolated_message)
+        self.assertIn("RealProject", unisolated.stdout, msg=unisolated_message)
+        isolated_message = _failure_message(["project", "list"], isolated)
+        self.assertEqual(isolated.returncode, 0, msg=isolated_message)
+        self.assertIn("project_count: 0", isolated.stdout, msg=isolated_message)
+        self.assertNotIn("RealProject", isolated.stdout, msg=isolated_message)
+
+    def test_project_list_ignores_caller_taurworks_workspace_by_default(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            caller_workspace = root_path / "caller-workspace"
+            caller_project_config = (
+                caller_workspace / "CallerProject" / ".taurworks" / "config.toml"
+            )
+            caller_project_config.parent.mkdir(parents=True)
+            caller_project_config.write_text(
+                'schema_version = 1\n\n[project]\nname = "CallerProject"\n',
+                encoding="utf-8",
+            )
+            with mock.patch.dict(
+                os.environ, {"TAURWORKS_WORKSPACE": str(caller_workspace)}
+            ):
+                result = _run_cli(["project", "list"], root_path)
+
         failure_message = _failure_message(["project", "list"], result)
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("project_count: 0", result.stdout, msg=failure_message)
-        self.assertNotIn("/definitely/not/used", result.stdout, msg=failure_message)
+        self.assertNotIn("CallerProject", result.stdout, msg=failure_message)
 
     def test_project_namespace_help_lists_read_only_commands(self):
         cmd = [sys.executable, "-m", "taurworks.cli", "project", "--help"]

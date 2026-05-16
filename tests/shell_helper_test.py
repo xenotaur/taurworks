@@ -27,6 +27,7 @@ def _subprocess_env() -> dict[str, str]:
     )
     env["HOME"] = str(isolated_root / "home")
     env["XDG_CONFIG_HOME"] = str(isolated_root / "xdg")
+    env.pop("TAURWORKS_WORKSPACE", None)
     return env
 
 
