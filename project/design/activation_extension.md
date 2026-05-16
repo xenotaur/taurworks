@@ -71,142 +71,202 @@ The boundary matters because shell state changes are not all equivalent:
 
 ## Phase 2 declarative activation configuration
 
-Implementation status: planned design only. No declarative activation behavior is implemented by this document.
+Implementation status: planned design only. No declarative activation behavior is
+implemented by this document.
 
-Activation extensions should be represented declaratively in `.taurworks/config.toml` before any imperative hook is considered. A future configuration may look like this:
+Activation extensions should be represented declaratively in
+`.taurworks/config.toml` before any imperative hook is considered. Phase 2 is the
+safe subset of legacy project setup behavior: readiness text, one supported
+environment activation strategy, and literal exported environment variables.
+Arbitrary shell scripts remain outside Phase 2.
+
+A complete Phase 2 configuration may look like this:
 
 ```toml
+schema_version = 1
+
+[project]
+name = "LCATS"
+
+[paths]
+working_dir = "LCATS"
+
 [activation]
-message = "Ready for work on project Taurworks"
+message = "Ready for work on project LCATS"
 
 [activation.environment]
 type = "conda"
-name = "Taurworks"
+name = "LCATS"
 
 [activation.exports]
-CREDENTIALS = "~/Workspace/Taurworks/secrets/example.pem"
+CREDENTIALS = "~/Workspace/Novarc/Celeste/NovarcCelesteBuilder.pem"
 NODE_OPTIONS = "--max-old-space-size=8192"
 ```
 
-or:
+The schema is intentionally data-shaped:
 
-```toml
-[activation]
-message = "Ready for work on project Taurworks"
+- `[activation].message` is user-facing text printed after successful activation.
+- `[activation.environment]` describes one known environment strategy. The first
+  implementation should support only `type = "conda"` with `name = "..."`.
+- `[activation.exports]` is a TOML table of literal environment-variable values,
+  not shell code.
+- Omitted activation fields mean "do nothing extra" beyond the current resolved
+  directory change and existing concise activation output.
 
-[activation.environment]
-type = "venv"
-path = ".venv"
-```
+Phase 2 implementation must not:
 
-Phase 2 should design and implement declarative activation in small slices:
+1. source arbitrary scripts by default;
+2. run arbitrary user commands by default;
+3. edit shell startup files such as `.bashrc`, `.zshrc`, or shell profile files;
+4. run `conda init` automatically;
+5. leak secrets in normal output;
+6. make `taurworks project activate --print` mutate shell state.
 
-1. activation success message;
-2. declarative environment strategy such as Conda or venv;
-3. declarative exported environment variables;
-4. clear verbose/debug diagnostics and failure modes.
-
-The `[activation.exports]` table is data, not shell code. Values should be treated as literal export values with documented path-expansion rules rather than evaluated command substitutions. This phase should avoid arbitrary user-script sourcing.
-
-## Readiness message
+## Activation message
 
 A low-risk first extension is a configurable readiness message:
 
 ```toml
 [activation]
-message = "Ready for work on project Taurworks"
+message = "Ready for work on project X"
 ```
 
 Design expectations:
 
-- The message is printed only after the activation action succeeds.
-- The default may preserve the current concise `tw activate` destination message
-  so existing shell workflows remain predictable.
-- The configured message should be treated as text, not shell code.
-- The message should not hide failures from project resolution, working-directory
-  validation, or future environment activation.
-- Diagnostics should stay available through verbose/debug activation paths rather
-  than making default activation noisy.
+- The message is optional.
+- If the field is missing, `tw activate` should preserve the current concise
+  success behavior rather than inventing a noisy default. A reasonable default is
+  the existing destination-oriented message from the sourceable helper.
+- The configured message is printed only after all activation steps that are
+  enabled for the project succeed, including future environment activation and
+  exports.
+- The configured message is treated as plain text, not shell code. It must not
+  be interpolated, evaluated, or allowed to hide failures.
+- The message belongs to the shell-mutating `tw activate` workflow. The read-only
+  `taurworks project activate --print` command may print guidance that includes
+  the message as data, but it must not use the message as evidence that
+  activation already happened.
+- Verbose/debug diagnostics should remain available through explicit flags or
+  direct `taurworks project activate ... --print` inspection instead of making
+  normal activation output noisy.
 
-Recommendation: implement message-only polish before environment activation or
-startup hooks because it improves ergonomics without executing additional code.
+Recommendation: implement message-only polish first because it improves parity
+with legacy readiness messages without executing additional code.
 
-## Declarative environment activation
+## Environment activation
 
-Environment activation should support multiple environment systems. Taurworks
-should not assume every project uses Conda.
-
-### Conda
-
-A future Conda configuration may look like this:
+Phase 2 should design only the Conda path for the first implementation:
 
 ```toml
 [activation.environment]
 type = "conda"
-name = "Taurworks"
+name = "EnvName"
 ```
 
-Design considerations:
+Design expectations for the initial implementation:
 
-- Activation should be explicit through `tw activate`, not through the read-only
-  `taurworks project activate --print` command.
-- Diagnostics should explain the selected environment type and name before or
-  during activation when verbose/debug output is requested.
-- Failures to locate Conda or the named environment should be reported clearly
-  and should not be mistaken for a successful activation.
-- Implementation should avoid hard-coding Conda as the only environment model.
+- `type` is required when `[activation.environment]` is present.
+- `name` is required for `type = "conda"` and names the Conda environment to
+  activate.
+- Unknown environment `type` values should produce an actionable unsupported-type
+  error instead of falling back to arbitrary scripts.
+- Conda activation is a shell-state mutation and therefore belongs behind
+  explicitly sourced `tw activate`, not direct read-only `taurworks project
+  activate --print` execution.
+- `taurworks project activate --print` may print the shell instructions that
+  `tw activate` should evaluate, but the command itself must remain read-only.
+- Taurworks should not run `conda init` automatically and should not edit shell
+  startup files. If the user's shell is not prepared for Conda activation,
+  Taurworks should print a clear diagnostic telling the user to initialize or
+  configure Conda outside Taurworks.
+- Failures to locate Conda, initialize the shell hook, or activate the named
+  environment should stop activation before exports and readiness messages are
+  reported as successful.
+- Normal output should avoid excessive detail; verbose/debug output may report
+  the selected environment type and name.
 
-### Python virtual environments
+Other environment systems are explicitly deferred:
 
-A future venv configuration may look like this:
+- Python virtual environments may later use a shape such as
+  `[activation.environment] type = "venv"` plus a documented relative `path`, but
+  venv is not part of the first Phase 2 implementation.
+- Docker, devcontainers, Nix, Pixi, and similar systems may be better modeled as
+  guidance or `taurworks dev ...` workflows rather than direct activation side
+  effects. They require separate design before implementation.
+- If a setup cannot be represented declaratively, Taurworks should require a
+  future trusted hook instead of guessing or sourcing scripts implicitly.
+
+Recommendation: add Conda only after message/export behavior is designed and
+reviewed, keeping the environment type handling narrow and explicit.
+
+## Exports
+
+Phase 2 should represent exported variables as literal TOML data:
 
 ```toml
-[activation.environment]
-type = "venv"
-path = ".venv"
+[activation.exports]
+KEY = "value"
 ```
 
-Design considerations:
+Design expectations:
 
-- Relative paths should resolve from the Taurworks project root or configured
-  working directory according to a documented rule before implementation.
-- Missing activation scripts should produce actionable errors.
-- The selected shell family may matter because venv activation scripts differ by
-  shell.
+- Keys must be valid shell environment variable names: start with `A-Z`, `a-z`,
+  or `_`, followed by only `A-Z`, `a-z`, `0-9`, or `_`. Invalid names should be
+  rejected before any shell output is produced for that activation.
+- Values are TOML strings and should be treated as literal values. Taurworks must
+  not evaluate command substitutions, parameter expansions, arithmetic
+  expansions, globs, or shell pipelines in export values.
+- The shell output used by `tw activate` must quote values safely for the target
+  shell before evaluation. The initial implementation should document the shell
+  family it supports and should prefer single-purpose quoting helpers over
+  hand-built string concatenation.
+- `~` expansion is allowed only when documented. The proposed rule is to expand
+  a leading `~` or `~/` in export values to the current user's home directory
+  before shell quoting, while leaving embedded tildes untouched.
+- Normal output must not echo sensitive values. Diagnostics may mention variable
+  names, counts, or redacted placeholders, but should avoid printing full values
+  unless the user requests an explicit debug/dry-run mode that warns about
+  disclosure.
+- Exports preserve the safety boundary: they are data-driven environment
+  mutations performed by `tw activate`, not arbitrary code execution.
+- Export failures should stop subsequent activation steps and should not print
+  the success message.
 
-### Docker, devcontainers, and project-specific workflows
+Recommendation: implement exports in the same early package as readiness
+messages or immediately after, before Conda activation, because export rendering
+and redaction rules are useful independently of any environment manager.
 
-Some projects should not activate a local shell environment at all. Future
-extensions may need to represent Docker, devcontainer, Nix, Pixi, or other
-project-specific workflows. Those systems may require separate commands rather
-than direct shell mutation.
+## User scripts and hooks
 
-Design considerations:
+Implementation status: future design only. User scripts and hooks must not be
+sourced or run by default.
 
-- Container-oriented workflows may be better modeled as guidance or `dev`
-  commands instead of shell activation side effects.
-- Project-specific workflows should remain inspectable and should not become a
-  hidden arbitrary-script execution path.
-- If a workflow cannot be represented declaratively, Taurworks should require an
-  explicit trusted hook rather than silently guessing behavior.
+Some legacy projects need behavior that declarative messages, Conda activation,
+and exports cannot safely model. Taurworks may support this later only as trusted
+code behind explicit opt-in. A possible future shape is:
 
-Recommendation: add declarative environment activation after message-only polish,
-starting with a narrow type registry and documented failure modes.
+```toml
+[activation.hooks]
+enabled = false
+source = [".taurworks/activate.source"]
+run = []
+```
 
-## Future safe user-script support
+The exact hook schema is not approved by this Phase 2 design. Any future hook
+schema must satisfy these requirements before implementation:
 
-Implementation status: future design only. User scripts and hooks must not be sourced by default.
-
-Taurworks should eventually support user scripts or hooks only behind explicit opt-in, such as a per-project config flag or a `tw config` trust command. This future phase is intentionally separate from Phase 2 declarative activation.
-
-Required safety properties:
-
-1. Hooks are trusted code, not configuration data.
-2. `tw activate` should warn clearly before first use of a trusted hook and when trust changes.
-3. Inspection and dry-run modes should show what would run without running it.
-4. Opt-in should be per project, not inherited globally by accident.
-5. Legacy `Admin/project-setup.source` files are recognized for migration visibility but are not sourced by default.
-6. A later migration path may help users convert `Admin/project-setup.source` into declarative activation config plus an explicitly trusted hook when necessary.
+1. `enabled` or an equivalent trust flag defaults to `false`.
+2. Hooks are never discovered and sourced merely because a filename exists.
+3. The user must opt in explicitly through project configuration or a future
+   command such as `tw config trust PROJECT .taurworks/activate.source`.
+4. Trust should be per project and should record enough detail to detect path or
+   content changes, such as an approved script path and content digest.
+5. Inspection and dry-run modes must show what would be sourced or run without
+   executing it.
+6. `tw activate` should warn clearly before first hook use and when trusted hook
+   content changes.
+7. Documentation must state that hooks are arbitrary code that may alter shell
+   state, files, credentials, prompts, aliases, functions, and commands.
 
 The safety boundary remains:
 
@@ -215,7 +275,7 @@ taurworks project activate --print
   read-only activation guidance
 
 tw activate
-  explicit shell-mutating wrapper
+  explicit shell-mutating wrapper for cd, declarations, and supported env setup
 
 workspace-only / legacy-admin fallback
   cd only, with warning
@@ -224,44 +284,11 @@ legacy Admin/project-setup.source
   recognized, but not sourced by default
 
 user scripts/hooks
-  future explicit opt-in only
+  future explicit opt-in trusted code only
 ```
 
-## Trusted startup hooks
-
-A startup hook would intentionally execute project-controlled code in the user's
-current shell. A future configuration may look like this:
-
-```toml
-[activation]
-startup_script = ".taurworks/activate.source"
-```
-
-Safety requirements before any implementation:
-
-1. Hooks must be explicit opt-in configuration, not discovered and sourced by
-   filename convention alone.
-2. `tw activate` should display user-visible warnings before first use or when
-   trust state changes.
-3. Taurworks must not automatically source arbitrary scripts found in a project
-   tree.
-4. A trust or confirmation model should be designed, such as recording that the
-   user approved a specific script path and content digest.
-5. Documentation must state plainly that startup hooks execute code in the user
-   shell and may change environment variables, aliases, functions, shell options,
-   prompt state, files, or other shell-visible state.
-
-Additional design questions:
-
-- How does a user revoke trust for one project or all projects?
-- Should hooks run before or after declarative environment activation?
-- How should Taurworks detect that a hook changed after being trusted?
-- What should happen in non-interactive shells?
-- How should dry-run or print-only diagnostics present hook guidance without
-  executing the hook?
-
-Recommendation: defer trusted startup hooks until declarative activation is
-stable and the trust model is documented in detail.
+Recommendation: defer hooks until after Phase 2 dogfooding confirms which legacy
+behaviors remain impossible to express declaratively.
 
 ## Legacy `Admin/project-setup.source` migration
 
@@ -271,11 +298,39 @@ The legacy pattern is:
 <project>/Admin/project-setup.source
 ```
 
-Taurworks should prefer migration or one-off tooling over automatic fallback
-sourcing. A migration tool could inspect a legacy script, generate a proposed
-`.taurworks/config.toml`, and point the user to any remaining manual steps.
-Examples of extractable intent may include project name, working directory,
-readiness text, or a Conda environment name.
+Taurworks should prefer migration tooling over automatic fallback sourcing. A
+later migration package should provide:
+
+```bash
+taurworks legacy inspect PROJECT
+taurworks legacy migrate PROJECT --apply
+```
+
+`taurworks legacy inspect PROJECT` should be conservative and read-only:
+
+- locate the legacy script through the normal project resolver;
+- report detected common patterns such as `conda activate NAME`, simple
+  `export KEY=value` assignments, `cd PATH`, and readiness `echo`/`printf`
+  messages;
+- propose corresponding `.taurworks/config.toml` fields when extraction is
+  unambiguous;
+- report unsupported statements, dynamic shell constructs, sourced files,
+  function calls, command substitutions, aliases, and shell conditionals as
+  requiring manual review;
+- redact likely sensitive export values by default while still showing variable
+  names and whether a value was detected;
+- avoid executing or sourcing the script.
+
+`taurworks legacy migrate PROJECT --apply` should write changes only after the
+user chooses to apply them:
+
+- prefer declarative config fields over copying arbitrary scripts;
+- preserve existing `.taurworks/config.toml` values unless the user explicitly
+  chooses to replace them;
+- write a reviewable diff or summary before applying changes;
+- leave unsupported shell behavior as manual follow-up notes;
+- require explicit opt-in before copying a legacy script into a future trusted
+  hook location or enabling hook execution.
 
 Automatic fallback sourcing is not recommended as default behavior because:
 
@@ -290,13 +345,30 @@ Automatic fallback sourcing is not recommended as default behavior because:
 - a bad or stale legacy script could mutate the user's current shell before the
   user understands why.
 
-If a legacy bridge is ever added, it should require explicit opt-in and clear
-warnings, such as a configuration flag that names the legacy script and marks it
-as trusted. Even then, migration to declarative configuration plus a small
-project-owned hook should be preferred.
+Recommendation: classify legacy-admin projects for visibility now, add inspect
+and migrate commands later, and avoid automatic legacy fallback sourcing.
 
-Recommendation: classify legacy-admin projects for visibility now, add explicit
-migration tooling later, and avoid automatic legacy fallback sourcing.
+## Follow-up implementation package
+
+Phase 2 should be implemented through small PRs after Phase 1 dogfooding:
+
+1. **Activation message and exports:** parse `[activation].message` and
+   `[activation.exports]`, validate export names, perform documented leading
+   `~` expansion, render shell-quoted exports for `tw activate`, redact values in
+   normal diagnostics, and keep `taurworks project activate --print` read-only.
+2. **Conda activation in `tw activate`:** support `[activation.environment]
+   type = "conda"` plus `name`, emit/evaluate the required shell setup only in
+   the sourceable wrapper path, report missing Conda or shell setup clearly, and
+   never run `conda init`.
+3. **Legacy inspect:** add `taurworks legacy inspect PROJECT` to conservatively
+   extract common legacy patterns and report manual-review items without
+   executing scripts.
+4. **Legacy migrate for simple scripts:** add `taurworks legacy migrate PROJECT
+   --apply` to write declarative config for simple detected patterns while
+   preserving existing values and requiring review for unsupported behavior.
+5. **Trusted hooks after dogfood:** design and implement explicit hook trust only
+   after declarative activation has been dogfooded; include opt-in, warnings,
+   revocation, content-change detection, and dry-run/inspection support.
 
 ## Options considered
 
@@ -317,26 +389,45 @@ Cons:
 
 Recommendation: do first.
 
-### Option B: Declarative environment activation
+### Option B: Declarative message/export data
 
-Add a constrained environment model such as Conda and venv entries under
-`[activation.environment]`.
+Add configurable readiness messages and literal `[activation.exports]` data with
+validation, safe quoting, documented leading `~` expansion, and redacted
+diagnostics.
 
 Pros:
 
-- supports common setup needs without arbitrary hooks;
-- keeps behavior inspectable;
-- can produce useful diagnostics and validation.
+- restores common safe legacy behavior without arbitrary hooks;
+- keeps environment-variable changes inspectable;
+- can produce useful diagnostics and validation without printing secrets.
 
 Cons:
 
-- still mutates shell environment;
-- requires careful shell integration and failure handling;
-- must avoid assuming Conda for all projects.
+- still mutates the shell environment through exports;
+- requires careful shell quoting and failure handling;
+- must avoid leaking sensitive values in normal output.
 
-Recommendation: do second, after message-only polish.
+Recommendation: do first with message polish or immediately after it.
 
-### Option C: Explicit trusted startup hook
+### Option C: Conda environment activation
+
+Add narrow initial support for `[activation.environment] type = "conda"` plus
+`name`.
+
+Pros:
+
+- supports the most common legacy setup step without sourcing project scripts;
+- keeps the environment manager and environment name explicit.
+
+Cons:
+
+- mutates `PATH`, prompt state, and other shell-visible environment details;
+- depends on user-managed Conda shell setup;
+- must not run `conda init` or edit startup files.
+
+Recommendation: do second, after message/export rendering is safe.
+
+### Option D: Explicit trusted startup hook
 
 Add a sourceable project hook only when configured and trusted.
 
@@ -351,9 +442,10 @@ Cons:
 - requires trust, confirmation, revocation, and change-detection design;
 - can obscure activation behavior if warnings and diagnostics are weak.
 
-Recommendation: do third, only with explicit trust semantics.
+Recommendation: do after declarative dogfooding, only with explicit trust
+semantics.
 
-### Option D: Legacy migration tooling
+### Option E: Legacy migration tooling
 
 Add a command or documented workflow that helps convert
 `Admin/project-setup.source` projects into Taurworks metadata.
@@ -369,20 +461,22 @@ Cons:
 - cannot reliably infer every custom shell behavior;
 - may still require manual review and project-specific hooks.
 
-Recommendation: do fourth, with clear limits and no automatic fallback sourcing.
+Recommendation: do after inspect/migration requirements are reviewed, with clear
+limits and no automatic fallback sourcing.
 
 ## Recommended phased approach
 
-1. **Message-only polish:** support a future `[activation].message` while keeping
-   current concise output as the default.
-2. **Declarative environment activation:** add a narrow, documented environment
-   model for types such as Conda and venv without assuming all projects use one
-   environment system.
-3. **Explicit trusted startup hook:** add sourceable hooks only after trust,
+1. **Activation message and exports:** support a future `[activation].message`
+   and `[activation.exports]` while keeping current concise output as the
+   default when the message is absent.
+2. **Conda activation:** add narrow, documented support for
+   `[activation.environment] type = "conda"` and `name`; defer venv, Docker,
+   and other systems to separate designs.
+3. **Legacy inspect and simple migration:** help users review and migrate
+   `Admin/project-setup.source` projects to declarative config without executing
+   those scripts.
+4. **Explicit trusted startup hook:** add sourceable hooks only after trust,
    warning, confirmation, revocation, and changed-content behavior is designed.
-4. **Legacy migration tooling:** help users migrate
-   `Admin/project-setup.source` projects to `.taurworks/config.toml` and, where
-   necessary, explicit trusted hooks.
 
 The default should not become automatic legacy `Admin/project-setup.source`
 fallback sourcing. That behavior would execute project-controlled code based on a
@@ -393,7 +487,9 @@ explicit so far.
 
 This design does not implement:
 
-- environment activation;
+- Conda activation;
+- export rendering;
+- activation message behavior;
 - startup hooks;
 - automatic legacy setup sourcing;
 - shell wrapper behavior changes;
