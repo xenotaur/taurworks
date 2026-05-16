@@ -92,6 +92,23 @@ After setup, run the standard checks from the repository root:
 ./scripts/test
 ```
 
+Portability-sensitive tests can also be run with isolated global-config
+locations:
+
+```bash
+./scripts/test-portability
+```
+
+This wrapper creates temporary `HOME`, `XDG_CONFIG_HOME`, and
+`TAURWORKS_WORKSPACE` values before running the unittest suite, so local checks
+do not read or write a developer's real `~/.config/taurworks/config.toml` or
+`~/Workspace`. It is intended for macOS dogfooding as well as Linux validation.
+macOS can canonicalize temporary paths such as `/var/folders/...` to
+`/private/var/folders/...`; tests that inspect CLI diagnostics should parse
+`key: value` output and compare path fields semantically with the shared test
+helpers instead of matching raw path substrings. Python CI runs the standard
+and portability test suites on both Ubuntu and macOS.
+
 Formatting uses Black through the thin formatter wrapper. To check formatting
 with a diff without rewriting files, run:
 

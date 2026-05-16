@@ -5,6 +5,8 @@ import tomllib
 import unittest
 from unittest import mock
 
+from helpers import assert_same_path
+
 from taurworks import project_registry
 
 
@@ -28,9 +30,9 @@ class ProjectRegistryTest(unittest.TestCase):
             config = tomllib.loads(config_path.read_text(encoding="utf-8"))
 
         self.assertTrue(diagnostics["ok"])
-        self.assertEqual(str(project_root.resolve()), diagnostics["project_root"])
-        self.assertEqual(
-            str(project_root.resolve()), config["projects"]["HiddenProject"]["root"]
+        assert_same_path(self, diagnostics["project_root"], project_root)
+        assert_same_path(
+            self, config["projects"]["HiddenProject"]["root"], project_root
         )
         self.assertEqual(1, config["schema_version"])
 
@@ -119,8 +121,8 @@ class ProjectRegistryTest(unittest.TestCase):
         self.assertFalse(rejected["ok"])
         self.assertTrue(allowed["ok"])
         self.assertFalse(allowed["path_exists"])
-        self.assertEqual(
-            str(missing_project.resolve()), config["projects"]["MissingProject"]["root"]
+        assert_same_path(
+            self, config["projects"]["MissingProject"]["root"], missing_project
         )
 
     def test_allow_missing_suppresses_project_config_warning(self):
@@ -221,8 +223,8 @@ class ProjectRegistryTest(unittest.TestCase):
         self.assertIn("--force", duplicate["error"])
         self.assertTrue(forced["ok"])
         self.assertTrue(forced["overwrote_existing"])
-        self.assertEqual(
-            str(second_project.resolve()), config["projects"]["HiddenProject"]["root"]
+        assert_same_path(
+            self, config["projects"]["HiddenProject"]["root"], second_project
         )
 
     def test_registry_workspace_name_collision_is_visible(self):
@@ -253,8 +255,6 @@ class ProjectRegistryTest(unittest.TestCase):
         self.assertTrue(register["ok"])
         self.assertTrue(register["collision_with_workspace_child"])
         self.assertNotIn("collision_policy", register)
-        self.assertEqual(
-            str(workspace_child.resolve()), register["workspace_child_root"]
-        )
+        assert_same_path(self, register["workspace_child_root"], workspace_child)
         self.assertTrue(listing["projects"][0]["collision_with_workspace_child"])
         self.assertNotIn("collision_policy", listing["projects"][0])

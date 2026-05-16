@@ -2,6 +2,9 @@ import os
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
+
+from helpers import assert_same_path
 
 from taurworks import project_resolution
 
@@ -42,7 +45,7 @@ class ProjectResolutionModuleTest(unittest.TestCase):
                 )
             finally:
                 __import__("os").chdir(original)
-        self.assertEqual((project_dir / "TestProject").resolve(), resolved)
+        assert_same_path(self, resolved, project_dir / "TestProject")
 
     def test_resolve_project_refresh_target_defaults_to_cwd(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -53,7 +56,7 @@ class ProjectResolutionModuleTest(unittest.TestCase):
                 resolved = project_resolution.resolve_project_refresh_target(None)
             finally:
                 __import__("os").chdir(original)
-        self.assertEqual(cwd.resolve(), resolved)
+        assert_same_path(self, resolved, cwd)
 
 
 class GlobalActivationResolutionTest(unittest.TestCase):
@@ -102,8 +105,8 @@ class GlobalActivationResolutionTest(unittest.TestCase):
                 os.chdir(original_cwd)
 
         self.assertTrue(diagnostics["ok"])
-        self.assertEqual(diagnostics["project_root"], str(project_root))
-        self.assertEqual(diagnostics["resolved_working_dir"], str(repo))
+        assert_same_path(self, diagnostics["project_root"], project_root)
+        assert_same_path(self, diagnostics["resolved_working_dir"], repo)
         self.assertEqual(diagnostics["resolved_by"], "current_project_name")
 
     def test_activate_workspace_project_from_outside_workspace(self):
@@ -119,24 +122,22 @@ class GlobalActivationResolutionTest(unittest.TestCase):
             xdg_home = self._with_global_config(temp_path, workspace)
 
             original_cwd = pathlib.Path.cwd()
-            original_xdg = os.environ.get("XDG_CONFIG_HOME")
             try:
-                os.environ["XDG_CONFIG_HOME"] = str(xdg_home)
-                os.chdir(outside)
-                diagnostics = (
-                    project_resolution.gather_project_activate_print_diagnostics(
-                        "WorkspaceProject"
+                with mock.patch.dict(
+                    os.environ,
+                    {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)},
+                ):
+                    os.chdir(outside)
+                    diagnostics = (
+                        project_resolution.gather_project_activate_print_diagnostics(
+                            "WorkspaceProject"
+                        )
                     )
-                )
             finally:
                 os.chdir(original_cwd)
-                if original_xdg is None:
-                    os.environ.pop("XDG_CONFIG_HOME", None)
-                else:
-                    os.environ["XDG_CONFIG_HOME"] = original_xdg
 
         self.assertTrue(diagnostics["ok"])
-        self.assertEqual(diagnostics["resolved_working_dir"], str(working_dir))
+        assert_same_path(self, diagnostics["resolved_working_dir"], working_dir)
         self.assertEqual(diagnostics["resolved_by"], "workspace_initialized_project")
 
     def test_activate_workspace_project_after_other_project_working_dir(self):
@@ -154,25 +155,23 @@ class GlobalActivationResolutionTest(unittest.TestCase):
             xdg_home = self._with_global_config(temp_path, workspace)
 
             original_cwd = pathlib.Path.cwd()
-            original_xdg = os.environ.get("XDG_CONFIG_HOME")
             try:
-                os.environ["XDG_CONFIG_HOME"] = str(xdg_home)
-                os.chdir(first_repo)
-                diagnostics = (
-                    project_resolution.gather_project_activate_print_diagnostics(
-                        "SecondProject"
+                with mock.patch.dict(
+                    os.environ,
+                    {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)},
+                ):
+                    os.chdir(first_repo)
+                    diagnostics = (
+                        project_resolution.gather_project_activate_print_diagnostics(
+                            "SecondProject"
+                        )
                     )
-                )
             finally:
                 os.chdir(original_cwd)
-                if original_xdg is None:
-                    os.environ.pop("XDG_CONFIG_HOME", None)
-                else:
-                    os.environ["XDG_CONFIG_HOME"] = original_xdg
 
         self.assertTrue(diagnostics["ok"])
-        self.assertEqual(diagnostics["resolved_working_dir"], str(second_repo))
-        self.assertEqual(diagnostics["project_root"], str(second_root))
+        assert_same_path(self, diagnostics["resolved_working_dir"], second_repo)
+        assert_same_path(self, diagnostics["project_root"], second_root)
 
     def test_workspace_only_and_legacy_admin_activate_to_root_with_warnings(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -187,9 +186,10 @@ class GlobalActivationResolutionTest(unittest.TestCase):
             legacy_setup.write_text(f"touch {sentinel}\n", encoding="utf-8")
             xdg_home = self._with_global_config(temp_path, workspace)
 
-            original_xdg = os.environ.get("XDG_CONFIG_HOME")
-            try:
-                os.environ["XDG_CONFIG_HOME"] = str(xdg_home)
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)},
+            ):
                 workspace_diagnostics = (
                     project_resolution.gather_project_activate_print_diagnostics(
                         "WorkspaceOnly"
@@ -200,19 +200,14 @@ class GlobalActivationResolutionTest(unittest.TestCase):
                         "Legacy"
                     )
                 )
-            finally:
-                if original_xdg is None:
-                    os.environ.pop("XDG_CONFIG_HOME", None)
-                else:
-                    os.environ["XDG_CONFIG_HOME"] = original_xdg
 
         self.assertTrue(workspace_diagnostics["ok"])
-        self.assertEqual(
-            workspace_diagnostics["resolved_working_dir"], str(workspace_only)
+        assert_same_path(
+            self, workspace_diagnostics["resolved_working_dir"], workspace_only
         )
         self.assertIn("not initialized", str(workspace_diagnostics["guidance"]))
         self.assertTrue(legacy_diagnostics["ok"])
-        self.assertEqual(legacy_diagnostics["resolved_working_dir"], str(legacy))
+        assert_same_path(self, legacy_diagnostics["resolved_working_dir"], legacy)
         self.assertIn("was not sourced", str(legacy_diagnostics["guidance"]))
         self.assertFalse(sentinel.exists())
 
@@ -239,26 +234,22 @@ class GlobalActivationResolutionTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            original_xdg = os.environ.get("XDG_CONFIG_HOME")
-            try:
-                os.environ["XDG_CONFIG_HOME"] = str(xdg_home)
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)},
+            ):
                 listing = project_resolution.gather_project_list_diagnostics()
                 hidden_diagnostics = (
                     project_resolution.gather_project_activate_print_diagnostics(
                         "Hidden"
                     )
                 )
-            finally:
-                if original_xdg is None:
-                    os.environ.pop("XDG_CONFIG_HOME", None)
-                else:
-                    os.environ["XDG_CONFIG_HOME"] = original_xdg
 
         names = [project["name"] for project in listing["projects"]]
         self.assertIn("Hidden", names)
         self.assertEqual(names.count("Duplicate"), 1)
         self.assertTrue(hidden_diagnostics["ok"])
-        self.assertEqual(hidden_diagnostics["resolved_working_dir"], str(hidden_repo))
+        assert_same_path(self, hidden_diagnostics["resolved_working_dir"], hidden_repo)
         self.assertEqual(hidden_diagnostics["resolved_by"], "registered_project")
 
     def test_workspace_listing_does_not_scan_recursively_by_default(self):
@@ -271,15 +262,11 @@ class GlobalActivationResolutionTest(unittest.TestCase):
             self._write_project_config(nested, "Nested", "repo")
             xdg_home = self._with_global_config(temp_path, workspace)
 
-            original_xdg = os.environ.get("XDG_CONFIG_HOME")
-            try:
-                os.environ["XDG_CONFIG_HOME"] = str(xdg_home)
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)},
+            ):
                 listing = project_resolution.gather_project_list_diagnostics()
-            finally:
-                if original_xdg is None:
-                    os.environ.pop("XDG_CONFIG_HOME", None)
-                else:
-                    os.environ["XDG_CONFIG_HOME"] = original_xdg
 
         names = [project["name"] for project in listing["projects"]]
         self.assertIn("Parent", names)

@@ -1,0 +1,17 @@
+#!/bin/bash
+set -euo pipefail
+
+REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+TEMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/taurworks-portability.XXXXXX")
+trap 'rm -rf "$TEMP_ROOT"' EXIT
+
+export HOME="$TEMP_ROOT/home"
+export XDG_CONFIG_HOME="$TEMP_ROOT/xdg"
+export TAURWORKS_WORKSPACE="$TEMP_ROOT/workspace"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$TAURWORKS_WORKSPACE"
+
+cd "$REPO_ROOT"
+
+echo "Running portability-sensitive tests with isolated HOME and XDG_CONFIG_HOME..."
+set -x
+PYTHONPATH=src python -m unittest discover tests "*_test.py"
