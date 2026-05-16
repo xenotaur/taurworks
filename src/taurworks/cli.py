@@ -4,6 +4,7 @@ import sys
 from taurworks import dev
 from taurworks import global_config
 from taurworks import manager
+from taurworks import project_registry
 from taurworks import project_resolution
 from taurworks import shell_resources
 
@@ -46,6 +47,33 @@ def _handle_project_command(args):
         diagnostics = project_resolution.gather_project_list_diagnostics()
         print(project_resolution.format_project_list_output(diagnostics))
         return
+
+    if args.project_command == "register":
+        diagnostics = project_registry.gather_project_register_diagnostics(
+            args.name,
+            args.path,
+            force=args.force,
+            allow_missing=args.allow_missing,
+        )
+        print(project_registry.format_project_register_output(diagnostics))
+        if not diagnostics["ok"]:
+            raise SystemExit(1)
+        return
+
+    if args.project_command == "unregister":
+        diagnostics = project_registry.gather_project_unregister_diagnostics(args.name)
+        print(project_registry.format_project_unregister_output(diagnostics))
+        if not diagnostics["ok"]:
+            raise SystemExit(1)
+        return
+
+    if args.project_command == "registry":
+        if args.registry_command == "list":
+            diagnostics = project_registry.gather_project_registry_list_diagnostics()
+            print(project_registry.format_project_registry_list_output(diagnostics))
+            if not diagnostics["ok"]:
+                raise SystemExit(1)
+            return
 
     if args.project_command == "refresh":
         diagnostics = project_resolution.gather_project_refresh_diagnostics(
@@ -290,6 +318,74 @@ def main():
         description=("List discoverable Taurworks projects in a read-only way."),
     )
     parser_project_list.set_defaults(project_parser=parser_project)
+
+    parser_project_register = project_subparsers.add_parser(
+        "register",
+        help="Register an existing project root in global config.",
+        description=(
+            "Register a project by name under the XDG-style global [projects] "
+            "registry. Registration does not modify project-local files."
+        ),
+    )
+    parser_project_register.add_argument(
+        "name",
+        help="Registry name to store under [projects.NAME].",
+    )
+    parser_project_register.add_argument(
+        "path",
+        help="Project root path to normalize and store.",
+    )
+    parser_project_register.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing registry entry with the same name.",
+    )
+    parser_project_register.add_argument(
+        "--allow-missing",
+        action="store_true",
+        help=(
+            "Allow registering a path that does not currently exist. Existing "
+            "paths must still be directories."
+        ),
+    )
+    parser_project_register.set_defaults(project_parser=parser_project)
+
+    parser_project_unregister = project_subparsers.add_parser(
+        "unregister",
+        help="Remove a project from the global registry without deleting files.",
+        description=(
+            "Remove a [projects.NAME] entry from global config. This command "
+            "does not delete project-local files or metadata."
+        ),
+    )
+    parser_project_unregister.add_argument(
+        "name",
+        help="Registry name to remove from global config.",
+    )
+    parser_project_unregister.set_defaults(project_parser=parser_project)
+
+    parser_project_registry = project_subparsers.add_parser(
+        "registry",
+        help="Inspect the global project registry.",
+        description=(
+            "Inspect globally registered projects without mutating config or "
+            "project-local files."
+        ),
+    )
+    registry_subparsers = parser_project_registry.add_subparsers(
+        dest="registry_command",
+        required=True,
+    )
+    parser_project_registry_list = registry_subparsers.add_parser(
+        "list",
+        help="List registered projects with path/config existence and collisions.",
+        description=(
+            "List [projects.NAME] entries from global config, including root "
+            "paths, existence flags, project-local config flags, and visible "
+            "workspace child name collisions."
+        ),
+    )
+    parser_project_registry_list.set_defaults(project_parser=parser_project)
 
     parser_project_refresh = project_subparsers.add_parser(
         "refresh",

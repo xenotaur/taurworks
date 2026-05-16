@@ -69,38 +69,51 @@ def _toml_scalar(value: Any) -> str:
     )
 
 
-def _validate_bare_toml_key(key: str) -> None:
+def validate_bare_toml_key(key: str) -> None:
     if not isinstance(key, str) or not BARE_TOML_KEY_PATTERN.fullmatch(key):
         raise GlobalConfigError(
             f"unsupported TOML key for safe writer: {key!r}; only bare keys are supported"
         )
 
 
-def _toml_lines(config: dict[str, Any]) -> list[str]:
+def _split_table_items(
+    table: dict[str, Any],
+) -> tuple[list[tuple[str, Any]], list[tuple[str, dict[str, Any]]]]:
     scalar_items: list[tuple[str, Any]] = []
-    table_items: list[tuple[str, dict[str, Any]]] = []
-    for key, value in config.items():
-        _validate_bare_toml_key(key)
+    nested_table_items: list[tuple[str, dict[str, Any]]] = []
+    for key, value in table.items():
+        validate_bare_toml_key(key)
         if isinstance(value, dict):
-            table_items.append((key, value))
+            nested_table_items.append((key, value))
         else:
             scalar_items.append((key, value))
+    return scalar_items, nested_table_items
+
+
+def _append_table_lines(
+    lines: list[str],
+    table_path: list[str],
+    table: dict[str, Any],
+) -> None:
+    scalar_items, nested_table_items = _split_table_items(table)
+    if lines:
+        lines.append("")
+    lines.append(f"[{'.'.join(table_path)}]")
+    for key, value in scalar_items:
+        lines.append(f"{key} = {_toml_scalar(value)}")
+    for nested_name, nested_table in nested_table_items:
+        _append_table_lines(lines, [*table_path, nested_name], nested_table)
+
+
+def _toml_lines(config: dict[str, Any]) -> list[str]:
+    scalar_items, table_items = _split_table_items(config)
 
     lines: list[str] = []
     for key, value in scalar_items:
         lines.append(f"{key} = {_toml_scalar(value)}")
 
     for table_name, table in table_items:
-        if lines:
-            lines.append("")
-        lines.append(f"[{table_name}]")
-        for key, value in table.items():
-            _validate_bare_toml_key(key)
-            if isinstance(value, dict):
-                raise GlobalConfigError(
-                    f"unsupported nested config table for safe writer: {table_name}.{key}"
-                )
-            lines.append(f"{key} = {_toml_scalar(value)}")
+        _append_table_lines(lines, [table_name], table)
 
     return lines
 
@@ -157,7 +170,7 @@ def configured_workspace_root(config: dict[str, Any]) -> str | None:
     return root
 
 
-def _validate_schema_version(config: dict[str, Any]) -> None:
+def validate_schema_version(config: dict[str, Any]) -> None:
     schema_version = config.get("schema_version")
     if schema_version is None:
         return
@@ -217,7 +230,7 @@ def gather_workspace_show_diagnostics() -> dict[str, Any]:
     resolved = config_path()
     try:
         config = read_config(resolved.path)
-        _validate_schema_version(config)
+        validate_schema_version(config)
         configured_root = configured_workspace_root(config)
         inferred_root = None
         root_source = "unconfigured"
@@ -373,7 +386,7 @@ def gather_workspace_set_diagnostics(path_text: str) -> dict[str, Any]:
     resolved = config_path()
     try:
         config = read_config(resolved.path)
-        _validate_schema_version(config)
+        validate_schema_version(config)
         workspace_table = config.get("workspace")
         if workspace_table is not None and not isinstance(workspace_table, dict):
             return _workspace_set_failure(

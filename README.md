@@ -122,8 +122,8 @@ These namespaces are expected to share a common configuration/discovery core whe
 
 ### Implementation status and compatibility
 
-Status note: `taurworks config where`, `taurworks workspace show`, and `taurworks workspace set PATH` now provide the first XDG-style user-global config slice. `taurworks project ...` now includes implemented discovery, scaffold, existing-root initialization, working-directory metadata, and read-only guidance commands (`where`, `list`, `refresh`, `init`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` now exists as a minimal read-only diagnostics namespace for repository/developer workflow context (`where` and `status`); full workflow automation remains future work.
-Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, `taurworks project init`, `taurworks project create`, `taurworks project working-dir show [PATH_OR_NAME]`, and `taurworks project activate [PATH_OR_NAME] --print` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior where appropriate.
+Status note: `taurworks config where`, `taurworks workspace show`, and `taurworks workspace set PATH` now provide the first XDG-style user-global config slice. `taurworks project ...` now includes implemented discovery, scaffold, existing-root initialization, working-directory metadata, and read-only guidance commands (`where`, `list`, `register`, `unregister`, `registry list`, `refresh`, `init`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` now exists as a minimal read-only diagnostics namespace for repository/developer workflow context (`where` and `status`); full workflow automation remains future work.
+Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, `taurworks project init`, `taurworks project register NAME PATH`, `taurworks project unregister NAME`, `taurworks project registry list`, `taurworks project create`, `taurworks project working-dir show [PATH_OR_NAME]`, and `taurworks project activate [PATH_OR_NAME] --print` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior where appropriate.
 Design note: dogfooding confirmed the `project_root` (the directory containing `.taurworks/`) and `working_dir` (the default code/work directory, stored relative to `project_root`) model. The accepted design separates `project init` for existing/current roots from `project create` for new roots, centralizes target resolution diagnostics, makes working-directory creation explicit, and prevents accidental nested same-name projects. `tw activate` is now the explicit opt-in shell-mutating wrapper for changing the current shell directory. Broad `taurworks dev ...` automation, automatic shell startup-file edits, environment activation, and multi-repo management remain out of scope.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
@@ -140,6 +140,9 @@ The currently implemented namespaced commands are:
 - `taurworks workspace set PATH` (implemented, writes `[workspace].root` to user-global config; PATH must already exist)
 - `taurworks project where` (implemented, read-only diagnostics)
 - `taurworks project list` (implemented, read-only discovery listing)
+- `taurworks project register NAME PATH` (implemented, writes `[projects.NAME].root` to user-global config)
+- `taurworks project unregister NAME` (implemented, removes a registry entry without deleting project files)
+- `taurworks project registry list` (implemented, read-only registry listing with path/config status and collision visibility)
 - `taurworks project refresh [PATH_OR_NAME]` (implemented, safe idempotent metadata scaffolding repair)
 - `taurworks project init [PATH] [--working-dir DIR] [--create-working-dir]` (implemented, safe idempotent initialization of an existing/current project root)
 - `taurworks project working-dir show [PATH_OR_NAME]` (implemented, target-aware project working-directory metadata display)
@@ -176,18 +179,23 @@ When `XDG_CONFIG_HOME` is unset, Taurworks falls back to:
 ~/.config/taurworks/config.toml
 ```
 
-The first implemented global setting is the workspace root:
+The first implemented global settings are the workspace root and an explicit project registry:
 
 ```toml
 schema_version = 1
 
 [workspace]
 root = "/Users/example/Workspace"
+
+[projects.HiddenProject]
+root = "/Users/example/Workspace/TestProject/test_repo/HiddenProject"
 ```
 
 Use `taurworks config where` to inspect the resolved config path, whether the file exists, which XDG source selected it, and that the command is read-only. Use `taurworks workspace show` to display the configured workspace root without creating any files. If no config file exists and `~/Workspace` already exists, `workspace show` may report that directory as `inferred`; inferred roots are informational only and are not silently written. Use `taurworks workspace set PATH` to explicitly persist a workspace root. The `PATH` must already exist, parent config directories are created as needed, and unrelated supported TOML keys are preserved.
 
-Project registration, registry-backed listing, and global activation resolution are planned later phases. The current global workspace root commands do not change `tw activate`, do not register projects, and do not scan workspaces recursively.
+The project registry is for projects that should be globally discoverable even when they live outside the configured workspace root, under nested/weird paths, or in locations that direct workspace child discovery should not scan recursively. Register a project with `taurworks project register NAME PATH`; Taurworks normalizes `PATH`, requires it to exist by default, stores it as `[projects.NAME].root`, warns when `.taurworks/config.toml` is missing, and refuses duplicate names unless `--force` is supplied. Use `--allow-missing` only when recording an intentional future path; existing paths must still be directories. Remove only the global entry with `taurworks project unregister NAME`; this command does not delete project files or project-local `.taurworks/config.toml`. Inspect the registry without mutation using `taurworks project registry list`, which reports root paths, whether those paths exist, whether project-local config exists, and whether a registry name collides with a direct child of the configured workspace root.
+
+Registry entries differ from workspace discovery: workspace discovery remains direct and non-recursive in this phase, while the registry is an explicit allow-list of named roots. If a registry name matches a direct workspace child project name, registry output makes the collision visible and documents the simple policy: explicit registry commands treat the registry entry as authoritative, while broad activation resolution is not changed in this phase. A later phase will wire global activation resolution to use the registry.
 
 `taurworks dev where` reports the current directory, detected Taurworks project root, configured working directory, repository/work-directory guess, whether the current directory is inside that configured working directory, and that no mutation was performed. `taurworks dev status` reports a smaller read-only summary and states that detailed VCS workflow automation is future work; it does not shell out to `git`.
 
@@ -347,6 +355,28 @@ Current stage behavior:
 
 This slice is intentionally minimal for now: it provides read-only diagnostics/discovery plus a safe repair/initialization refresh for Taurworks-owned metadata only.
 
+
+## `taurworks project register`, `unregister`, and `registry list`
+
+Use the global project registry for projects that intentionally live outside normal workspace discovery or in nested locations that should still be addressable by name later:
+
+```bash
+taurworks project register HiddenProject /path/to/HiddenProject
+taurworks project registry list
+taurworks project unregister HiddenProject
+```
+
+Behavior and safety:
+
+- `project register NAME PATH` writes only the XDG global config entry `[projects.NAME].root`.
+- `PATH` is expanded and resolved before storage.
+- `PATH` must exist and be a directory unless `--allow-missing` is supplied; `--allow-missing` is intended for deliberate future paths.
+- registering a path without `.taurworks/config.toml` is allowed but reported as a warning so out-of-tree or not-yet-initialized projects remain visible.
+- duplicate registry names fail clearly unless `--force` is supplied, in which case the entry is overwritten.
+- `project unregister NAME` removes only the global registry entry and never deletes project files.
+- `project registry list` is read-only and shows each registered root, whether that path exists, whether `.taurworks/config.toml` exists, and whether the name collides with a direct child of the configured workspace root.
+
+Collision policy is intentionally simple for this phase: explicit registry commands treat `[projects.NAME]` as the registry entry, and list/register output makes workspace-child name collisions visible. `tw activate` and `taurworks project activate --print` do not broadly resolve through the registry yet; global activation resolution is planned for a later phase.
 
 ## `taurworks project refresh`
 
