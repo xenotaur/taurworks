@@ -368,12 +368,12 @@ taurworks project unregister HiddenProject
 
 Behavior and safety:
 
-- `project register NAME PATH` writes only the XDG global config entry `[projects.NAME].root`.
+- `project register NAME PATH` writes only the XDG global config entry `[projects.NAME].root` and preserves unrelated global config text.
 - `PATH` is expanded and resolved before storage.
 - `PATH` must exist and be a directory unless `--allow-missing` is supplied; `--allow-missing` is intended for deliberate future paths.
 - registering a path without `.taurworks/config.toml` is allowed but reported as a warning so out-of-tree or not-yet-initialized projects remain visible.
 - duplicate registry names fail clearly unless `--force` is supplied, in which case the entry is overwritten.
-- `project unregister NAME` removes only the global registry entry and never deletes project files.
+- `project unregister NAME` removes only the global registry entry, preserves unrelated global config text, and never deletes project files.
 - `project registry list` is read-only and shows each registered root, whether that path exists, whether `.taurworks/config.toml` exists, and whether the name collides with a direct child of the configured workspace root.
 
 Collision policy is intentionally simple for this phase: explicit registry commands treat `[projects.NAME]` as the registry entry, and list/register output makes workspace-child name collisions visible. `tw activate` and `taurworks project activate --print` do not broadly resolve through the registry yet; global activation resolution is planned for a later phase.

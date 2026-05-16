@@ -2215,6 +2215,7 @@ class ProjectRegistryCliTest(unittest.TestCase):
         self.assertIn(f"root: {project_root.resolve()}", list_before.stdout)
         self.assertIn("path_exists: True", list_before.stdout)
         self.assertIn("project_config_exists: False", list_before.stdout)
+        self.assertNotIn("collision_policy", list_before.stdout)
         self.assertIn("mutation_performed: False", list_before.stdout)
 
         unregister_message = _failure_message(
@@ -2270,6 +2271,10 @@ class ProjectRegistryCliTest(unittest.TestCase):
         self.assertNotEqual(duplicate.returncode, 0)
         self.assertIn("already registered", duplicate.stdout)
         self.assertIn("--force", duplicate.stdout)
+        self.assertIn(
+            f"config_path: {config_home / 'taurworks' / 'config.toml'}",
+            duplicate.stdout,
+        )
         forced_message = _failure_message(
             ["project", "register", "HiddenProject", str(second_project), "--force"],
             forced,
@@ -2315,6 +2320,7 @@ class ProjectRegistryCliTest(unittest.TestCase):
         self.assertEqual(allowed.returncode, 0, msg=allowed_message)
         self.assertIn("path_exists: False", allowed.stdout)
         self.assertIn("registered path does not currently exist", allowed.stdout)
+        self.assertNotIn("project-local config not found", allowed.stdout)
 
 
 if __name__ == "__main__":

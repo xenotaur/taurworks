@@ -73,19 +73,28 @@ def _project_entry_root(entry: Any, name: str) -> str:
     return root
 
 
-def _workspace_collision(name: str, project_root: pathlib.Path) -> dict[str, Any]:
+def _configured_workspace_root_from_config(
+    config: dict[str, Any],
+) -> pathlib.Path | None:
+    configured_root = global_config.configured_workspace_root(config)
+    if configured_root is None:
+        return None
+    try:
+        return global_config.configured_workspace_root_path(configured_root)
+    except global_config.GlobalConfigError:
+        return None
+
+
+def _workspace_collision(
+    name: str,
+    project_root: pathlib.Path,
+    workspace_root: pathlib.Path | None,
+) -> dict[str, Any]:
     collision: dict[str, Any] = {
         "collision_with_workspace_child": False,
         "workspace_child_root": "none",
-        "collision_policy": "registry entries take precedence for explicit registry commands; activation resolution is unchanged in this phase.",
     }
-    try:
-        config = global_config.read_config()
-        configured_root = global_config.configured_workspace_root(config)
-        if configured_root is None:
-            return collision
-        workspace_root = global_config.configured_workspace_root_path(configured_root)
-    except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError):
+    if workspace_root is None:
         return collision
 
     workspace_child = workspace_root / name
@@ -136,19 +145,20 @@ def gather_project_register_diagnostics(
                     name=name,
                     project_root=project_root,
                 ) | {"existing_root": existing_root}
-        if "schema_version" not in config:
-            config["schema_version"] = global_config.GLOBAL_CONFIG_SCHEMA_VERSION
-        project_entry = dict(existing_entry) if isinstance(existing_entry, dict) else {}
-        project_entry["root"] = str(project_root)
-        projects_table[name] = project_entry
-        global_config.write_config(config, resolved.path)
+        global_config.write_project_root_preserving_config(
+            resolved.path,
+            config,
+            name,
+            project_root,
+        )
+        workspace_root = _configured_workspace_root_from_config(config)
     except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError) as error:
         return _failure_diagnostics(
             "register", str(error), name=name, project_root=project_root
         )
 
     warnings = []
-    if not project_config_exists(project_root):
+    if project_root.exists() and not project_config_exists(project_root):
         warnings.append(
             f"project-local config not found: {project_root / PROJECT_CONFIG_RELATIVE_PATH}"
         )
@@ -169,7 +179,7 @@ def gather_project_register_diagnostics(
         "warnings": warnings,
         "mutation_performed": True,
     }
-    diagnostics.update(_workspace_collision(name, project_root))
+    diagnostics.update(_workspace_collision(name, project_root, workspace_root))
     return diagnostics
 
 
@@ -187,12 +197,11 @@ def gather_project_unregister_diagnostics(name: str) -> dict[str, Any]:
                 name=name,
             )
         removed_root = _project_entry_root(existing_entry, name)
-        del projects_table[name]
-        if not projects_table:
-            del config["projects"]
-        if "schema_version" not in config:
-            config["schema_version"] = global_config.GLOBAL_CONFIG_SCHEMA_VERSION
-        global_config.write_config(config, resolved.path)
+        global_config.remove_project_preserving_config(
+            resolved.path,
+            config,
+            name,
+        )
     except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError) as error:
         return _failure_diagnostics("unregister", str(error), name=name)
 
@@ -217,6 +226,7 @@ def gather_project_registry_list_diagnostics() -> dict[str, Any]:
             raise global_config.GlobalConfigError(
                 "global config [projects] value is not a table"
             )
+        workspace_root = _configured_workspace_root_from_config(config)
         projects = []
         for name in sorted(projects_table):
             global_config.validate_bare_toml_key(name)
@@ -234,7 +244,7 @@ def gather_project_registry_list_diagnostics() -> dict[str, Any]:
                 "path_exists": normalized_root.exists(),
                 "project_config_exists": project_config_exists(normalized_root),
             }
-            entry.update(_workspace_collision(name, normalized_root))
+            entry.update(_workspace_collision(name, normalized_root, workspace_root))
             projects.append(entry)
     except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError) as error:
         return _failure_diagnostics("registry list", str(error))
@@ -267,6 +277,7 @@ def format_project_register_output(diagnostics: dict[str, Any]) -> str:
             "Taurworks project register failed",
             f"- error: {diagnostics['error']}",
             f"- name: {diagnostics['name']}",
+            f"- config_path: {diagnostics['config_path']}",
             f"- project_root: {diagnostics['project_root']}",
         ]
         if "existing_root" in diagnostics:
@@ -286,7 +297,6 @@ def format_project_register_output(diagnostics: dict[str, Any]) -> str:
         f"- existing_root: {diagnostics['existing_root']}",
         f"- collision_with_workspace_child: {diagnostics['collision_with_workspace_child']}",
         f"- workspace_child_root: {diagnostics['workspace_child_root']}",
-        f"- collision_policy: {diagnostics['collision_policy']}",
     ]
     lines.extend(_format_warnings(diagnostics["warnings"]))
     lines.append(f"- mutation_performed: {diagnostics['mutation_performed']}")
@@ -301,6 +311,7 @@ def format_project_unregister_output(diagnostics: dict[str, Any]) -> str:
                 "Taurworks project unregister failed",
                 f"- error: {diagnostics['error']}",
                 f"- name: {diagnostics['name']}",
+                f"- config_path: {diagnostics['config_path']}",
                 f"- mutation_performed: {diagnostics['mutation_performed']}",
             ]
         )
@@ -347,7 +358,6 @@ def format_project_registry_list_output(diagnostics: dict[str, Any]) -> str:
                     f"    project_config_exists: {project['project_config_exists']}",
                     f"    collision_with_workspace_child: {project['collision_with_workspace_child']}",
                     f"    workspace_child_root: {project['workspace_child_root']}",
-                    f"    collision_policy: {project['collision_policy']}",
                 ]
             )
     else:

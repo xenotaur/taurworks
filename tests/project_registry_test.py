@@ -123,6 +123,73 @@ class ProjectRegistryTest(unittest.TestCase):
             str(missing_project.resolve()), config["projects"]["MissingProject"]["root"]
         )
 
+    def test_allow_missing_suppresses_project_config_warning(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config_home = root / "xdg"
+            missing_project = root / "missing"
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root)},
+                clear=True,
+            ):
+                diagnostics = project_registry.gather_project_register_diagnostics(
+                    "MissingProject", str(missing_project), allow_missing=True
+                )
+
+        self.assertTrue(diagnostics["ok"])
+        self.assertEqual(
+            ["registered path does not currently exist"], diagnostics["warnings"]
+        )
+
+    def test_register_and_unregister_preserve_unrelated_config_text(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config_home = root / "xdg"
+            project_root = root / "HiddenProject"
+            project_root.mkdir()
+            config_path = config_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "# keep top comment",
+                        "schema_version = 1",
+                        "custom = { nested = true }",
+                        "",
+                        "[workspace]",
+                        "# keep workspace comment",
+                        f'root = "{root / "workspace"}"',
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root)},
+                clear=True,
+            ):
+                register = project_registry.gather_project_register_diagnostics(
+                    "HiddenProject", str(project_root)
+                )
+                registered_text = config_path.read_text(encoding="utf-8")
+                unregister = project_registry.gather_project_unregister_diagnostics(
+                    "HiddenProject"
+                )
+                unregistered_text = config_path.read_text(encoding="utf-8")
+
+        self.assertTrue(register["ok"])
+        self.assertIn("# keep top comment", registered_text)
+        self.assertIn("custom = { nested = true }", registered_text)
+        self.assertIn("# keep workspace comment", registered_text)
+        self.assertIn("[projects.HiddenProject]", registered_text)
+        self.assertNotIn("[projects]", registered_text)
+        self.assertTrue(unregister["ok"])
+        self.assertIn("# keep top comment", unregistered_text)
+        self.assertIn("custom = { nested = true }", unregistered_text)
+        self.assertNotIn("[projects.HiddenProject]", unregistered_text)
+
     def test_duplicate_name_requires_force(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = pathlib.Path(temp_dir)
@@ -185,7 +252,9 @@ class ProjectRegistryTest(unittest.TestCase):
 
         self.assertTrue(register["ok"])
         self.assertTrue(register["collision_with_workspace_child"])
+        self.assertNotIn("collision_policy", register)
         self.assertEqual(
             str(workspace_child.resolve()), register["workspace_child_root"]
         )
         self.assertTrue(listing["projects"][0]["collision_with_workspace_child"])
+        self.assertNotIn("collision_policy", listing["projects"][0])

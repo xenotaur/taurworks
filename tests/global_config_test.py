@@ -157,6 +157,23 @@ class GlobalConfigTest(unittest.TestCase):
         self.assertEqual("/tmp/hidden", written["projects"]["HiddenProject"]["root"])
         self.assertEqual(str(workspace.resolve()), written["workspace"]["root"])
 
+    def test_write_config_omits_empty_parent_table_for_nested_projects(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = pathlib.Path(temp_dir) / "config.toml"
+            global_config.write_config(
+                {
+                    "schema_version": 1,
+                    "projects": {"HiddenProject": {"root": "/tmp/hidden"}},
+                },
+                config_path,
+            )
+            written_text = config_path.read_text(encoding="utf-8")
+            written = tomllib.loads(written_text)
+
+        self.assertNotIn("[projects]", written_text)
+        self.assertIn("[projects.HiddenProject]", written_text)
+        self.assertEqual("/tmp/hidden", written["projects"]["HiddenProject"]["root"])
+
     def test_workspace_show_reports_malformed_config_without_traceback(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = pathlib.Path(temp_dir)

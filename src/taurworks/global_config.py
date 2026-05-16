@@ -96,11 +96,12 @@ def _append_table_lines(
     table: dict[str, Any],
 ) -> None:
     scalar_items, nested_table_items = _split_table_items(table)
-    if lines:
-        lines.append("")
-    lines.append(f"[{'.'.join(table_path)}]")
-    for key, value in scalar_items:
-        lines.append(f"{key} = {_toml_scalar(value)}")
+    if scalar_items:
+        if lines:
+            lines.append("")
+        lines.append(f"[{'.'.join(table_path)}]")
+        for key, value in scalar_items:
+            lines.append(f"{key} = {_toml_scalar(value)}")
     for nested_name, nested_table in nested_table_items:
         _append_table_lines(lines, [*table_path, nested_name], nested_table)
 
@@ -332,12 +333,7 @@ def _set_workspace_root_in_toml(config_text: str, workspace_root: pathlib.Path) 
     return "\n".join(lines) + "\n"
 
 
-def _write_workspace_root_preserving_config(
-    config_path_to_write: pathlib.Path,
-    config: dict[str, Any],
-    workspace_root: pathlib.Path,
-) -> bool:
-    parent_existed = config_path_to_write.parent.exists()
+def _ensure_global_config_write_is_safe(config_path_to_write: pathlib.Path) -> None:
     if config_path_to_write.is_symlink():
         raise GlobalConfigError(
             f"config path is a symlink and is not modified for safety: {config_path_to_write}"
@@ -348,12 +344,133 @@ def _write_workspace_root_preserving_config(
             f"{config_path_to_write.parent}"
         )
 
+
+def _read_config_text_for_preserving_write(
+    config_path_to_write: pathlib.Path,
+    config: dict[str, Any],
+    *,
+    ensure_schema_version: bool,
+) -> str:
     if config_path_to_write.exists():
         config_text = config_path_to_write.read_text(encoding="utf-8")
     else:
         config_text = ""
-    if "schema_version" not in config:
+    if ensure_schema_version and "schema_version" not in config:
         config_text = _ensure_schema_version_text(config_text)
+    return config_text
+
+
+def _project_table_name(project_name: str) -> str:
+    validate_bare_toml_key(project_name)
+    return f"projects.{project_name}"
+
+
+def _table_is_child_of(table_name: str, parent_table_name: str) -> bool:
+    return table_name.startswith(f"{parent_table_name}.")
+
+
+def _set_project_root_in_toml(
+    config_text: str,
+    project_name: str,
+    project_root: pathlib.Path,
+) -> str:
+    target_table = _project_table_name(project_name)
+    root_line = f"root = {_toml_quote(str(project_root))}"
+    lines = config_text.splitlines()
+    project_start = None
+    project_end = len(lines)
+    for index, line in enumerate(lines):
+        table_name = _toml_table_name(line)
+        if table_name == target_table:
+            project_start = index
+            continue
+        if project_start is not None and table_name is not None:
+            project_end = index
+            break
+
+    if project_start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.extend([f"[{target_table}]", root_line])
+        return "\n".join(lines) + "\n"
+
+    for index in range(project_start + 1, project_end):
+        match = TOML_ROOT_KEY_PATTERN.match(lines[index])
+        if match is not None:
+            lines[index] = f"{match.group('indent')}{root_line}"
+            return "\n".join(lines) + "\n"
+
+    lines.insert(project_end, root_line)
+    return "\n".join(lines) + "\n"
+
+
+def _remove_project_table_from_toml(config_text: str, project_name: str) -> str:
+    target_table = _project_table_name(project_name)
+    lines = config_text.splitlines()
+    kept_lines: list[str] = []
+    skipping = False
+    for line in lines:
+        table_name = _toml_table_name(line)
+        if table_name is not None:
+            skipping = table_name == target_table or _table_is_child_of(
+                table_name, target_table
+            )
+        if not skipping:
+            kept_lines.append(line)
+    return "\n".join(kept_lines).rstrip() + "\n"
+
+
+def write_project_root_preserving_config(
+    config_path_to_write: pathlib.Path,
+    config: dict[str, Any],
+    project_name: str,
+    project_root: pathlib.Path,
+) -> bool:
+    """Set a global project registry root while preserving unrelated TOML text."""
+    parent_existed = config_path_to_write.parent.exists()
+    _ensure_global_config_write_is_safe(config_path_to_write)
+    config_text = _read_config_text_for_preserving_write(
+        config_path_to_write,
+        config,
+        ensure_schema_version=True,
+    )
+    updated_text = _set_project_root_in_toml(config_text, project_name, project_root)
+    tomllib.loads(updated_text)
+    config_path_to_write.parent.mkdir(parents=True, exist_ok=True)
+    config_path_to_write.write_text(updated_text, encoding="utf-8")
+    return not parent_existed
+
+
+def remove_project_preserving_config(
+    config_path_to_write: pathlib.Path,
+    config: dict[str, Any],
+    project_name: str,
+) -> None:
+    """Remove a global project registry table while preserving unrelated TOML text."""
+    _ensure_global_config_write_is_safe(config_path_to_write)
+    config_text = _read_config_text_for_preserving_write(
+        config_path_to_write,
+        config,
+        ensure_schema_version=False,
+    )
+    updated_text = _remove_project_table_from_toml(config_text, project_name)
+    tomllib.loads(updated_text)
+    config_path_to_write.parent.mkdir(parents=True, exist_ok=True)
+    config_path_to_write.write_text(updated_text, encoding="utf-8")
+
+
+def _write_workspace_root_preserving_config(
+    config_path_to_write: pathlib.Path,
+    config: dict[str, Any],
+    workspace_root: pathlib.Path,
+) -> bool:
+    parent_existed = config_path_to_write.parent.exists()
+    _ensure_global_config_write_is_safe(config_path_to_write)
+    config_text = _read_config_text_for_preserving_write(
+        config_path_to_write,
+        config,
+        ensure_schema_version=True,
+    )
     updated_text = _set_workspace_root_in_toml(config_text, workspace_root)
     tomllib.loads(updated_text)
     config_path_to_write.parent.mkdir(parents=True, exist_ok=True)
