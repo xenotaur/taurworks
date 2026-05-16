@@ -185,8 +185,10 @@ def resolve_global_activation_project(
     current_project = manager.find_current_project(cwd)
     if current_project is not None:
         current_root = pathlib.Path(str(current_project["path"]))
+        current_config_name = project_internals.project_name_from_config(current_root)
         if path_or_name is None or path_or_name in {
             str(current_project["name"]),
+            current_config_name,
             current_root.name,
         }:
             reason = project_internals.ResolutionReason.CURRENT_PROJECT

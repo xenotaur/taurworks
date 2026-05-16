@@ -82,6 +82,30 @@ class GlobalActivationResolutionTest(unittest.TestCase):
         )
         return xdg_home
 
+    def test_current_project_fallback_uses_configured_project_name(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            project_root = temp_path / "folder-name"
+            repo = project_root / "repo"
+            repo.mkdir(parents=True)
+            self._write_project_config(project_root, "ConfiguredName", "repo")
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                os.chdir(project_root)
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "ConfiguredName"
+                    )
+                )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertTrue(diagnostics["ok"])
+        self.assertEqual(diagnostics["project_root"], str(project_root))
+        self.assertEqual(diagnostics["resolved_working_dir"], str(repo))
+        self.assertEqual(diagnostics["resolved_by"], "current_project_name")
+
     def test_activate_workspace_project_from_outside_workspace(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)
