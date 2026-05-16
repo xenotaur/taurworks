@@ -154,6 +154,7 @@ class CliCommandTest(unittest.TestCase):
                     "project",
                     "create",
                     "TestProject",
+                    "--local",
                     "--working-dir",
                     "repo",
                     "--create-working-dir",
@@ -165,6 +166,7 @@ class CliCommandTest(unittest.TestCase):
                     "project",
                     "create",
                     "TestProject",
+                    "--local",
                     "--working-dir",
                     "repo",
                     "--create-working-dir",
@@ -251,10 +253,9 @@ class CliCommandTest(unittest.TestCase):
         self.assertIn("new", init_result.stdout, msg=init_message)
         self.assertIn("roots", init_result.stdout, msg=init_message)
         self.assertIn("new project root", create_result.stdout, msg=create_message)
+        self.assertIn("project init for", create_result.stdout, msg=create_message)
         self.assertIn(
-            "project init for existing/current roots",
-            create_result.stdout,
-            msg=create_message,
+            "existing/current roots", create_result.stdout, msg=create_message
         )
         self.assertIn("--create-working-dir", create_result.stdout, msg=create_message)
         self.assertIn("--nested", create_result.stdout, msg=create_message)
@@ -269,6 +270,7 @@ class CliCommandTest(unittest.TestCase):
                 "project",
                 "create",
                 "TestProject",
+                "--local",
                 "--working-dir",
                 "test_repo",
                 "--create-working-dir",
@@ -548,6 +550,7 @@ class CliCommandTest(unittest.TestCase):
                 "project",
                 "create",
                 "created-workdir-project",
+                "--local",
                 "--working-dir",
                 "repo",
                 "--create-working-dir",
@@ -572,6 +575,165 @@ class CliCommandTest(unittest.TestCase):
                 "working_dir_created: True", result.stdout, msg=failure_message
             )
 
+    def test_project_create_bare_name_defaults_to_configured_workspace(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            workspace = root_path / "workspace"
+            local = root_path / "local"
+            workspace.mkdir()
+            local.mkdir()
+            env = {"XDG_CONFIG_HOME": str(root_path / "xdg"), "HOME": str(root_path)}
+            set_result = _run_cli(["workspace", "set", str(workspace)], root_path, env)
+            result = _run_cli(["project", "create", "Alpha"], local, env)
+            list_result = _run_cli(["projects"], local, env)
+            activate_result = _run_cli(
+                ["project", "activate", "Alpha", "--print"], local, env
+            )
+            failure_message = _failure_message(["project", "create", "Alpha"], result)
+            self.assertEqual(set_result.returncode, 0, msg=set_result.stderr)
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            self.assertTrue(
+                (workspace / "Alpha" / ".taurworks" / "config.toml").is_file()
+            )
+            self.assertFalse((local / "Alpha").exists())
+            self.assertIn(f"project_root: {workspace / 'Alpha'}", result.stdout)
+            self.assertIn("target_selection: configured_workspace", result.stdout)
+            self.assertIn(f"workspace_root: {workspace}", result.stdout)
+            self.assertEqual(list_result.returncode, 0, msg=list_result.stderr)
+            self.assertIn("- Alpha    initialized    workspace", list_result.stdout)
+            self.assertEqual(activate_result.returncode, 0, msg=activate_result.stderr)
+            self.assertIn(
+                f"project_root: {workspace / 'Alpha'}", activate_result.stdout
+            )
+
+    def test_project_create_workspace_default_creates_working_dir_under_workspace(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            workspace = root_path / "workspace"
+            local = root_path / "local"
+            workspace.mkdir()
+            local.mkdir()
+            env = {"XDG_CONFIG_HOME": str(root_path / "xdg"), "HOME": str(root_path)}
+            _run_cli(["workspace", "set", str(workspace)], root_path, env)
+            result = _run_cli(
+                [
+                    "project",
+                    "create",
+                    "Alpha",
+                    "--working-dir",
+                    "repo",
+                    "--create-working-dir",
+                ],
+                local,
+                env,
+            )
+            failure_message = _failure_message(
+                ["project", "create", "Alpha", "--working-dir", "repo"], result
+            )
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            self.assertTrue((workspace / "Alpha" / "repo").is_dir())
+            self.assertFalse((local / "Alpha").exists())
+            self.assertIn("working_dir_created: True", result.stdout)
+
+    def test_project_create_local_creates_under_cwd(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            workspace = root_path / "workspace"
+            local = root_path / "local"
+            workspace.mkdir()
+            local.mkdir()
+            env = {"XDG_CONFIG_HOME": str(root_path / "xdg"), "HOME": str(root_path)}
+            _run_cli(["workspace", "set", str(workspace)], root_path, env)
+            result = _run_cli(
+                [
+                    "project",
+                    "create",
+                    "LocalAlpha",
+                    "--local",
+                    "--working-dir",
+                    "repo",
+                    "--create-working-dir",
+                ],
+                local,
+                env,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue((local / "LocalAlpha" / "repo").is_dir())
+            self.assertFalse((workspace / "LocalAlpha").exists())
+            self.assertIn("target_selection: local", result.stdout)
+            self.assertIn("local_requested: True", result.stdout)
+
+    def test_project_create_explicit_path_creates_at_path_and_warns_outside_workspace(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            workspace = root_path / "workspace"
+            custom_parent = root_path / "custom"
+            workspace.mkdir()
+            custom_parent.mkdir()
+            env = {"XDG_CONFIG_HOME": str(root_path / "xdg"), "HOME": str(root_path)}
+            _run_cli(["workspace", "set", str(workspace)], root_path, env)
+            custom = custom_parent / "CustomAlpha"
+            result = _run_cli(
+                [
+                    "project",
+                    "create",
+                    "CustomAlpha",
+                    "--path",
+                    str(custom),
+                    "--working-dir",
+                    "repo",
+                    "--create-working-dir",
+                ],
+                root_path,
+                env,
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
+            self.assertTrue((custom / "repo").is_dir())
+            self.assertFalse((workspace / "CustomAlpha").exists())
+            self.assertIn("target_selection: explicit_path", result.stdout)
+            self.assertIn("outside the configured workspace root", result.stdout)
+
+    def test_project_create_local_and_path_are_mutually_exclusive(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            result = _run_cli(
+                [
+                    "project",
+                    "create",
+                    "Alpha",
+                    "--local",
+                    "--path",
+                    str(root_path / "Alpha"),
+                ],
+                root_path,
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("not allowed with argument", result.stderr)
+
+    def test_project_create_no_configured_workspace_requires_explicit_target(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            env = {"XDG_CONFIG_HOME": str(root_path / "xdg"), "HOME": str(root_path)}
+            result = _run_cli(["project", "create", "Alpha"], root_path, env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((root_path / "Alpha").exists())
+        self.assertIn("no configured workspace root", result.stdout)
+        self.assertIn("taurworks workspace set PATH", result.stdout)
+        self.assertIn("--local", result.stdout)
+
+    def test_project_create_path_does_not_ignore_name(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            result = _run_cli(
+                ["project", "create", "Alpha", "--path", str(root_path / "Beta")],
+                root_path,
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((root_path / "Beta").exists())
+        self.assertIn("does not match NAME", result.stdout)
+
     def test_project_create_refuses_same_name_nested_from_project(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_path = pathlib.Path(temp_dir)
@@ -588,6 +750,7 @@ class CliCommandTest(unittest.TestCase):
                 "project",
                 "create",
                 "TestProject",
+                "--local",
             ]
             result = subprocess.run(
                 cmd,
@@ -617,6 +780,7 @@ class CliCommandTest(unittest.TestCase):
                 "project",
                 "create",
                 "TestProject/",
+                "--local",
             ]
             result = subprocess.run(
                 cmd,
@@ -645,6 +809,7 @@ class CliCommandTest(unittest.TestCase):
                 "project",
                 "create",
                 "ChildProject",
+                "--local",
             ]
             result = subprocess.run(
                 cmd,
@@ -675,6 +840,7 @@ class CliCommandTest(unittest.TestCase):
                 "project",
                 "create",
                 "TestProject",
+                "--local",
             ]
             result = subprocess.run(
                 cmd,
@@ -702,6 +868,7 @@ class CliCommandTest(unittest.TestCase):
                 "project",
                 "create",
                 "TestProject",
+                "--local",
                 "--nested",
             ]
             result = subprocess.run(

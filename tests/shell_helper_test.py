@@ -249,7 +249,7 @@ class ShellHelperTest(unittest.TestCase):
                 (
                     'source "$1" && '
                     'cd "$2" && '
-                    "taurworks project create TestProject "
+                    "taurworks project create TestProject --local "
                     "--working-dir test_repo --create-working-dir >/dev/null && "
                     "tw activate TestProject >/dev/null && "
                     "pwd"
@@ -296,7 +296,7 @@ class ShellHelperTest(unittest.TestCase):
                 (
                     'source "$1" && '
                     'cd "$2" && '
-                    "taurworks project create TestProject >/dev/null && "
+                    "taurworks project create TestProject --local >/dev/null && "
                     "tw activate TestProject >/tmp/tw-activate.out 2>/tmp/tw-activate.err && "
                     "pwd && cat /tmp/tw-activate.err"
                 ),
@@ -450,7 +450,7 @@ class ShellHelperTest(unittest.TestCase):
                 (
                     'source "$1" && '
                     'cd "$2" && '
-                    "taurworks project create TestProject "
+                    "taurworks project create TestProject --local "
                     "--working-dir missing_repo >/dev/null && "
                     "before=$(pwd) && "
                     "if tw activate TestProject >/tmp/tw-activate.out 2>/tmp/tw-activate.err; "

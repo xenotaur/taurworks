@@ -2,6 +2,7 @@ import pathlib
 import shlex
 import tomllib
 
+from taurworks import global_config
 from taurworks import manager
 from taurworks import project_internals
 
@@ -445,14 +446,185 @@ def format_project_init_output(
     return "\n".join(lines)
 
 
+def _default_project_create_target_resolution() -> dict[str, str | bool]:
+    """Return stable default create-target diagnostic fields."""
+    return {
+        "target_selection": "unresolved",
+        "target_selection_message": "Project create target has not been resolved.",
+        "workspace_root": "none",
+        "workspace_root_source": "none",
+        "path_argument": "none",
+        "local_requested": False,
+    }
+
+
+def _configured_project_create_workspace() -> tuple[pathlib.Path | None, str | None]:
+    """Return the configured workspace root or an explanatory error message."""
+    try:
+        config = global_config.read_config()
+        global_config.validate_schema_version(config)
+        configured_root = global_config.configured_workspace_root(config)
+        if configured_root is None:
+            return None, (
+                "no configured workspace root; run `taurworks workspace set PATH` "
+                "or use `taurworks project create NAME --local`"
+            )
+        workspace_root = global_config.configured_workspace_root_path(configured_root)
+    except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError) as error:
+        return None, f"configured workspace root is not usable: {error}"
+
+    if not workspace_root.is_dir():
+        return None, (
+            "configured workspace root is not an existing directory: "
+            f"{workspace_root}; run `taurworks workspace set PATH`"
+        )
+    return workspace_root, None
+
+
+def _project_create_target_resolution(
+    target_selection: str,
+    target_selection_message: str,
+    *,
+    workspace_root: pathlib.Path | None = None,
+    workspace_root_source: str = "none",
+    path_argument: str | None = None,
+    local_requested: bool = False,
+) -> dict[str, str | bool]:
+    """Build stable create-target diagnostic fields."""
+    return {
+        "target_selection": target_selection,
+        "target_selection_message": target_selection_message,
+        "workspace_root": str(workspace_root) if workspace_root is not None else "none",
+        "workspace_root_source": workspace_root_source,
+        "path_argument": path_argument or "none",
+        "local_requested": local_requested,
+    }
+
+
+def _is_within_directory(child: pathlib.Path, parent: pathlib.Path) -> bool:
+    """Return whether child is equal to or inside parent after resolution."""
+    resolved_child = child.resolve()
+    resolved_parent = parent.resolve()
+    return (
+        resolved_child == resolved_parent or resolved_parent in resolved_child.parents
+    )
+
+
+def _resolve_explicit_project_create_path(path_text: str) -> pathlib.Path:
+    """Resolve --path PATH from cwd unless PATH is already absolute."""
+    candidate = pathlib.Path(path_text).expanduser()
+    if candidate.is_absolute():
+        return candidate.resolve()
+    return (pathlib.Path.cwd() / candidate).resolve()
+
+
+def _resolve_project_create_target(
+    path_or_name: str,
+    *,
+    explicit_path: str | None,
+    local: bool,
+) -> tuple[pathlib.Path, dict[str, str | bool], str | None]:
+    """Resolve project create target under workspace, local cwd, or explicit path."""
+    project_name = _simple_project_name(path_or_name)
+
+    if explicit_path is not None:
+        if not explicit_path.strip():
+            return (
+                pathlib.Path.cwd().resolve(),
+                _project_create_target_resolution(
+                    "explicit_path",
+                    "--path was provided but empty.",
+                    path_argument=explicit_path,
+                    local_requested=local,
+                ),
+                "--path must not be empty",
+            )
+        if project_name is None:
+            return (
+                pathlib.Path.cwd().resolve(),
+                _project_create_target_resolution(
+                    "explicit_path",
+                    "--path requires NAME to be a bare project name when NAME is supplied.",
+                    path_argument=explicit_path,
+                    local_requested=local,
+                ),
+                "--path requires NAME to be a bare project name; do not provide two paths",
+            )
+        project_root = _resolve_explicit_project_create_path(explicit_path)
+        if project_name != project_root.name:
+            return (
+                project_root,
+                _project_create_target_resolution(
+                    "explicit_path",
+                    "--path target basename must match NAME so NAME is not ignored.",
+                    path_argument=explicit_path,
+                    local_requested=local,
+                ),
+                f"--path target basename {project_root.name!r} does not match NAME {project_name!r}",
+            )
+        resolution = _project_create_target_resolution(
+            "explicit_path",
+            "Target resolved from explicit --path PATH.",
+            path_argument=explicit_path,
+            local_requested=local,
+        )
+        return project_root, resolution, None
+
+    if local:
+        if project_name is None:
+            return (
+                pathlib.Path.cwd().resolve(),
+                _project_create_target_resolution(
+                    "local",
+                    "--local requires NAME to be a bare project name.",
+                    local_requested=True,
+                ),
+                "--local requires a bare NAME and does not accept path-like targets",
+            )
+        project_root = (pathlib.Path.cwd() / project_name).resolve()
+        resolution = _project_create_target_resolution(
+            "local",
+            "Target resolved from current working directory because --local was supplied.",
+            local_requested=True,
+        )
+        return project_root, resolution, None
+
+    if project_name is None:
+        project_root = resolve_project_refresh_target(path_or_name)
+        resolution = _project_create_target_resolution(
+            "positional_path",
+            "Target resolved from explicit path-like positional argument.",
+            path_argument=path_or_name,
+        )
+        return project_root, resolution, None
+
+    workspace_root, workspace_error = _configured_project_create_workspace()
+    if workspace_root is None:
+        resolution = _project_create_target_resolution(
+            "configured_workspace",
+            "Bare NAME creation requires a configured workspace root.",
+        )
+        return pathlib.Path.cwd().resolve() / project_name, resolution, workspace_error
+
+    project_root = (workspace_root / project_name).resolve()
+    resolution = _project_create_target_resolution(
+        "configured_workspace",
+        "Target resolved from configured workspace root plus NAME.",
+        workspace_root=workspace_root,
+        workspace_root_source="configured",
+    )
+    return project_root, resolution, None
+
+
 def _project_create_failure_diagnostics(
     project_root: pathlib.Path,
     message: str,
     *,
     working_dir_requested: bool,
+    target_resolution: dict[str, str | bool] | None = None,
 ) -> dict[str, str | bool | list[str]]:
     """Build a stable non-mutating create failure diagnostic payload."""
-    return {
+    diagnostics: dict[str, str | bool | list[str]] = {
         "ok": False,
         "target_dir": str(project_root),
         "root_created": False,
@@ -475,6 +647,10 @@ def _project_create_failure_diagnostics(
         "working_dir_message": message,
         "working_dir_repairs": [],
     }
+    diagnostics.update(_default_project_create_target_resolution())
+    if target_resolution is not None:
+        diagnostics.update(target_resolution)
+    return diagnostics
 
 
 def _simple_project_name(path_or_name: str) -> str | None:
@@ -526,13 +702,34 @@ def gather_project_create_diagnostics(
     *,
     create_working_dir: bool = False,
     nested: bool = False,
+    local: bool = False,
+    explicit_path: str | None = None,
 ) -> dict[str, str | bool | list[str]]:
     """Collect safe create actions by delegating to refresh scaffolding logic."""
     if path_or_name is None:
+        if explicit_path is not None or local:
+            message = "project create requires NAME when --local or --path is supplied"
+            return _project_create_failure_diagnostics(
+                pathlib.Path.cwd().resolve(),
+                message,
+                working_dir_requested=working_dir is not None,
+                target_resolution=_project_create_target_resolution(
+                    "unresolved",
+                    message,
+                    path_argument=explicit_path,
+                    local_requested=local,
+                ),
+            )
         diagnostics = gather_project_init_diagnostics(
             None, working_dir, create_working_dir=create_working_dir
         )
         diagnostics = dict(diagnostics)
+        diagnostics.update(_default_project_create_target_resolution())
+        diagnostics["target_selection"] = "compatibility_current_directory"
+        diagnostics["target_selection_message"] = (
+            "No NAME was supplied; project create used the existing compatibility "
+            "alias for current-directory initialization."
+        )
         diagnostics["compatibility_alias"] = True
         diagnostics["compatibility_message"] = (
             "project create with no NAME is a compatibility alias; prefer "
@@ -541,9 +738,24 @@ def gather_project_create_diagnostics(
         return diagnostics
 
     cwd = pathlib.Path.cwd().resolve()
-    project_root = resolve_project_refresh_target(path_or_name)
+    project_root, target_resolution, target_error = _resolve_project_create_target(
+        path_or_name, explicit_path=explicit_path, local=local
+    )
 
-    if not nested and _would_create_same_name_nested_project(path_or_name, cwd):
+    if target_error is not None:
+        return _project_create_failure_diagnostics(
+            project_root,
+            target_error,
+            working_dir_requested=working_dir is not None,
+            target_resolution=target_resolution,
+        )
+
+    is_cwd_relative_same_name = project_root.parent == cwd
+    if (
+        not nested
+        and is_cwd_relative_same_name
+        and _would_create_same_name_nested_project(path_or_name, cwd)
+    ):
         message = (
             "refusing to create a nested same-name project; use "
             "`taurworks project init` to initialize or repair the current project, "
@@ -553,6 +765,7 @@ def gather_project_create_diagnostics(
             project_root,
             message,
             working_dir_requested=working_dir is not None,
+            target_resolution=target_resolution,
         )
 
     root_existed_before = project_root.exists()
@@ -569,6 +782,7 @@ def gather_project_create_diagnostics(
                 project_root,
                 str(error),
                 working_dir_requested=True,
+                target_resolution=target_resolution,
             )
         resolved_working_dir = (project_root.resolve() / relative_working_dir).resolve()
         if resolved_working_dir.exists() and not resolved_working_dir.is_dir():
@@ -577,6 +791,7 @@ def gather_project_create_diagnostics(
                 "working_dir target exists but is not a directory: "
                 f"{resolved_working_dir}",
                 working_dir_requested=True,
+                target_resolution=target_resolution,
             )
     diagnostics = gather_project_refresh_diagnostics(str(project_root))
     delegated_target = diagnostics["target_dir"]
@@ -586,6 +801,19 @@ def gather_project_create_diagnostics(
     )
 
     diagnostics = dict(diagnostics)
+    diagnostics.update(target_resolution)
+    if diagnostics["target_selection"] in {"explicit_path", "positional_path"}:
+        workspace_root, _workspace_error = _configured_project_create_workspace()
+        if workspace_root is not None and not _is_within_directory(
+            project_root, workspace_root
+        ):
+            diagnostics["warnings"] = [
+                *diagnostics["warnings"],
+                "created project is outside the configured workspace root; "
+                "it will not appear in global project discovery unless registered",
+            ]
+            diagnostics["workspace_root"] = str(workspace_root)
+            diagnostics["workspace_root_source"] = "configured"
     diagnostics["ok"] = True
     diagnostics["root_created"] = root_created
     diagnostics["delegated_command"] = "project refresh"
@@ -668,6 +896,12 @@ def format_project_create_output(
         "Taurworks project create summary",
         f"- ok: {diagnostics['ok']}",
         f"- project_root: {diagnostics['target_dir']}",
+        f"- target_selection: {diagnostics['target_selection']}",
+        f"- target_selection_message: {diagnostics['target_selection_message']}",
+        f"- workspace_root: {diagnostics['workspace_root']}",
+        f"- workspace_root_source: {diagnostics['workspace_root_source']}",
+        f"- path_argument: {diagnostics['path_argument']}",
+        f"- local_requested: {diagnostics['local_requested']}",
         f"- root_created: {diagnostics['root_created']}",
         f"- delegated_command: {diagnostics['delegated_command']}",
         f"- delegated_target_dir: {diagnostics['delegated_target_dir']}",

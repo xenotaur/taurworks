@@ -150,7 +150,9 @@ The currently implemented namespaced commands are:
 - `taurworks project init [PATH] [--working-dir DIR] [--create-working-dir]` (implemented, safe idempotent initialization of an existing/current project root)
 - `taurworks project working-dir show [PATH_OR_NAME]` (implemented, target-aware project working-directory metadata display)
 - `taurworks project working-dir set [DIR]` (implemented, safe project working-directory metadata update; `set DIR --project PATH_OR_NAME` is the preferred planned target-aware shape)
-- `taurworks project create [PATH_OR_NAME] [--working-dir DIR]` (implemented, safe idempotent create wrapper around refresh with optional working-directory metadata)
+- `taurworks project create NAME [--working-dir DIR]` (implemented, creates under the configured workspace root by default, then safely initializes metadata)
+- `taurworks project create NAME --local [--working-dir DIR]` (implemented, explicit cwd-relative create behavior)
+- `taurworks project create NAME --path PATH [--working-dir DIR]` (implemented, explicit target path creation; `PATH` basename must match `NAME`)
 - `taurworks project activate [PATH_OR_NAME] --print` (implemented, read-only activation guidance output)
 - `taurworks dev where` (implemented, read-only repository/workspace diagnostics)
 - `taurworks dev status` (implemented, read-only summary that explicitly leaves detailed VCS automation for future work)
@@ -272,10 +274,11 @@ Activation behavior is intentionally safe. Initialized projects with `[paths].wo
 
 ## Dogfood workflows for init/create/activation guidance
 
-Use `project create` when Taurworks should make a new project-root directory, then initialize metadata inside it. Add `--create-working-dir` only when Taurworks should also create a missing code/work directory:
+Use `project create` when Taurworks should make a new project-root directory, then initialize metadata inside it. Bare project names now follow the user-global workspace model: after `taurworks workspace set ~/Workspace`, `taurworks project create TestProject` creates `~/Workspace/TestProject` even when the command is run from another directory. Add `--create-working-dir` only when Taurworks should also create a missing code/work directory:
 
 ```bash
-cd ~/Workspace
+taurworks workspace set ~/Workspace
+cd /tmp/scratch
 taurworks project create TestProject --working-dir test_repo --create-working-dir
 taurworks project activate TestProject --print
 ```
@@ -283,11 +286,35 @@ taurworks project activate TestProject --print
 Expected shape:
 
 ```text
-TestProject/
+~/Workspace/TestProject/
   .taurworks/
     config.toml
   test_repo/
 ```
+
+Use `--local` to explicitly opt into the old cwd-relative behavior:
+
+```bash
+cd /tmp/scratch
+taurworks project create LocalProject --local --working-dir repo --create-working-dir
+```
+
+Expected shape:
+
+```text
+/tmp/scratch/LocalProject/
+  .taurworks/
+    config.toml
+  repo/
+```
+
+Use `--path PATH` for an explicit project root. When `NAME` is supplied, the basename of `PATH` must match `NAME` so the name is not silently ignored:
+
+```bash
+taurworks project create CustomProject --path /custom/path/CustomProject
+```
+
+Projects created outside the configured workspace root are not automatically registered; the create output warns that they will not appear in global project discovery unless registered with `taurworks project register NAME PATH`. If no workspace root is configured, bare `project create NAME` fails clearly and asks you to run `taurworks workspace set PATH` or use `taurworks project create NAME --local`. Path-like positional targets remain supported for compatibility, but `--path PATH` is the documented explicit path form. `--working-dir` is always interpreted relative to the resolved project root, and `--create-working-dir` creates only that validated in-root working directory. `--nested` still only bypasses the guard against accidental same-name cwd-relative nested projects.
 
 Use `project init` when the project root already exists or when you are already inside it. Without `--create-working-dir`, the configured working directory must already exist:
 
@@ -534,7 +561,8 @@ Basic dogfood workflow:
 ```bash
 source ~/.config/taurworks/taurworks-shell.sh
 
-cd ~/Workspace
+taurworks workspace set ~/Workspace
+cd /tmp/scratch
 taurworks project create TestProject --working-dir test_repo --create-working-dir
 tw activate TestProject
 pwd

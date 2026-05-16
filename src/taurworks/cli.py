@@ -118,6 +118,8 @@ def _handle_project_command(args):
             args.working_dir,
             create_working_dir=args.create_working_dir,
             nested=args.nested,
+            local=args.local,
+            explicit_path=args.path,
         )
         print(project_resolution.format_project_create_output(diagnostics))
         if not diagnostics["ok"]:
@@ -499,15 +501,33 @@ def main():
         description=(
             "Create a new project root directory when needed, then delegate "
             "to the same safe, idempotent Taurworks metadata initialization "
-            "used by project init. Use project init for existing/current roots."
+            "used by project init for existing/current roots. Bare NAME targets use "
+            "the configured "
+            "workspace root by default. Use --local for cwd-relative creation "
+            "or --path PATH for explicit path creation."
         ),
     )
     parser_project_create.add_argument(
         "path_or_name",
         nargs="?",
         help=(
-            "Optional project path or name. Defaults to current working "
-            "directory when omitted."
+            "Optional project name or explicit path-like target. Bare NAME "
+            "creates under the configured workspace root unless --local or "
+            "--path is supplied. Omitting NAME remains a compatibility alias "
+            "for current-directory initialization."
+        ),
+    )
+    target_group = parser_project_create.add_mutually_exclusive_group()
+    target_group.add_argument(
+        "--local",
+        action="store_true",
+        help="Create bare NAME under the current working directory.",
+    )
+    target_group.add_argument(
+        "--path",
+        help=(
+            "Explicit project root path to create. When NAME is also supplied, "
+            "PATH's basename must match NAME so NAME is not ignored."
         ),
     )
     parser_project_create.add_argument(
@@ -552,8 +572,8 @@ def main():
         "path_or_name",
         nargs="?",
         help=(
-            "Optional project path or name. Defaults to current working "
-            "directory when omitted."
+            "Optional project path or name. Defaults to the current project "
+            "when run inside Taurworks metadata."
         ),
     )
     parser_project_activate.add_argument(
