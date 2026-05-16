@@ -63,6 +63,28 @@ def _single_output_path(output: str, key: str) -> pathlib.Path:
     return pathlib.Path(fields[key])
 
 
+def _activation_command_path(output: str) -> pathlib.Path:
+    fields = parse_cli_fields(output)
+    command = fields.get("activation_command", "")
+    prefix = "cd "
+    if not command.startswith(prefix):
+        raise AssertionError(
+            f"Expected activation_command to start with {prefix!r}: {command!r}"
+        )
+    return pathlib.Path(command.removeprefix(prefix))
+
+
+def _project_detail_path(output: str, label: str) -> pathlib.Path:
+    prefix = f"├── {label}: "
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if line.startswith(prefix):
+            return pathlib.Path(line.removeprefix(prefix))
+    raise AssertionError(
+        f"Expected project detail label {label!r} in output:\n{output}"
+    )
+
+
 class CliCommandTest(unittest.TestCase):
 
     def test_config_where_reports_xdg_path_read_only(self):
@@ -982,8 +1004,9 @@ class CliCommandTest(unittest.TestCase):
             file_text = existing_file.read_text(encoding="utf-8")
             self.assertEqual(root_path.name, config["project"]["name"])
             self.assertEqual("keep me", file_text)
-            self.assertIn(
-                f"project_root: {root_path}", result.stdout, msg=failure_message
+            fields = parse_cli_fields(result.stdout)
+            assert_same_path(
+                self, fields["project_root"], root_path, msg=failure_message
             )
             self.assertIn("root_exists: True", result.stdout, msg=failure_message)
             self.assertIn("root_created: False", result.stdout, msg=failure_message)
@@ -1013,8 +1036,9 @@ class CliCommandTest(unittest.TestCase):
             failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             self.assertEqual(result.returncode, 0, msg=failure_message)
             self.assertTrue((target_dir / ".taurworks" / "config.toml").is_file())
-            self.assertIn(
-                f"project_root: {target_dir}", result.stdout, msg=failure_message
+            fields = parse_cli_fields(result.stdout)
+            assert_same_path(
+                self, fields["project_root"], target_dir, msg=failure_message
             )
             self.assertIn(
                 "working_dir_requested: False", result.stdout, msg=failure_message
@@ -1282,8 +1306,9 @@ class CliCommandTest(unittest.TestCase):
             )
             failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             self.assertEqual(result.returncode, 0, msg=failure_message)
-            self.assertIn(
-                f"project_root: {project_dir}", result.stdout, msg=failure_message
+            fields = parse_cli_fields(result.stdout)
+            assert_same_path(
+                self, fields["project_root"], project_dir, msg=failure_message
             )
             self.assertIn(
                 "resolved_by: current_project_name",
@@ -1324,8 +1349,9 @@ class CliCommandTest(unittest.TestCase):
             )
             failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             self.assertEqual(result.returncode, 0, msg=failure_message)
-            self.assertIn(
-                f"project_root: {project_dir}", result.stdout, msg=failure_message
+            fields = parse_cli_fields(result.stdout)
+            assert_same_path(
+                self, fields["project_root"], project_dir, msg=failure_message
             )
             self.assertIn(
                 "resolved_by: current_directory_basename",
@@ -1568,9 +1594,8 @@ class CliCommandTest(unittest.TestCase):
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("input: TestProject", result.stdout, msg=failure_message)
-        self.assertIn(
-            f"project_root: {project_dir}", result.stdout, msg=failure_message
-        )
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(self, fields["project_root"], project_dir, msg=failure_message)
         self.assertIn(
             "resolved_by: existing_path_project_root",
             result.stdout,
@@ -1850,8 +1875,8 @@ class CliCommandTest(unittest.TestCase):
             self, fields["resolved_working_dir"], repo_dir, msg=failure_message
         )
         self.assertIn("working_dir_exists: True", result.stdout, msg=failure_message)
-        self.assertIn(
-            f"activation_command: cd {repo_dir}", result.stdout, msg=failure_message
+        assert_same_path(
+            self, _activation_command_path(result.stdout), repo_dir, msg=failure_message
         )
         self.assertIn(
             "shell_mutation: not performed", result.stdout, msg=failure_message
@@ -1938,8 +1963,11 @@ class CliCommandTest(unittest.TestCase):
             "working_dir_configured: False", result.stdout, msg=failure_message
         )
         self.assertIn("working_dir: none", result.stdout, msg=failure_message)
-        self.assertIn(
-            f"activation_command: cd {target_dir}", result.stdout, msg=failure_message
+        assert_same_path(
+            self,
+            _activation_command_path(result.stdout),
+            target_dir,
+            msg=failure_message,
         )
         self.assertIn(
             "No working_dir is configured",
@@ -1991,12 +2019,16 @@ class CliCommandTest(unittest.TestCase):
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("working_dir: missing-repo", result.stdout, msg=failure_message)
-        self.assertIn(
-            f"resolved_working_dir: {missing_dir}", result.stdout, msg=failure_message
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(
+            self, fields["resolved_working_dir"], missing_dir, msg=failure_message
         )
         self.assertIn("working_dir_exists: False", result.stdout, msg=failure_message)
-        self.assertIn(
-            f"activation_command: cd {missing_dir}", result.stdout, msg=failure_message
+        assert_same_path(
+            self,
+            _activation_command_path(result.stdout),
+            missing_dir,
+            msg=failure_message,
         )
         self.assertIn("directory does not exist", result.stdout, msg=failure_message)
         self.assertFalse(missing_dir.exists(), msg=failure_message)
@@ -2096,9 +2128,10 @@ class CliCommandTest(unittest.TestCase):
             msg=failure_message,
         )
         self.assertEqual("child-project", project_root.name, msg=failure_message)
-        self.assertIn(
-            f"activation_command: cd {parent_project / 'child-project'}",
-            result.stdout,
+        assert_same_path(
+            self,
+            _activation_command_path(result.stdout),
+            parent_project / "child-project",
             msg=failure_message,
         )
 
@@ -2183,11 +2216,17 @@ class CliCommandTest(unittest.TestCase):
         failure_message = f"Command failed: {cmd}\nreturn code: {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertIn("Status: initialized", result.stdout)
-        self.assertIn(f"Path: {initialized}", result.stdout)
-        self.assertIn(f"Config: {initialized_config}", result.stdout)
+        assert_same_path(self, _project_detail_path(result.stdout, "Path"), initialized)
+        assert_same_path(
+            self, _project_detail_path(result.stdout, "Config"), initialized_config
+        )
         self.assertIn("Activation Eligible: ✔", result.stdout)
         self.assertIn("Working Dir: repo", result.stdout)
-        self.assertIn(f"Resolved Working Dir: {initialized_repo}", result.stdout)
+        assert_same_path(
+            self,
+            _project_detail_path(result.stdout, "Resolved Working Dir"),
+            initialized_repo,
+        )
         self.assertIn("Status: legacy-admin", result.stdout)
         self.assertIn("not sourced by `tw activate`", result.stdout)
 
