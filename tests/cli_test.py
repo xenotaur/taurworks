@@ -2763,9 +2763,13 @@ class ProjectRegistryCliTest(unittest.TestCase):
         ]:
             failure_message = _failure_message(args, result)
             self.assertEqual(result.returncode, 0, msg=failure_message)
-            self.assertEqual(result.stdout, f"{expected_path}\n", msg=failure_message)
             self.assertEqual(result.stderr, "", msg=failure_message)
-            self.assertEqual(len(result.stdout.splitlines()), 1, msg=failure_message)
+            self.assertTrue(result.stdout.endswith("\n"), msg=failure_message)
+            stdout_lines = result.stdout.splitlines()
+            self.assertEqual(len(stdout_lines), 1, msg=failure_message)
+            emitted_path = pathlib.Path(stdout_lines[0])
+            self.assertTrue(emitted_path.is_absolute(), msg=failure_message)
+            assert_same_path(self, emitted_path, expected_path, msg=failure_message)
 
         self.assertEqual(project_root_result.stdout, root_alias_result.stdout)
         self.assertEqual(project_working_result.stdout, working_alias_result.stdout)
