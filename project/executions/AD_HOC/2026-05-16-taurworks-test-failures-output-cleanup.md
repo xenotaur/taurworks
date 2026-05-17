@@ -16,6 +16,9 @@ timeout output from the prompt-driven test cleanup request.
   leaked the expected Conda timeout warning to normal test output.
 - Updated the timeout test to redirect stdout, assert the warning text, and keep
   the mocked `conda env list` timeout deterministic without requiring Conda.
+- Fixed CI-only macOS path assertions in two project-create CLI tests by parsing
+  path-bearing fields and comparing them semantically instead of matching raw
+  `/var` versus `/private/var` string forms.
 - Confirmed the warning path remains user-facing in production code; only the
   intentional test output is captured.
 
@@ -24,6 +27,8 @@ timeout output from the prompt-driven test cleanup request.
   because package index access for `setuptools>=64` was blocked by 403 proxy
   responses in this environment.
 - Passed: `PYTHONPATH=src python -m unittest -v tests.manager_test`.
+- Failed then corrected: `PYTHONPATH=src python -m unittest -v tests.cli_test.CliCommandTest.test_project_create_bare_name_defaults_to_configured_workspace tests.cli_test.CliCommandTest.test_project_create_dotdot_is_explicit_path_not_workspace_name` because direct module execution does not include `tests/` on `PYTHONPATH` for the local `helpers` import.
+- Passed: `PYTHONPATH=src:tests python -m unittest -v tests.cli_test.CliCommandTest.test_project_create_bare_name_defaults_to_configured_workspace tests.cli_test.CliCommandTest.test_project_create_dotdot_is_explicit_path_not_workspace_name`.
 - Passed: `scripts/lint`.
 - Passed: `scripts/test`.
 - Passed: `scripts/test-portability`.
