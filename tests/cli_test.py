@@ -87,6 +87,40 @@ def _project_detail_path(output: str, label: str) -> pathlib.Path:
 
 class CliCommandTest(unittest.TestCase):
 
+    def test_top_level_help_alias_matches_help_option(self):
+        help_result = _run_cli(["help"], pathlib.Path.cwd())
+        option_result = _run_cli(["--help"], pathlib.Path.cwd())
+        help_message = _failure_message(["help"], help_result)
+        option_message = _failure_message(["--help"], option_result)
+
+        self.assertEqual(help_result.returncode, 0, msg=help_message)
+        self.assertEqual(option_result.returncode, 0, msg=option_message)
+        self.assertEqual(help_result.stdout, option_result.stdout)
+        self.assertIn("usage: taurworks", help_result.stdout, msg=help_message)
+        self.assertIn("project", help_result.stdout, msg=help_message)
+        self.assertIn("dev", help_result.stdout, msg=help_message)
+        self.assertEqual(help_result.stderr, "")
+
+    def test_help_alias_supports_existing_namespace_help(self):
+        for namespace in ("project", "dev", "shell"):
+            with self.subTest(namespace=namespace):
+                alias_result = _run_cli(["help", namespace], pathlib.Path.cwd())
+                option_result = _run_cli([namespace, "--help"], pathlib.Path.cwd())
+                alias_message = _failure_message(["help", namespace], alias_result)
+                option_message = _failure_message([namespace, "--help"], option_result)
+
+                self.assertEqual(alias_result.returncode, 0, msg=alias_message)
+                self.assertEqual(option_result.returncode, 0, msg=option_message)
+                self.assertEqual(alias_result.stdout, option_result.stdout)
+                self.assertIn(f"usage: taurworks {namespace}", alias_result.stdout)
+
+    def test_invalid_top_level_command_still_fails(self):
+        result = _run_cli(["not-a-command"], pathlib.Path.cwd())
+        failure_message = _failure_message(["not-a-command"], result)
+
+        self.assertNotEqual(result.returncode, 0, msg=failure_message)
+        self.assertIn("invalid choice", result.stderr, msg=failure_message)
+
     def test_config_where_reports_xdg_path_read_only(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_path = pathlib.Path(temp_dir)

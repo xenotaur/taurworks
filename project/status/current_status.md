@@ -14,6 +14,7 @@ Taurworks is in a design-alignment phase moving from successful local `tw activa
 - Explicit separation between read-only activation guidance and shell-mutating sourced `taurworks-shell.sh` `tw activate`.
 
 ## Implemented minimal project and dev slices
+- `taurworks help` is equivalent to `taurworks --help`; `taurworks help COMMAND` routes to existing command help for current namespaces.
 - `taurworks project --help` documents the project namespace and available discovery commands.
 - `taurworks project where` provides read-only project/config/discovery diagnostics.
 - `taurworks project list` provides read-only discovery listing and clear no-project behavior.
