@@ -701,14 +701,26 @@ class CliCommandTest(unittest.TestCase):
                 (workspace / "Alpha" / ".taurworks" / "config.toml").is_file()
             )
             self.assertFalse((local / "Alpha").exists())
-            self.assertIn(f"project_root: {workspace / 'Alpha'}", result.stdout)
+            result_fields = parse_cli_fields(result.stdout)
+            assert_same_path(
+                self,
+                result_fields["project_root"],
+                workspace / "Alpha",
+                msg=failure_message,
+            )
             self.assertIn("target_selection: configured_workspace", result.stdout)
-            self.assertIn(f"workspace_root: {workspace}", result.stdout)
+            assert_same_path(
+                self, result_fields["workspace_root"], workspace, msg=failure_message
+            )
             self.assertEqual(list_result.returncode, 0, msg=list_result.stderr)
             self.assertIn("- Alpha    initialized    workspace", list_result.stdout)
             self.assertEqual(activate_result.returncode, 0, msg=activate_result.stderr)
-            self.assertIn(
-                f"project_root: {workspace / 'Alpha'}", activate_result.stdout
+            activate_fields = parse_cli_fields(activate_result.stdout)
+            assert_same_path(
+                self,
+                activate_fields["project_root"],
+                workspace / "Alpha",
+                msg=activate_result.stdout + activate_result.stderr,
             )
 
     def test_project_create_dot_prefixed_name_is_explicit_local_path(self):
@@ -743,7 +755,13 @@ class CliCommandTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
             self.assertTrue((local / ".taurworks" / "config.toml").is_file())
             self.assertFalse((root_path / ".taurworks").exists())
-            self.assertIn(f"project_root: {local}", result.stdout)
+            result_fields = parse_cli_fields(result.stdout)
+            assert_same_path(
+                self,
+                result_fields["project_root"],
+                local,
+                msg=result.stdout + result.stderr,
+            )
             self.assertIn("target_selection: positional_path", result.stdout)
             self.assertIn("path_argument: ..", result.stdout)
 
