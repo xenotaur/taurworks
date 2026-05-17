@@ -53,6 +53,9 @@ _tw_activate() {
     local activation_message_configured
     local activation_export_count
     local activation_export_commands
+    local environment_configured
+    local environment_type
+    local environment_name
     local path_or_name
     local verbose
     local target_label
@@ -128,6 +131,9 @@ _tw_activate() {
     local TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED
     local TAURWORKS_ACTIVATION_EXPORT_COUNT
     local TAURWORKS_ACTIVATION_EXPORT_COMMANDS
+    local TAURWORKS_ACTIVATION_ENVIRONMENT_CONFIGURED
+    local TAURWORKS_ACTIVATION_ENVIRONMENT_TYPE
+    local TAURWORKS_ACTIVATION_ENVIRONMENT_NAME
 
     if ! eval "$output"; then
         printf '%s\n' "tw activate: failed to read Taurworks activation shell data." >&2
@@ -142,6 +148,9 @@ _tw_activate() {
     activation_message_configured=$TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED
     activation_export_count=$TAURWORKS_ACTIVATION_EXPORT_COUNT
     activation_export_commands=$TAURWORKS_ACTIVATION_EXPORT_COMMANDS
+    environment_configured=$TAURWORKS_ACTIVATION_ENVIRONMENT_CONFIGURED
+    environment_type=$TAURWORKS_ACTIVATION_ENVIRONMENT_TYPE
+    environment_name=$TAURWORKS_ACTIVATION_ENVIRONMENT_NAME
 
     if [ "$resolved_working_dir" = "" ] || [ "$resolved_working_dir" = "none" ]; then
         printf '%s\n' "tw activate: Taurworks did not report a resolved working directory." >&2
@@ -155,16 +164,31 @@ _tw_activate() {
         return 1
     fi
 
-    if ! cd -- "$resolved_working_dir"; then
-        printf '%s\n' "tw activate: failed to change directory to: $resolved_working_dir" >&2
-        return 1
-    fi
-
     if [ "$activation_export_commands" != "" ]; then
         if ! eval "$activation_export_commands"; then
             printf '%s\n' "tw activate: failed to apply Taurworks activation exports." >&2
             return 1
         fi
+    fi
+
+    if [ "$environment_configured" = "True" ]; then
+        if [ "$environment_type" != "conda" ]; then
+            printf '%s\n' "tw activate: unsupported activation environment type: $environment_type" >&2
+            return 1
+        fi
+        if ! type conda >/dev/null 2>&1; then
+            printf '%s\n' "tw activate: conda activation is unavailable in this shell; configure conda activate before using Taurworks Conda activation." >&2
+            return 1
+        fi
+        if ! conda activate "$environment_name"; then
+            printf '%s\n' "tw activate: failed to activate Conda environment: $environment_name" >&2
+            return 1
+        fi
+    fi
+
+    if ! cd -- "$resolved_working_dir"; then
+        printf '%s\n' "tw activate: failed to change directory to: $resolved_working_dir" >&2
+        return 1
     fi
 
     if [ "$working_dir_configured" != "True" ] && [ "$guidance" != "" ]; then
