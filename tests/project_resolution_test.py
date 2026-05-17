@@ -254,6 +254,156 @@ class GlobalActivationResolutionTest(unittest.TestCase):
         self.assertIn("invalid activation export name", diagnostics["guidance"])
         self.assertNotIn("export BAD-NAME", rendered)
 
+    def test_activation_environment_conda_is_reported_read_only(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            project_root = temp_path / "Project"
+            repo = project_root / "repo"
+            repo.mkdir(parents=True)
+            config_dir = project_root / ".taurworks"
+            config_dir.mkdir()
+            (config_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "Project"\n\n'
+                    '[paths]\nworking_dir = "repo"\n\n'
+                    "[activation.environment]\n"
+                    'type = "conda"\n'
+                    'name = "LCATS"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                os.chdir(project_root)
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Project"
+                    )
+                )
+                rendered = project_resolution.format_project_activate_print_output(
+                    diagnostics
+                )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertTrue(diagnostics["ok"])
+        self.assertTrue(diagnostics["environment_configured"])
+        self.assertEqual(diagnostics["environment_type"], "conda")
+        self.assertEqual(diagnostics["environment_name"], "LCATS")
+        self.assertIn("environment_configured: True", rendered)
+        self.assertIn("environment_type: conda", rendered)
+        self.assertIn("environment_name: LCATS", rendered)
+        self.assertIn("environment_activation: not performed", rendered)
+
+    def test_unsupported_activation_environment_type_fails_clearly(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            project_root = temp_path / "Project"
+            repo = project_root / "repo"
+            repo.mkdir(parents=True)
+            config_dir = project_root / ".taurworks"
+            config_dir.mkdir()
+            (config_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "Project"\n\n'
+                    '[paths]\nworking_dir = "repo"\n\n'
+                    "[activation.environment]\n"
+                    'type = "venv"\n'
+                    'name = "Env"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                os.chdir(project_root)
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Project"
+                    )
+                )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertIn(
+            "unsupported activation environment type", diagnostics["guidance"]
+        )
+        self.assertIn("only 'conda' is supported", diagnostics["guidance"])
+
+    def test_conda_activation_environment_requires_name(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            project_root = temp_path / "Project"
+            repo = project_root / "repo"
+            repo.mkdir(parents=True)
+            config_dir = project_root / ".taurworks"
+            config_dir.mkdir()
+            (config_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "Project"\n\n'
+                    '[paths]\nworking_dir = "repo"\n\n'
+                    "[activation.environment]\n"
+                    'type = "conda"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                os.chdir(project_root)
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Project"
+                    )
+                )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertIn("activation.environment.name", diagnostics["guidance"])
+        self.assertIn("required for Conda activation", diagnostics["guidance"])
+
+    def test_conda_activation_environment_name_is_validated_conservatively(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            project_root = temp_path / "Project"
+            repo = project_root / "repo"
+            repo.mkdir(parents=True)
+            config_dir = project_root / ".taurworks"
+            config_dir.mkdir()
+            (config_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "Project"\n\n'
+                    '[paths]\nworking_dir = "repo"\n\n'
+                    "[activation.environment]\n"
+                    'type = "conda"\n'
+                    'name = "../unsafe"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                os.chdir(project_root)
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Project"
+                    )
+                )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertIn(
+            "invalid Conda activation environment name", diagnostics["guidance"]
+        )
+
     def test_workspace_only_and_legacy_admin_activate_to_root_with_warnings(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)
