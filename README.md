@@ -50,25 +50,53 @@ taurworks help
 tw help
 ```
 
-On success, `tw activate` applies validated `[activation.exports]`, prints a
-concise exported-variable count when exports are configured, runs `cd` to the
-resolved destination in the current shell, and prints `activation.message` when
-configured. Name-based activation uses the user-global registry and configured
+On success, `tw activate` validates the project activation config, applies
+validated `[activation.exports]`, activates a configured Conda environment when
+`[activation.environment]` is present, runs `cd` to the resolved destination in
+the current shell, and prints `activation.message` when configured. The shell
+mutation order is: export configured variables, run `conda activate <name>` when
+configured, change directory to `[paths].working_dir` or the project root
+fallback, print a concise changed-directory line, then print the configured
+message. Name-based activation uses the user-global registry and configured
 workspace root, so `tw activate NAME` works from outside the workspace and after
 switching into another project's working directory. Normal activation failures
 are concise and actionable; use `tw activate [PATH_OR_NAME] --verbose` or
 `tw activate [PATH_OR_NAME] --debug` to print the full read-only diagnostic
 block from `taurworks project activate [PATH_OR_NAME] --print`. That
 `taurworks project activate --print` command remains safe to run directly when
-you want activation details without changing directories or exporting variables.
+you want activation details without changing directories, exporting variables,
+or activating environments.
 
 `taurworks help` is an alias for `taurworks --help`. Non-activation `tw ...`
 commands delegate to `taurworks ...`; `tw help` is an alias for `tw --help`.
 Only `tw activate ...` uses validated
 `taurworks project activate --print` output to run `cd` in the current shell.
 Future readiness messages, environment activation, trusted startup hooks, and
-legacy `Admin/project-setup.source` migration are design-only topics documented
+legacy `Admin/project-setup.source` migration are in-development topics documented
 in `project/design/activation_extension.md`.
+
+Declarative activation currently supports a readiness message, string environment-variable
+exports, and Conda environment activation only. Virtualenv activation, Docker
+activation, arbitrary user hooks/scripts, and legacy `Admin/project-setup.source`
+migration remain deferred.
+
+Configure Conda activation in `.taurworks/config.toml` with:
+
+```toml
+[activation.environment]
+type = "conda"
+name = "LCATS"
+```
+
+Only `type = "conda"` is supported initially, and `name` is required. Taurworks
+validates Conda names conservatively, does not run `conda init`, does not create
+or install Conda environments, and does not edit shell startup files. Your shell
+must already provide a working `conda activate` command or function before you
+run `tw activate`; if Conda activation is unavailable or `conda activate <name>`
+fails, `tw activate` returns non-zero and avoids changing directory.
+`taurworks project activate [PATH_OR_NAME] --print` remains read-only and only
+reports environment fields such as `environment_configured`,
+`environment_type`, and `environment_name`; Python does not perform activation.
 
 ## Developer setup
 
@@ -146,9 +174,9 @@ These namespaces are expected to share a common configuration/discovery core whe
 
 ### Implementation status and compatibility
 
-Status note: `taurworks config where`, `taurworks workspace show`, and `taurworks workspace set PATH` now provide the first XDG-style user-global config slice. `taurworks project ...` now includes implemented discovery, scaffold, existing-root initialization, working-directory metadata, and read-only guidance commands (`where`, `list`, `register`, `unregister`, `registry list`, `root`, `working`, `refresh`, `init`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` now exists as a minimal read-only diagnostics namespace for repository/developer workflow context (`where` and `status`); full workflow automation remains future work.
-Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, `taurworks project init`, `taurworks project register NAME PATH`, `taurworks project unregister NAME`, `taurworks project registry list`, `taurworks project root PROJECT`, `taurworks project working PROJECT`, `taurworks project create`, `taurworks project working-dir show [PATH_OR_NAME]`, and `taurworks project activate [PATH_OR_NAME] --print` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior where appropriate.
-Design note: dogfooding confirmed the `project_root` (the directory containing `.taurworks/`) and `working_dir` (the default code/work directory, stored relative to `project_root`) model. The accepted design separates `project init` for existing/current roots from `project create` for new roots, centralizes target resolution diagnostics, makes working-directory creation explicit, and prevents accidental nested same-name projects. `tw activate` is now the explicit opt-in shell-mutating wrapper for changing the current shell directory. Broad `taurworks dev ...` automation, automatic shell startup-file edits, environment activation, and multi-repo management remain out of scope.
+Status note: `taurworks config where`, `taurworks workspace show`, and `taurworks workspace set PATH` now provide the first XDG-style user-global config slice. `taurworks project ...` now includes implemented discovery, scaffold, existing-root initialization, working-directory metadata, and read-only guidance commands (`where`, `list`, `register`, `unregister`, `registry list`, `refresh`, `init`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` now exists as a minimal read-only diagnostics namespace for repository/developer workflow context (`where` and `status`); full workflow automation remains future work.
+Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, `taurworks project init`, `taurworks project register NAME PATH`, `taurworks project unregister NAME`, `taurworks project registry list`, `taurworks project create`, `taurworks project working-dir show [PATH_OR_NAME]`, and `taurworks project activate [PATH_OR_NAME] --print` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior where appropriate.
+Design note: dogfooding confirmed the `project_root` (the directory containing `.taurworks/`) and `working_dir` (the default code/work directory, stored relative to `project_root`) model. The accepted design separates `project init` for existing/current roots from `project create` for new roots, centralizes target resolution diagnostics, makes working-directory creation explicit, and prevents accidental nested same-name projects. `tw activate` is now the explicit opt-in shell-mutating wrapper for changing the current shell directory. Broad `taurworks dev ...` automation, automatic shell startup-file edits, virtualenv/Docker environment activation, and multi-repo management remain out of scope.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
 

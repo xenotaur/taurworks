@@ -9,6 +9,8 @@ from typing import Any
 PROJECT_SCHEMA_VERSION = 1
 BARE_TOML_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 ENVIRONMENT_VARIABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+CONDA_ENVIRONMENT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
+SUPPORTED_ACTIVATION_ENVIRONMENT_TYPES = {"conda"}
 
 
 class ProjectConfigError(ValueError):
@@ -367,6 +369,51 @@ def activation_exports_from_config(config: dict[str, Any]) -> dict[str, str]:
             )
         exports[name] = value
     return exports
+
+
+def validate_conda_environment_name(name: str) -> None:
+    """Validate a conservative Conda environment name for shell activation."""
+    if not CONDA_ENVIRONMENT_NAME_PATTERN.fullmatch(name):
+        raise ProjectConfigError(
+            f"invalid Conda activation environment name: {name!r}; "
+            "expected [A-Za-z0-9][A-Za-z0-9_.-]*"
+        )
+
+
+def activation_environment_from_config(config: dict[str, Any]) -> dict[str, str] | None:
+    """Return validated activation environment metadata when configured."""
+    activation_table = config.get("activation")
+    if activation_table is None:
+        return None
+    if not isinstance(activation_table, dict):
+        raise ProjectConfigError("config [activation] value is not a TOML table")
+
+    environment_table = activation_table.get("environment")
+    if environment_table is None:
+        return None
+    if not isinstance(environment_table, dict):
+        raise ProjectConfigError(
+            "config [activation.environment] value is not a TOML table"
+        )
+
+    environment_type = environment_table.get("type")
+    if not isinstance(environment_type, str) or not environment_type.strip():
+        raise ProjectConfigError(
+            "config activation.environment.type value must be the string 'conda'"
+        )
+    if environment_type not in SUPPORTED_ACTIVATION_ENVIRONMENT_TYPES:
+        raise ProjectConfigError(
+            "unsupported activation environment type: "
+            f"{environment_type!r}; only 'conda' is supported"
+        )
+
+    name = environment_table.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise ProjectConfigError(
+            "config activation.environment.name value is required for Conda activation"
+        )
+    validate_conda_environment_name(name)
+    return {"type": environment_type, "name": name}
 
 
 def working_dir_from_config(config: dict[str, Any]) -> str | None:

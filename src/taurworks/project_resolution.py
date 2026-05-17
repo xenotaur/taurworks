@@ -1301,6 +1301,9 @@ def gather_project_activate_print_diagnostics(
         "activation_export_count": 0,
         "activation_export_names": "none",
         "activation_exports": {},
+        "environment_configured": False,
+        "environment_type": "none",
+        "environment_name": "none",
         "guidance": "",
         "read_only": True,
     }
@@ -1341,6 +1344,9 @@ def gather_project_activate_print_diagnostics(
         config = project_internals.read_project_config(project_root)
         activation_message = project_internals.activation_message_from_config(config)
         activation_exports = project_internals.activation_exports_from_config(config)
+        activation_environment = project_internals.activation_environment_from_config(
+            config
+        )
         base_diagnostics["activation_message_configured"] = (
             activation_message is not None
         )
@@ -1350,6 +1356,10 @@ def gather_project_activate_print_diagnostics(
         if activation_exports:
             base_diagnostics["activation_export_names"] = ",".join(activation_exports)
         base_diagnostics["activation_exports"] = activation_exports
+        if activation_environment is not None:
+            base_diagnostics["environment_configured"] = True
+            base_diagnostics["environment_type"] = activation_environment["type"]
+            base_diagnostics["environment_name"] = activation_environment["name"]
         working_dir = project_internals.working_dir_from_config(config)
         if working_dir is None:
             return _activation_target_diagnostics(
@@ -1428,6 +1438,10 @@ def format_project_activate_print_output(
         f"- activation_export_count: {diagnostics['activation_export_count']}",
         f"- activation_export_names: {diagnostics['activation_export_names']}",
         "- activation_export_values: hidden",
+        f"- environment_configured: {diagnostics['environment_configured']}",
+        f"- environment_type: {diagnostics['environment_type']}",
+        f"- environment_name: {diagnostics['environment_name']}",
+        "- environment_activation: not performed",
         "- shell_mutation: not performed",
         f"- guidance: {diagnostics['guidance']}",
         "- note: activation_command is printed for inspection only and was not executed",
@@ -1459,6 +1473,9 @@ def format_project_activate_shell_output(
         f"TAURWORKS_ACTIVATION_MESSAGE={shlex.quote(str(diagnostics['activation_message']))}",
         f"TAURWORKS_ACTIVATION_EXPORT_COUNT={shlex.quote(str(diagnostics['activation_export_count']))}",
         f"TAURWORKS_ACTIVATION_EXPORT_COMMANDS={shlex.quote(chr(10).join(export_commands))}",
+        f"TAURWORKS_ACTIVATION_ENVIRONMENT_CONFIGURED={shlex.quote(str(diagnostics['environment_configured']))}",
+        f"TAURWORKS_ACTIVATION_ENVIRONMENT_TYPE={shlex.quote(str(diagnostics['environment_type']))}",
+        f"TAURWORKS_ACTIVATION_ENVIRONMENT_NAME={shlex.quote(str(diagnostics['environment_name']))}",
     ]
     return "\n".join(lines)
 
