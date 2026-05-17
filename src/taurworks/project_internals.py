@@ -8,6 +8,7 @@ from typing import Any
 
 PROJECT_SCHEMA_VERSION = 1
 BARE_TOML_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+ENVIRONMENT_VARIABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class ProjectConfigError(ValueError):
@@ -222,33 +223,44 @@ def _validate_bare_toml_key(key: str) -> None:
         )
 
 
-def _toml_lines(config: dict[str, Any]) -> list[str]:
+def _partition_toml_items(
+    table: dict[str, Any],
+) -> tuple[list[tuple[str, Any]], list[tuple[str, dict[str, Any]]]]:
     scalar_items: list[tuple[str, Any]] = []
     table_items: list[tuple[str, dict[str, Any]]] = []
-    for key, value in config.items():
+    for key, value in table.items():
         _validate_bare_toml_key(key)
         if isinstance(value, dict):
             table_items.append((key, value))
         else:
             scalar_items.append((key, value))
+    return scalar_items, table_items
+
+
+def _append_toml_table_lines(
+    lines: list[str],
+    table_path: tuple[str, ...],
+    table: dict[str, Any],
+) -> None:
+    scalar_items, table_items = _partition_toml_items(table)
+    if lines:
+        lines.append("")
+    lines.append(f"[{'.'.join(table_path)}]")
+    for key, value in scalar_items:
+        lines.append(f"{key} = {_toml_scalar(value)}")
+    for key, nested_table in table_items:
+        _append_toml_table_lines(lines, (*table_path, key), nested_table)
+
+
+def _toml_lines(config: dict[str, Any]) -> list[str]:
+    scalar_items, table_items = _partition_toml_items(config)
 
     lines: list[str] = []
     for key, value in scalar_items:
-        _validate_bare_toml_key(key)
         lines.append(f"{key} = {_toml_scalar(value)}")
 
     for table_name, table in table_items:
-        _validate_bare_toml_key(table_name)
-        if lines:
-            lines.append("")
-        lines.append(f"[{table_name}]")
-        for key, value in table.items():
-            _validate_bare_toml_key(key)
-            if isinstance(value, dict):
-                raise ProjectConfigError(
-                    f"unsupported nested config table for safe writer: {table_name}.{key}"
-                )
-            lines.append(f"{key} = {_toml_scalar(value)}")
+        _append_toml_table_lines(lines, (table_name,), table)
 
     return lines
 
@@ -303,6 +315,58 @@ def ensure_minimal_project_config(
         raise ProjectConfigError("config [paths] value is not a TOML table")
 
     return updated_config, changes
+
+
+def activation_message_from_config(config: dict[str, Any]) -> str | None:
+    """Return configured activation message when present."""
+    activation_table = config.get("activation")
+    if activation_table is None:
+        return None
+    if not isinstance(activation_table, dict):
+        raise ProjectConfigError("config [activation] value is not a TOML table")
+
+    message = activation_table.get("message")
+    if message is None:
+        return None
+    if not isinstance(message, str):
+        raise ProjectConfigError("config activation.message value must be a string")
+    return message
+
+
+def validate_activation_export_name(name: str) -> None:
+    """Validate a conservative shell environment variable name."""
+    if not ENVIRONMENT_VARIABLE_NAME_PATTERN.fullmatch(name):
+        raise ProjectConfigError(
+            f"invalid activation export name: {name!r}; expected [A-Za-z_][A-Za-z0-9_]*"
+        )
+
+
+def activation_exports_from_config(config: dict[str, Any]) -> dict[str, str]:
+    """Return validated activation exports from config in deterministic order."""
+    activation_table = config.get("activation")
+    if activation_table is None:
+        return {}
+    if not isinstance(activation_table, dict):
+        raise ProjectConfigError("config [activation] value is not a TOML table")
+
+    exports_table = activation_table.get("exports")
+    if exports_table is None:
+        return {}
+    if not isinstance(exports_table, dict):
+        raise ProjectConfigError(
+            "config [activation.exports] value is not a TOML table"
+        )
+
+    exports: dict[str, str] = {}
+    for name in sorted(exports_table):
+        validate_activation_export_name(name)
+        value = exports_table[name]
+        if not isinstance(value, str):
+            raise ProjectConfigError(
+                f"activation export {name!r} value must be a string"
+            )
+        exports[name] = value
+    return exports
 
 
 def working_dir_from_config(config: dict[str, Any]) -> str | None:

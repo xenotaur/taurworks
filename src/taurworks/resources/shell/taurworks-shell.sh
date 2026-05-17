@@ -7,8 +7,9 @@
 #   tw activate [PATH_OR_NAME] --verbose
 #
 # The taurworks executable remains read-only for activation. This sourced
-# function is the explicit layer that may mutate the current shell by running
-# `cd` to the resolved project working directory.
+# function is the explicit layer that may mutate the current shell by exporting
+# validated activation variables and running `cd` to the resolved project working
+# directory.
 
 _tw_activation_field() {
     # Extract the first stable Taurworks diagnostic line matching a key.
@@ -48,6 +49,9 @@ _tw_activate() {
     local working_dir_configured
     local working_dir_exists
     local guidance
+    local activation_message
+    local activation_message_configured
+    local activation_export_count
     local path_or_name
     local verbose
     local target_label
@@ -85,13 +89,13 @@ _tw_activate() {
     done
 
     if [ "$path_or_name" = "" ]; then
-        if output=$(command taurworks project activate --print 2>&1); then
+        if output=$(command taurworks project activate --shell 2>&1); then
             status=0
         else
             status=$?
         fi
     else
-        if output=$(command taurworks project activate "$path_or_name" --print 2>&1); then
+        if output=$(command taurworks project activate "$path_or_name" --shell 2>&1); then
             status=0
         else
             status=$?
@@ -115,27 +119,36 @@ _tw_activate() {
         return "$status"
     fi
 
-    working_dir_configured=$(printf '%s\n' "$output" | _tw_activation_field "working_dir_configured")
-    working_dir_exists=$(printf '%s\n' "$output" | _tw_activation_field "working_dir_exists")
-    resolved_working_dir=$(printf '%s\n' "$output" | _tw_activation_field "resolved_working_dir")
+    local TAURWORKS_ACTIVATION_WORKING_DIR
+    local TAURWORKS_ACTIVATION_WORKING_DIR_EXISTS
+    local TAURWORKS_ACTIVATION_WORKING_DIR_CONFIGURED
+    local TAURWORKS_ACTIVATION_GUIDANCE
+    local TAURWORKS_ACTIVATION_MESSAGE
+    local TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED
+    local TAURWORKS_ACTIVATION_EXPORT_COUNT
+
+    if ! eval "$output"; then
+        printf '%s\n' "tw activate: failed to apply Taurworks activation exports." >&2
+        return 1
+    fi
+
+    working_dir_configured=$TAURWORKS_ACTIVATION_WORKING_DIR_CONFIGURED
+    working_dir_exists=$TAURWORKS_ACTIVATION_WORKING_DIR_EXISTS
+    resolved_working_dir=$TAURWORKS_ACTIVATION_WORKING_DIR
+    guidance=$TAURWORKS_ACTIVATION_GUIDANCE
+    activation_message=$TAURWORKS_ACTIVATION_MESSAGE
+    activation_message_configured=$TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED
+    activation_export_count=$TAURWORKS_ACTIVATION_EXPORT_COUNT
 
     if [ "$resolved_working_dir" = "" ] || [ "$resolved_working_dir" = "none" ]; then
-        if [ "$verbose" = "1" ]; then
-            printf '%s\n' "$output" >&2
-        else
-            printf '%s\n' "tw activate: Taurworks did not report a resolved working directory." >&2
-            _tw_activation_detail_command "$path_or_name"
-        fi
+        printf '%s\n' "tw activate: Taurworks did not report a resolved working directory." >&2
+        _tw_activation_detail_command "$path_or_name"
         return 1
     fi
 
     if [ "$working_dir_exists" != "True" ]; then
-        if [ "$verbose" = "1" ]; then
-            printf '%s\n' "$output" >&2
-        else
-            printf '%s\n' "tw activate: resolved working directory does not exist: $resolved_working_dir" >&2
-            _tw_activation_detail_command "$path_or_name"
-        fi
+        printf '%s\n' "tw activate: resolved working directory does not exist: $resolved_working_dir" >&2
+        _tw_activation_detail_command "$path_or_name"
         return 1
     fi
 
@@ -144,11 +157,16 @@ _tw_activate() {
         return 1
     fi
 
-    guidance=$(printf '%s\n' "$output" | _tw_activation_field "guidance")
     if [ "$working_dir_configured" != "True" ] && [ "$guidance" != "" ]; then
         printf '%s\n' "tw activate: warning: $guidance" >&2
     fi
+    if [ "$activation_export_count" != "" ] && [ "$activation_export_count" != "0" ]; then
+        printf '%s\n' "tw activate: exported $activation_export_count variable(s)"
+    fi
     printf '%s\n' "tw activate: changed directory to $resolved_working_dir"
+    if [ "$activation_message_configured" = "True" ]; then
+        printf '%s\n' "$activation_message"
+    fi
 }
 
 tw() {

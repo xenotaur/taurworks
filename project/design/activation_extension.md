@@ -2,10 +2,11 @@
 
 ## Status
 
-This document is a future design note. It does not describe implemented
-activation behavior beyond the current `cd`-only sourced shell helper. It also
-must not be used as permission to add environment activation, startup hooks, or
-legacy setup sourcing without a separate implementation PR.
+This document is a design note. Taurworks now implements the first safe
+declarative activation slice: optional readiness messages and literal
+environment-variable exports consumed by the sourced `tw activate` helper. It
+still must not be used as permission to add Conda/venv/Docker activation,
+startup hooks, or legacy setup sourcing without a separate implementation PR.
 
 ## Purpose
 
@@ -15,11 +16,12 @@ Taurworks currently supports activation through an explicitly sourced helper:
 tw activate ProjectName
 ```
 
-The current implementation resolves a Taurworks project and changes the current
-shell directory to the configured working directory. Historical Taurworks-style
-project setup scripts, especially `Admin/project-setup.source`, could do more:
-source shared shell utilities, activate a Conda environment, change directory,
-and print a readiness message.
+The current implementation resolves a Taurworks project, exports any validated
+literal `[activation.exports]`, changes the current shell directory to the
+configured working directory, and prints an optional `activation.message`.
+Historical Taurworks-style project setup scripts, especially
+`Admin/project-setup.source`, could do more: source shared shell utilities,
+activate a Conda environment, change directory, and print a readiness message.
 
 Those extra behaviors are useful, but they cross stronger trust boundaries than
 changing directories. This design defines a safe path for future activation
@@ -27,8 +29,7 @@ extensions while preserving the current read-only and shell-mutating boundaries.
 
 ## Current activation baseline
 
-The validated baseline is `cd`-only activation through an explicitly sourced
-shell helper:
+The validated baseline is explicit activation through a sourced shell helper:
 
 ```bash
 source /path/to/taurworks-shell.sh
@@ -38,10 +39,14 @@ tw activate TestProject
 
 For this baseline:
 
-- `taurworks project activate --print` is the read-only source of activation
-  guidance and diagnostics.
+- `taurworks project activate --print` is the read-only source of redacted
+  activation guidance and diagnostics.
+- `taurworks project activate --shell` is a read-only machine-payload mode for
+  the sourced helper; it emits generated shell assignments only after activation
+  export names validate.
 - `tw activate`, provided by the sourced `taurworks-shell.sh` helper, is the
-  explicit wrapper that may mutate the current shell by changing directory.
+  explicit wrapper that may mutate the current shell by exporting configured
+  variables and changing directory.
 - Legacy `Admin/project-setup.source` files may be classified for visibility,
   but they are not sourced automatically and are not fallback activation targets.
 
@@ -71,14 +76,16 @@ The boundary matters because shell state changes are not all equivalent:
 
 ## Phase 2 declarative activation configuration
 
-Implementation status: planned design only. No declarative activation behavior is
-implemented by this document.
+Implementation status: the first safe slice is implemented: optional
+`activation.message` and literal string `[activation.exports]`. Environment
+activation and arbitrary hooks remain planned design only.
 
 Activation extensions should be represented declaratively in
 `.taurworks/config.toml` before any imperative hook is considered. Phase 2 is the
-safe subset of legacy project setup behavior: readiness text, one supported
-environment activation strategy, and literal exported environment variables.
-Arbitrary shell scripts remain outside Phase 2.
+safe subset of legacy project setup behavior. The first implemented slice covers
+readiness text and literal exported environment variables. A supported
+environment activation strategy remains a later PR, and arbitrary shell scripts
+remain outside Phase 2.
 
 A complete Phase 2 configuration may look like this:
 
@@ -94,10 +101,6 @@ working_dir = "example-project"
 [activation]
 message = "Ready for work on ExampleProject"
 
-[activation.environment]
-type = "conda"
-name = "ExampleProject"
-
 [activation.exports]
 PROJECT_RESOURCE = "~/example/project/resource.txt"
 NODE_OPTIONS = "--max-old-space-size=8192"
@@ -106,8 +109,8 @@ NODE_OPTIONS = "--max-old-space-size=8192"
 The schema is intentionally data-shaped:
 
 - `[activation].message` is user-facing text printed after successful activation.
-- `[activation.environment]` describes one known environment strategy. The first
-  implementation should support only `type = "conda"` with `name = "..."`.
+- `[activation.environment]` is intentionally deferred. A later implementation
+  may describe one known environment strategy such as Conda.
 - `[activation.exports]` is a TOML table of literal environment-variable values,
   not shell code.
 - Omitted activation fields mean "do nothing extra" beyond the current resolved
@@ -225,18 +228,16 @@ Design expectations:
   shell before evaluation. The initial implementation should document the shell
   family it supports and should prefer single-purpose quoting helpers over
   hand-built string concatenation.
-- `~` expansion is allowed only when documented. The proposed rule is to expand
-  a leading `~` or `~/` in export values to the current user's home directory
-  before shell quoting, while leaving embedded tildes untouched.
+- The implemented slice does not expand `~`; export values are shell-quoted and
+  exported literally. Any future `~` expansion must be documented and tested in
+  the PR that adds it.
 - Normal diagnostic output must not echo sensitive values. Diagnostics may
   mention variable names, counts, or redacted placeholders, but should avoid
   printing full values unless the user requests an explicit debug/dry-run mode
   that warns about disclosure.
-- Secret-bearing shell code must use a separate machine-readable handoff from
-  redacted diagnostics. The proposed implementation shape is a future flag such
-  as `taurworks project activate --emit-shell` or an equivalent payload channel
-  whose stdout is consumed only by `tw activate`; redacted human diagnostics
-  should stay on `--print` output or stderr.
+- Secret-bearing shell code uses a separate machine-readable handoff from
+  redacted diagnostics: `taurworks project activate --shell` is consumed by
+  `tw activate`, while redacted human diagnostics stay on `--print`.
 - `tw activate` must validate that it is reading the machine payload mode before
   evaluating output. It should not evaluate human-formatted `--print` diagnostics.
 - Exports preserve the safety boundary: they are data-driven environment
@@ -367,11 +368,11 @@ Phase 2 should be implemented through small PRs after Phase 1 dogfooding:
 1. **Activation message:** parse `[activation].message`, print it only after
    successful activation, and keep the current concise output when the field is
    absent.
-2. **Exports and payload separation:** parse `[activation.exports]`, validate
-   export names, perform documented leading `~` expansion, render shell-quoted
-   exports only through a machine-readable payload channel for `tw activate`,
-   redact values in normal diagnostics, and keep `taurworks project activate
-   --print` read-only and human-safe.
+2. **Exports and payload separation:** implemented for literal string values
+   without `~` expansion. Taurworks parses `[activation.exports]`, validates
+   export names, renders shell-quoted exports only through `--shell` for
+   `tw activate`, redacts values in normal diagnostics, and keeps
+   `taurworks project activate --print` read-only and human-safe.
 3. **Conda activation in `tw activate`:** support `[activation.environment]
    type = "conda"` plus `name`, emit/evaluate the required shell setup only in
    the sourceable wrapper path, report missing Conda or shell setup clearly, and
