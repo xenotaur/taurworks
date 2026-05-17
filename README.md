@@ -54,11 +54,12 @@ On success, `tw activate` validates the project activation config, applies
 validated `[activation.exports]`, activates a configured Conda environment when
 `[activation.environment]` is present, runs `cd` to the resolved destination in
 the current shell, and prints `activation.message` when configured. The shell
-mutation order is: export configured variables, run `conda activate <name>` when
-configured, change directory to `[paths].working_dir` or the project root
-fallback, print a concise changed-directory line, then print the configured
-message. Name-based activation uses the user-global registry and configured
-workspace root, so `tw activate NAME` works from outside the workspace and after
+mutation order is: run `conda activate <name>` when configured, export
+configured variables after environment activation succeeds, change directory to
+`[paths].working_dir` or the project root fallback, print a concise
+changed-directory line, then print the configured message. Name-based activation
+uses the user-global registry and configured workspace root, so
+`tw activate NAME` works from outside the workspace and after
 switching into another project's working directory. Normal activation failures
 are concise and actionable; use `tw activate [PATH_OR_NAME] --verbose` or
 `tw activate [PATH_OR_NAME] --debug` to print the full read-only diagnostic
@@ -67,11 +68,14 @@ block from `taurworks project activate [PATH_OR_NAME] --print`. That
 you want activation details without changing directories, exporting variables,
 or activating environments.
 
-`taurworks help` is an alias for `taurworks --help`. Non-activation `tw ...`
-commands delegate to `taurworks ...`; `tw help` is an alias for `tw --help`.
+`taurworks help` is an alias for `taurworks --help`.
+Non-activation `tw ...` commands delegate to `taurworks ...`; `tw help` is an
+alias for `tw --help`. 
 Only `tw activate ...` uses validated
-`taurworks project activate --print` output to run `cd` in the current shell.
-Future readiness messages, environment activation, trusted startup hooks, and
+`taurworks project activate --shell` output to export variables, run supported
+environment activation, and run `cd` in the current shell. Declarative
+activation currently supports a readiness message, string environment-variable
+Future trusted startup hooks and
 legacy `Admin/project-setup.source` migration are in-development topics documented
 in `project/design/activation_extension.md`.
 
@@ -93,7 +97,8 @@ validates Conda names conservatively, does not run `conda init`, does not create
 or install Conda environments, and does not edit shell startup files. Your shell
 must already provide a working `conda activate` command or function before you
 run `tw activate`; if Conda activation is unavailable or `conda activate <name>`
-fails, `tw activate` returns non-zero and avoids changing directory.
+fails, `tw activate` returns non-zero before applying activation exports or
+changing directory.
 `taurworks project activate [PATH_OR_NAME] --print` remains read-only and only
 reports environment fields such as `environment_configured`,
 `environment_type`, and `environment_name`; Python does not perform activation.

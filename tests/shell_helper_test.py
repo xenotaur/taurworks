@@ -555,6 +555,7 @@ class ShellHelperTest(unittest.TestCase):
             temp_path = pathlib.Path(temp_dir)
             bin_dir = temp_path / "bin"
             workspace = temp_path / "Workspace"
+            order_path = temp_path / "tw-conda-order.out"
             bin_dir.mkdir()
             workspace.mkdir()
             _write_taurworks_module_shim(bin_dir)
@@ -562,6 +563,7 @@ class ShellHelperTest(unittest.TestCase):
             env = _subprocess_env()
             env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
             env["TAURWORKS_WORKSPACE"] = str(workspace)
+            env["TAURWORKS_CONDA_ORDER_PATH"] = str(order_path)
             cmd = [
                 "bash",
                 "-c",
@@ -569,7 +571,7 @@ class ShellHelperTest(unittest.TestCase):
                     "conda() {\n"
                     '  if [ "$1" = "activate" ] && [ "$2" = "FakeAlphaEnv" ]; then\n'
                     '    export TAURWORKS_FAKE_CONDA_ENV="$2"\n'
-                    '    printf \'%s:%s\n\' "$2" "$(pwd)" > /tmp/tw-conda-order.out\n'
+                    '    printf \'%s:%s\n\' "$2" "$(pwd)" > "$TAURWORKS_CONDA_ORDER_PATH"\n'
                     "    return 0\n"
                     "  fi\n"
                     "  return 1\n"
@@ -591,7 +593,7 @@ class ShellHelperTest(unittest.TestCase):
                     "pwd && "
                     "printf '%s\n' \"$TAURWORKS_FAKE_CONDA_ENV\" && "
                     "printf '%s\n' \"$TAURWORKS_DOGFOOD_FLAG\" && "
-                    "cat /tmp/tw-conda-order.out"
+                    'cat "$TAURWORKS_CONDA_ORDER_PATH"'
                 ),
                 "bash",
                 str(SHELL_HELPER),
@@ -618,11 +620,13 @@ class ShellHelperTest(unittest.TestCase):
         self.assertEqual(conda_name, "FakeAlphaEnv")
         assert_same_path(self, conda_cwd, workspace)
 
-    def test_tw_activate_conda_failure_does_not_change_directory(self):
+    def test_tw_activate_conda_failure_does_not_change_directory_or_export(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)
             bin_dir = temp_path / "bin"
             workspace = temp_path / "Workspace"
+            stdout_path = temp_path / "tw-conda-fail.out"
+            stderr_path = temp_path / "tw-conda-fail.err"
             bin_dir.mkdir()
             workspace.mkdir()
             _write_taurworks_module_shim(bin_dir)
@@ -630,6 +634,7 @@ class ShellHelperTest(unittest.TestCase):
             env = _subprocess_env()
             env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
             env["TAURWORKS_WORKSPACE"] = str(workspace)
+            env["GOOD_VALUE"] = "before"
             cmd = [
                 "bash",
                 "-c",
@@ -640,19 +645,25 @@ class ShellHelperTest(unittest.TestCase):
                     "taurworks project create Alpha --local "
                     "--working-dir repo --create-working-dir >/dev/null && "
                     "cat >> Alpha/.taurworks/config.toml <<'EOF'\n"
+                    "\n[activation.exports]\n"
+                    'GOOD_VALUE = "after"\n'
                     "\n[activation.environment]\n"
                     'type = "conda"\n'
                     'name = "FakeAlphaEnv"\n'
                     "EOF\n"
                     "before=$(pwd) && "
-                    "if tw activate Alpha >/tmp/tw-conda-fail.out 2>/tmp/tw-conda-fail.err; "
+                    'if tw activate Alpha >"$3" 2>"$4"; '
                     "then exit 20; fi && "
                     'test "$(pwd)" = "$before" && '
-                    "pwd && cat /tmp/tw-conda-fail.err"
+                    "pwd && "
+                    "printf '%s\n' \"$GOOD_VALUE\" && "
+                    'cat "$4"'
                 ),
                 "bash",
                 str(SHELL_HELPER),
                 str(workspace),
+                str(stdout_path),
+                str(stderr_path),
             ]
             result = subprocess.run(
                 cmd,
@@ -664,10 +675,13 @@ class ShellHelperTest(unittest.TestCase):
             )
 
         self.assertEqual(result.returncode, 0, msg=result.stderr)
-        assert_same_path(self, result.stdout.splitlines()[0], workspace)
+        stdout_lines = result.stdout.splitlines()
+        assert_same_path(self, stdout_lines[0], workspace)
+        self.assertEqual(stdout_lines[1], "before")
         self.assertIn(
             "failed to activate Conda environment: FakeAlphaEnv", result.stdout
         )
+        self.assertNotIn("after", result.stdout)
 
     def test_tw_activate_without_environment_does_not_require_conda(self):
         with tempfile.TemporaryDirectory() as temp_dir:

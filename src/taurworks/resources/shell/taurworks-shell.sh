@@ -164,13 +164,6 @@ _tw_activate() {
         return 1
     fi
 
-    if [ "$activation_export_commands" != "" ]; then
-        if ! eval "$activation_export_commands"; then
-            printf '%s\n' "tw activate: failed to apply Taurworks activation exports." >&2
-            return 1
-        fi
-    fi
-
     if [ "$environment_configured" = "True" ]; then
         if [ "$environment_type" != "conda" ]; then
             printf '%s\n' "tw activate: unsupported activation environment type: $environment_type" >&2
@@ -182,6 +175,13 @@ _tw_activate() {
         fi
         if ! conda activate "$environment_name"; then
             printf '%s\n' "tw activate: failed to activate Conda environment: $environment_name" >&2
+            return 1
+        fi
+    fi
+
+    if [ "$activation_export_commands" != "" ]; then
+        if ! eval "$activation_export_commands"; then
+            printf '%s\n' "tw activate: failed to apply Taurworks activation exports." >&2
             return 1
         fi
     fi

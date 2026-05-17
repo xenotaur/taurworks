@@ -12,9 +12,9 @@ Implemented Conda support for declarative Taurworks activation config.
 # Result
 - Added validated `[activation.environment]` parsing for `type = "conda"` and a required conservative Conda environment `name`.
 - Updated read-only `taurworks project activate --print` diagnostics to report environment configuration without mutating shell state.
-- Updated the sourced `tw activate` helper to apply exports, run `conda activate <name>` when configured, then change directory and print activation messages.
+- Updated the sourced `tw activate` helper to run `conda activate <name>` when configured, apply exports only after environment activation succeeds, then change directory and print activation messages.
 - Documented the Conda activation schema, requirements, ordering, and deferred environment/hook types.
-- Added unit and shell-helper tests for read-only reporting, invalid environment config, successful fake Conda activation, failure handling, and no-Conda behavior when no environment is configured.
+- Added unit and shell-helper tests for read-only reporting, invalid environment config, successful fake Conda activation, failure handling without leaked exports, and no-Conda behavior when no environment is configured.
 
 # Validation
 - Passed: `./scripts/test`
