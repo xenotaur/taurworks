@@ -753,7 +753,6 @@ class CliCommandTest(unittest.TestCase):
             result = _run_cli(["project", "create", ".."], inner, env)
 
             self.assertEqual(result.returncode, 0, msg=result.stdout + result.stderr)
-            fields = parse_cli_fields(result.stdout)
             self.assertTrue((local / ".taurworks" / "config.toml").is_file())
             self.assertFalse((root_path / ".taurworks").exists())
             result_fields = parse_cli_fields(result.stdout)
