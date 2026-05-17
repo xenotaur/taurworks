@@ -46,6 +46,7 @@ and package installation does not install shell hooks.
 
 ```bash
 tw activate [PATH_OR_NAME]
+taurworks help
 tw help
 ```
 
@@ -61,13 +62,13 @@ block from `taurworks project activate [PATH_OR_NAME] --print`. That
 `taurworks project activate --print` command remains safe to run directly when
 you want activation details without changing directories or exporting variables.
 
-Non-activation `tw ...` commands delegate to `taurworks ...`; `tw help` is an
-alias for `tw --help`. Only `tw activate ...` uses validated
-`taurworks project activate --shell` output to export variables and run `cd` in
-the current shell. Declarative activation currently supports only a readiness
-message and string environment-variable exports. Conda activation, virtualenv
-activation, Docker activation, arbitrary user hooks/scripts, and legacy
-`Admin/project-setup.source` migration remain deferred.
+`taurworks help` is an alias for `taurworks --help`. Non-activation `tw ...`
+commands delegate to `taurworks ...`; `tw help` is an alias for `tw --help`.
+Only `tw activate ...` uses validated
+`taurworks project activate --print` output to run `cd` in the current shell.
+Future readiness messages, environment activation, trusted startup hooks, and
+legacy `Admin/project-setup.source` migration are design-only topics documented
+in `project/design/activation_extension.md`.
 
 ## Developer setup
 
@@ -182,15 +183,21 @@ The currently implemented namespaced commands are:
 - `tw root PROJECT` and `tw working PROJECT` after manually sourcing the printed helper (implemented, convenience aliases that delegate to the same path emitters)
 - `tw activate [PATH_OR_NAME]` after manually sourcing the printed helper (implemented, explicit shell function that changes directory only)
 - `tw activate [PATH_OR_NAME] --verbose` or `--debug` (implemented, prints detailed activation diagnostics on failure)
+- `taurworks help` (implemented, alias for `taurworks --help`)
+- `taurworks help COMMAND` (implemented for existing command namespaces, equivalent to `taurworks COMMAND --help`)
 - `tw help` after manually sourcing the printed helper (implemented, alias for `tw --help`)
 
 Quick namespace help:
 
 ```bash
+taurworks help
 taurworks config --help
 taurworks workspace --help
 taurworks project --help
 taurworks dev --help
+taurworks help project
+taurworks help dev
+taurworks help shell
 ```
 
 ## User-global config and workspace root
@@ -229,7 +236,7 @@ Registry entries differ from workspace discovery: workspace discovery remains di
 
 `taurworks project where` intentionally does not mutate files, environments, or shell state.
 `taurworks project list` is also non-mutating and reports discoverable projects plus discovery limitations.
-All non-activation `tw ...` commands delegate to `taurworks ...`, so `tw dev where` and `tw dev status` use the same read-only diagnostics; `tw help` delegates to `taurworks --help`. Only `tw activate ...` has shell-mutating behavior, and detailed activation diagnostics stay available through `tw activate ... --verbose`, `tw activate ... --debug`, or direct `taurworks project activate ... --print`.
+`taurworks help` delegates to top-level `taurworks --help`, and `taurworks help COMMAND` delegates to existing command help. All non-activation `tw ...` commands delegate to `taurworks ...`, so `tw dev where` and `tw dev status` use the same read-only diagnostics; `tw help` delegates to `taurworks --help`. Only `tw activate ...` has shell-mutating behavior, and detailed activation diagnostics stay available through `tw activate ... --verbose`, `tw activate ... --debug`, or direct `taurworks project activate ... --print`.
 
 ## `taurworks projects` / `tw projects` workspace statuses
 
@@ -685,6 +692,7 @@ Then validate the package import and CLI entry point:
 ```bash
 python -c "import taurworks; print(taurworks.__file__)"
 taurworks --help
+taurworks help
 taurworks project --help
 python -m taurworks.cli --help
 ```

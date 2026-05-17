@@ -193,7 +193,20 @@ def _handle_shell_command(args):
     args.shell_parser.print_help()
 
 
-def main():
+def _normalize_help_alias(argv):
+    """Map `taurworks help` forms to argparse help flags."""
+    if argv and argv[0] == "help":
+        if len(argv) == 1:
+            return ["--help"]
+        return [*argv[1:], "--help"]
+    return argv
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
+    argv = _normalize_help_alias(argv)
+
     parser = argparse.ArgumentParser(
         prog="taurworks", description="Manage taurworks projects."
     )
@@ -742,7 +755,7 @@ def main():
     parser_shell_print.set_defaults(shell_parser=parser_shell)
     parser_shell.set_defaults(shell_parser=parser_shell)
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.command == "projects":
         manager.list_projects(show_details=args.details)
