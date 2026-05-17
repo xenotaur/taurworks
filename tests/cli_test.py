@@ -102,7 +102,7 @@ class CliCommandTest(unittest.TestCase):
         self.assertEqual(help_result.stderr, "")
 
     def test_help_alias_supports_existing_namespace_help(self):
-        for namespace in ("project", "dev", "shell"):
+        for namespace in ("config", "workspace", "project", "dev", "shell"):
             with self.subTest(namespace=namespace):
                 alias_result = _run_cli(["help", namespace], pathlib.Path.cwd())
                 option_result = _run_cli([namespace, "--help"], pathlib.Path.cwd())
