@@ -129,7 +129,10 @@ def _handle_project_command(args):
         diagnostics = project_resolution.gather_project_activate_print_diagnostics(
             args.path_or_name
         )
-        print(project_resolution.format_project_activate_print_output(diagnostics))
+        if args.shell:
+            print(project_resolution.format_project_activate_shell_output(diagnostics))
+        else:
+            print(project_resolution.format_project_activate_print_output(diagnostics))
         if not diagnostics["ok"]:
             raise SystemExit(1)
         return
@@ -580,7 +583,15 @@ def main():
         "--print",
         dest="print_only",
         action="store_true",
-        help="Print activation guidance (required in this non-mutating slice).",
+        help="Print human-readable activation guidance (read-only).",
+    )
+    parser_project_activate.add_argument(
+        "--shell",
+        action="store_true",
+        help=(
+            "Print machine-readable shell assignments for the sourced tw helper "
+            "(read-only in this process)."
+        ),
     )
     parser_project_activate.set_defaults(project_parser=parser_project)
 
@@ -689,9 +700,13 @@ def main():
             and args.working_dir is None
         ):
             parser_project_create.error("--create-working-dir requires --working-dir")
-        if args.project_command == "activate" and not args.print_only:
+        if args.project_command == "activate" and not (args.print_only or args.shell):
             parser_project.error(
-                "project activate currently requires --print and is read-only."
+                "project activate currently requires --print or --shell and is read-only."
+            )
+        if args.project_command == "activate" and args.print_only and args.shell:
+            parser_project.error(
+                "project activate accepts only one of --print or --shell."
             )
         _handle_project_command(args)
 

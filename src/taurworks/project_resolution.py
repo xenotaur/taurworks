@@ -1172,6 +1172,12 @@ def gather_project_activate_print_diagnostics(
         "resolved_working_dir": "none",
         "working_dir_exists": False,
         "activation_command": "none",
+        "activation_message_configured": False,
+        "activation_message": "",
+        "activation_exports_configured": False,
+        "activation_export_count": 0,
+        "activation_export_names": "none",
+        "activation_exports": {},
         "guidance": "",
         "read_only": True,
     }
@@ -1210,6 +1216,17 @@ def gather_project_activate_print_diagnostics(
 
     try:
         config = project_internals.read_project_config(project_root)
+        activation_message = project_internals.activation_message_from_config(config)
+        activation_exports = project_internals.activation_exports_from_config(config)
+        base_diagnostics["activation_message_configured"] = (
+            activation_message is not None
+        )
+        base_diagnostics["activation_message"] = activation_message or ""
+        base_diagnostics["activation_exports_configured"] = bool(activation_exports)
+        base_diagnostics["activation_export_count"] = len(activation_exports)
+        if activation_exports:
+            base_diagnostics["activation_export_names"] = ",".join(activation_exports)
+        base_diagnostics["activation_exports"] = activation_exports
         working_dir = project_internals.working_dir_from_config(config)
         if working_dir is None:
             return _activation_target_diagnostics(
@@ -1231,9 +1248,10 @@ def gather_project_activate_print_diagnostics(
     ) as error:
         base_diagnostics["ok"] = False
         base_diagnostics["guidance"] = (
-            "Configured working_dir is invalid or could not be read safely: "
+            "Configured working_dir is invalid or activation data could not be read safely: "
             f"{error}. Run `taurworks project working-dir set [DIR]` "
-            "from inside the project to replace it."
+            "from inside the project to replace invalid working_dir metadata, or edit "
+            ".taurworks/config.toml to fix activation metadata."
         )
         return base_diagnostics
 
@@ -1282,10 +1300,42 @@ def format_project_activate_print_output(
         f"- resolved_working_dir: {diagnostics['resolved_working_dir']}",
         f"- working_dir_exists: {diagnostics['working_dir_exists']}",
         f"- activation_command: {diagnostics['activation_command']}",
+        f"- activation_message_configured: {diagnostics['activation_message_configured']}",
+        f"- activation_exports_configured: {diagnostics['activation_exports_configured']}",
+        f"- activation_export_count: {diagnostics['activation_export_count']}",
+        f"- activation_export_names: {diagnostics['activation_export_names']}",
+        "- activation_export_values: hidden",
         "- shell_mutation: not performed",
         f"- guidance: {diagnostics['guidance']}",
         "- note: activation_command is printed for inspection only and was not executed",
         "- note: real shell mutation is limited to an explicitly sourced shell wrapper/function such as tw activate",
+    ]
+    return "\n".join(lines)
+
+
+def format_project_activate_shell_output(
+    diagnostics: dict[str, str | bool | int | dict[str, str]],
+) -> str:
+    """Format validated activation data as shell assignments for tw."""
+    if not diagnostics["ok"]:
+        return format_project_activate_print_output(diagnostics)
+
+    activation_exports = diagnostics["activation_exports"]
+    export_commands: list[str] = []
+    if isinstance(activation_exports, dict):
+        for name, value in activation_exports.items():
+            export_commands.append(f"export {name}={shlex.quote(value)}")
+
+    lines = [
+        "# Taurworks project activation shell data",
+        f"TAURWORKS_ACTIVATION_WORKING_DIR={shlex.quote(str(diagnostics['resolved_working_dir']))}",
+        f"TAURWORKS_ACTIVATION_WORKING_DIR_EXISTS={shlex.quote(str(diagnostics['working_dir_exists']))}",
+        f"TAURWORKS_ACTIVATION_WORKING_DIR_CONFIGURED={shlex.quote(str(diagnostics['working_dir_configured']))}",
+        f"TAURWORKS_ACTIVATION_GUIDANCE={shlex.quote(str(diagnostics['guidance']))}",
+        f"TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED={shlex.quote(str(diagnostics['activation_message_configured']))}",
+        f"TAURWORKS_ACTIVATION_MESSAGE={shlex.quote(str(diagnostics['activation_message']))}",
+        f"TAURWORKS_ACTIVATION_EXPORT_COUNT={shlex.quote(str(diagnostics['activation_export_count']))}",
+        f"TAURWORKS_ACTIVATION_EXPORT_COMMANDS={shlex.quote(chr(10).join(export_commands))}",
     ]
     return "\n".join(lines)
 

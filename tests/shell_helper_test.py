@@ -486,6 +486,179 @@ class ShellHelperTest(unittest.TestCase):
         self.assertNotIn("working_dir_exists: False", result.stdout)
         self.assertIn("taurworks project activate TestProject --print", result.stdout)
 
+    def test_tw_activate_exports_variables_and_prints_message(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            workspace = temp_path / "Workspace"
+            bin_dir.mkdir()
+            workspace.mkdir()
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    'cd "$2" && '
+                    "taurworks project create Alpha --local "
+                    "--working-dir repo --create-working-dir >/dev/null && "
+                    "cat >> Alpha/.taurworks/config.toml <<'EOF'\n"
+                    "\n[activation]\n"
+                    'message = "Ready for work on project Alpha"\n'
+                    "\n[activation.exports]\n"
+                    'NODE_OPTIONS = "--max-old-space-size=8192"\n'
+                    'TAURWORKS_DOGFOOD_FLAG = "enabled"\n'
+                    "QUOTED_VALUE = \"a value with 'quotes' and spaces\"\n"
+                    "EOF\n"
+                    "tw activate Alpha && "
+                    "pwd && "
+                    "printf '%s\n' \"$TAURWORKS_DOGFOOD_FLAG\" && "
+                    "printf '%s\n' \"$NODE_OPTIONS\" && "
+                    "printf '%s\n' \"$QUOTED_VALUE\""
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        expected_dir = workspace / "Alpha" / "repo"
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        stdout_lines = result.stdout.splitlines()
+        self.assertIn("tw activate: exported 3 variable(s)", stdout_lines)
+        self.assertIn("Ready for work on project Alpha", stdout_lines)
+        assert_same_path(self, stdout_lines[-4], expected_dir)
+        self.assertEqual(
+            stdout_lines[-3:],
+            [
+                "enabled",
+                "--max-old-space-size=8192",
+                "a value with 'quotes' and spaces",
+            ],
+        )
+        self.assertNotIn("enabled", "\n".join(stdout_lines[:-3]))
+        self.assertNotIn("--max-old-space-size=8192", "\n".join(stdout_lines[:-3]))
+
+    def test_tw_activate_missing_working_dir_does_not_export_variables(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            workspace = temp_path / "Workspace"
+            bin_dir.mkdir()
+            workspace.mkdir()
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            env["GOOD_VALUE"] = "before"
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    'cd "$2" && '
+                    "taurworks project create Alpha --local "
+                    "--working-dir missing_repo >/dev/null && "
+                    "cat >> Alpha/.taurworks/config.toml <<'EOF'\n"
+                    "\n[activation.exports]\n"
+                    'GOOD_VALUE = "after"\n'
+                    "EOF\n"
+                    "before=$(pwd) && "
+                    "if tw activate Alpha >/tmp/tw-missing-export.out 2>/tmp/tw-missing-export.err; "
+                    "then exit 20; fi && "
+                    'test "$(pwd)" = "$before" && '
+                    "pwd && "
+                    "printf '%s\n' \"$GOOD_VALUE\" && "
+                    "cat /tmp/tw-missing-export.err"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        stdout_lines = result.stdout.splitlines()
+        assert_same_path(self, stdout_lines[0], workspace)
+        self.assertEqual(stdout_lines[1], "before")
+        self.assertIn("directory does not exist", result.stdout)
+        self.assertNotIn("after", result.stdout)
+
+    def test_tw_activate_invalid_export_preserves_directory_and_existing_env(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            workspace = temp_path / "Workspace"
+            bin_dir.mkdir()
+            workspace.mkdir()
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            env["GOOD_VALUE"] = "before"
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    'cd "$2" && '
+                    "taurworks project create Alpha --local "
+                    "--working-dir repo --create-working-dir >/dev/null && "
+                    "cat >> Alpha/.taurworks/config.toml <<'EOF'\n"
+                    "\n[activation.exports]\n"
+                    'GOOD_VALUE = "after"\n'
+                    '"BAD-NAME" = "bad"\n'
+                    "EOF\n"
+                    "before=$(pwd) && "
+                    "if tw activate Alpha >/tmp/tw-invalid-export.out 2>/tmp/tw-invalid-export.err; "
+                    "then exit 20; fi && "
+                    'test "$(pwd)" = "$before" && '
+                    "pwd && "
+                    "printf '%s\n' \"$GOOD_VALUE\" && "
+                    "cat /tmp/tw-invalid-export.err"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        stdout_lines = result.stdout.splitlines()
+        assert_same_path(self, stdout_lines[0], workspace)
+        self.assertEqual(stdout_lines[1], "before")
+        self.assertIn("activation failed for Alpha", result.stdout)
+        self.assertIn("invalid activation export name", result.stdout)
+        self.assertNotIn("after", result.stdout)
+        self.assertNotIn("bad", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
