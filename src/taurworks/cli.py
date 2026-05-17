@@ -36,8 +36,33 @@ def _handle_workspace_command(args):
     args.workspace_parser.print_help()
 
 
+def _emit_project_path(path_or_name: str, path_kind: str, command_name: str) -> None:
+    """Emit one resolved project path to stdout or diagnostics to stderr."""
+    diagnostics = project_resolution.gather_project_path_diagnostics(
+        path_or_name,
+        path_kind,
+    )
+    if diagnostics["ok"]:
+        print(diagnostics["path"])
+        return
+
+    print(
+        project_resolution.format_project_path_error(diagnostics, command_name),
+        file=sys.stderr,
+    )
+    raise SystemExit(1)
+
+
 def _handle_project_command(args):
     """Handle scaffolded `taurworks project ...` commands."""
+    if args.project_command == "root":
+        _emit_project_path(args.path_or_name, "root", "taurworks project root")
+        return
+
+    if args.project_command == "working":
+        _emit_project_path(args.path_or_name, "working", "taurworks project working")
+        return
+
     if args.project_command == "where":
         diagnostics = project_resolution.gather_project_where_diagnostics()
         print(project_resolution.format_project_where_output(diagnostics))
@@ -129,7 +154,10 @@ def _handle_project_command(args):
         diagnostics = project_resolution.gather_project_activate_print_diagnostics(
             args.path_or_name
         )
-        print(project_resolution.format_project_activate_print_output(diagnostics))
+        if args.shell:
+            print(project_resolution.format_project_activate_shell_output(diagnostics))
+        else:
+            print(project_resolution.format_project_activate_print_output(diagnostics))
         if not diagnostics["ok"]:
             raise SystemExit(1)
         return
@@ -242,6 +270,32 @@ def main(argv=None):
         "project_name", type=str, help="Name of the project to activate."
     )
 
+    parser_root = subparsers.add_parser(
+        "root",
+        help="Print a project's registered root directory for shell composition.",
+        description=(
+            "Resolve PROJECT by name or path and print exactly one absolute "
+            "project root path to stdout. Diagnostics are written to stderr on failure."
+        ),
+    )
+    parser_root.add_argument(
+        "path_or_name", metavar="PROJECT", help="Project name or path."
+    )
+
+    parser_working = subparsers.add_parser(
+        "working",
+        help="Print a project's preferred working directory for shell composition.",
+        description=(
+            "Resolve PROJECT by name or path and print exactly one absolute "
+            "preferred working directory path to stdout. Diagnostics are written to stderr on failure."
+        ),
+    )
+    parser_working.add_argument(
+        "path_or_name",
+        metavar="PROJECT",
+        help="Project name or path.",
+    )
+
     # `config` namespace
     parser_config = subparsers.add_parser(
         "config",
@@ -316,6 +370,38 @@ def main(argv=None):
         dest="project_command",
         required=False,
     )
+
+    parser_project_root = project_subparsers.add_parser(
+        "root",
+        help="Print a project's registered root directory.",
+        description=(
+            "Resolve PROJECT by name or path and print exactly one absolute "
+            "project root path to stdout for shell composition. Diagnostics are written to stderr "
+            "on failure."
+        ),
+    )
+    parser_project_root.add_argument(
+        "path_or_name",
+        metavar="PROJECT",
+        help="Project name or path.",
+    )
+    parser_project_root.set_defaults(project_parser=parser_project)
+
+    parser_project_working = project_subparsers.add_parser(
+        "working",
+        help="Print a project's preferred working directory.",
+        description=(
+            "Resolve PROJECT by name or path and print exactly one absolute "
+            "preferred working directory path to stdout for shell composition. Diagnostics are "
+            "written to stderr on failure."
+        ),
+    )
+    parser_project_working.add_argument(
+        "path_or_name",
+        metavar="PROJECT",
+        help="Project name or path.",
+    )
+    parser_project_working.set_defaults(project_parser=parser_project)
 
     parser_project_where = project_subparsers.add_parser(
         "where",
@@ -593,7 +679,15 @@ def main(argv=None):
         "--print",
         dest="print_only",
         action="store_true",
-        help="Print activation guidance (required in this non-mutating slice).",
+        help="Print human-readable activation guidance (read-only).",
+    )
+    parser_project_activate.add_argument(
+        "--shell",
+        action="store_true",
+        help=(
+            "Print machine-readable shell assignments for the sourced tw helper "
+            "(read-only in this process)."
+        ),
     )
     parser_project_activate.set_defaults(project_parser=parser_project)
 
@@ -687,6 +781,10 @@ def main(argv=None):
         _handle_dev_command(args)
     elif args.command == "activate":
         manager.activate_project(args.project_name)
+    elif args.command == "root":
+        _emit_project_path(args.path_or_name, "root", "taurworks root")
+    elif args.command == "working":
+        _emit_project_path(args.path_or_name, "working", "taurworks working")
     elif args.command == "shell":
         _handle_shell_command(args)
     elif args.command == "project":
@@ -702,9 +800,13 @@ def main(argv=None):
             and args.working_dir is None
         ):
             parser_project_create.error("--create-working-dir requires --working-dir")
-        if args.project_command == "activate" and not args.print_only:
+        if args.project_command == "activate" and not (args.print_only or args.shell):
             parser_project.error(
-                "project activate currently requires --print and is read-only."
+                "project activate currently requires --print or --shell and is read-only."
+            )
+        if args.project_command == "activate" and args.print_only and args.shell:
+            parser_project.error(
+                "project activate accepts only one of --print or --shell."
             )
         _handle_project_command(args)
 

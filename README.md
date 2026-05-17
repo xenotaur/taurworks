@@ -21,7 +21,8 @@ The `taurworks` executable is a Python command-line program. Like any normal
 child process, it cannot mutate the parent shell, so
 `taurworks project activate --print` remains read-only activation guidance. The
 `tw` command is a shell function provided by a manually sourced helper; only
-that explicit sourced layer may change the current shell directory.
+that explicit sourced layer may export declarative activation variables and
+change the current shell directory.
 
 Print the packaged helper with:
 
@@ -49,16 +50,17 @@ taurworks help
 tw help
 ```
 
-On success, `tw activate` prints a concise confirmation containing the resolved
-destination path and runs `cd` in the current shell. Name-based activation uses
-the user-global registry and configured workspace root, so `tw activate NAME`
-works from outside the workspace and after switching into another project's
-working directory. Normal activation failures are concise and actionable; use
-`tw activate [PATH_OR_NAME] --verbose` or `tw activate [PATH_OR_NAME] --debug`
-to print the full read-only diagnostic block from
-`taurworks project activate [PATH_OR_NAME] --print`. That
+On success, `tw activate` applies validated `[activation.exports]`, prints a
+concise exported-variable count when exports are configured, runs `cd` to the
+resolved destination in the current shell, and prints `activation.message` when
+configured. Name-based activation uses the user-global registry and configured
+workspace root, so `tw activate NAME` works from outside the workspace and after
+switching into another project's working directory. Normal activation failures
+are concise and actionable; use `tw activate [PATH_OR_NAME] --verbose` or
+`tw activate [PATH_OR_NAME] --debug` to print the full read-only diagnostic
+block from `taurworks project activate [PATH_OR_NAME] --print`. That
 `taurworks project activate --print` command remains safe to run directly when
-you want activation details without changing directories.
+you want activation details without changing directories or exporting variables.
 
 `taurworks help` is an alias for `taurworks --help`. Non-activation `tw ...`
 commands delegate to `taurworks ...`; `tw help` is an alias for `tw --help`.
@@ -144,8 +146,8 @@ These namespaces are expected to share a common configuration/discovery core whe
 
 ### Implementation status and compatibility
 
-Status note: `taurworks config where`, `taurworks workspace show`, and `taurworks workspace set PATH` now provide the first XDG-style user-global config slice. `taurworks project ...` now includes implemented discovery, scaffold, existing-root initialization, working-directory metadata, and read-only guidance commands (`where`, `list`, `register`, `unregister`, `registry list`, `refresh`, `init`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` now exists as a minimal read-only diagnostics namespace for repository/developer workflow context (`where` and `status`); full workflow automation remains future work.
-Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, `taurworks project init`, `taurworks project register NAME PATH`, `taurworks project unregister NAME`, `taurworks project registry list`, `taurworks project create`, `taurworks project working-dir show [PATH_OR_NAME]`, and `taurworks project activate [PATH_OR_NAME] --print` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior where appropriate.
+Status note: `taurworks config where`, `taurworks workspace show`, and `taurworks workspace set PATH` now provide the first XDG-style user-global config slice. `taurworks project ...` now includes implemented discovery, scaffold, existing-root initialization, working-directory metadata, and read-only guidance commands (`where`, `list`, `register`, `unregister`, `registry list`, `root`, `working`, `refresh`, `init`, `create`, `working-dir show`, `working-dir set`, and `activate --print`). `taurworks dev ...` now exists as a minimal read-only diagnostics namespace for repository/developer workflow context (`where` and `status`); full workflow automation remains future work.
+Implementation note: `taurworks project where`, `taurworks project list`, `taurworks project refresh`, `taurworks project init`, `taurworks project register NAME PATH`, `taurworks project unregister NAME`, `taurworks project registry list`, `taurworks project root PROJECT`, `taurworks project working PROJECT`, `taurworks project create`, `taurworks project working-dir show [PATH_OR_NAME]`, and `taurworks project activate [PATH_OR_NAME] --print` share consolidated internals for project resolution, discovery, and safe `.taurworks/` scaffolding behavior where appropriate.
 Design note: dogfooding confirmed the `project_root` (the directory containing `.taurworks/`) and `working_dir` (the default code/work directory, stored relative to `project_root`) model. The accepted design separates `project init` for existing/current roots from `project create` for new roots, centralizes target resolution diagnostics, makes working-directory creation explicit, and prevents accidental nested same-name projects. `tw activate` is now the explicit opt-in shell-mutating wrapper for changing the current shell directory. Broad `taurworks dev ...` automation, automatic shell startup-file edits, environment activation, and multi-repo management remain out of scope.
 
 The namespaced model is the active design direction. The currently shipped CLI remains compatibility-first and continues to support top-level lifecycle commands such as:
@@ -165,6 +167,8 @@ The currently implemented namespaced commands are:
 - `taurworks project register NAME PATH` (implemented, writes `[projects.NAME].root` to user-global config)
 - `taurworks project unregister NAME` (implemented, removes a registry entry without deleting project files)
 - `taurworks project registry list` (implemented, read-only registry listing with path/config status and collision visibility)
+- `taurworks project root PROJECT` (implemented, prints exactly one absolute registered/resolved project root path for shell composition)
+- `taurworks project working PROJECT` (implemented, prints exactly one absolute preferred working-directory path for shell composition)
 - `taurworks project refresh [PATH_OR_NAME]` (implemented, safe idempotent metadata scaffolding repair)
 - `taurworks project init [PATH] [--working-dir DIR] [--create-working-dir]` (implemented, safe idempotent initialization of an existing/current project root)
 - `taurworks project working-dir show [PATH_OR_NAME]` (implemented, target-aware project working-directory metadata display)
@@ -176,6 +180,7 @@ The currently implemented namespaced commands are:
 - `taurworks dev where` (implemented, read-only repository/workspace diagnostics)
 - `taurworks dev status` (implemented, read-only summary that explicitly leaves detailed VCS automation for future work)
 - `taurworks shell print` (implemented, prints the packaged sourceable `tw` shell helper)
+- `tw root PROJECT` and `tw working PROJECT` after manually sourcing the printed helper (implemented, convenience aliases that delegate to the same path emitters)
 - `tw activate [PATH_OR_NAME]` after manually sourcing the printed helper (implemented, explicit shell function that changes directory only)
 - `tw activate [PATH_OR_NAME] --verbose` or `--debug` (implemented, prints detailed activation diagnostics on failure)
 - `taurworks help` (implemented, alias for `taurworks --help`)
@@ -296,6 +301,20 @@ Implemented target-aware `working-dir show` behavior:
 Activation resolution for bare names is stable and global-first: explicit registry entry by name; direct initialized child of the configured workspace root; direct legacy-admin child of the configured workspace root; direct workspace-only child of the configured workspace root; current/enclosing project fallback when no name is provided or the name matches the current project; and explicit path-like inputs for local/path-oriented activation. Unresolved bare names do not silently scan the current directory recursively.
 
 Activation behavior is intentionally safe. Initialized projects with `[paths].working_dir` change to that directory when it exists. Initialized projects without `working_dir` change to the project root and warn. Workspace-only projects also change to the project root and warn that the project is not initialized. Legacy-admin projects change to the project root and warn that `Admin/project-setup.source` exists but was not sourced. Registered projects first resolve their registry root, then use the same initialized/workspace-only/legacy-admin behavior. Taurworks still does not source scripts, activate Conda/venv/Docker environments, run hooks, edit shell startup files, or create missing working directories during activation.
+
+## Script-friendly project path emitters
+
+Use `taurworks project root PROJECT` when shell scripts need the registered/resolved project root directory, and use `taurworks project working PROJECT` when they need the preferred day-to-day working directory. The sourced `tw` helper provides convenience aliases: `tw root PROJECT` and `tw working PROJECT`.
+
+These commands are designed for shell composition: on success they emit exactly one absolute path to stdout with a trailing newline and no labels or extra formatting. Diagnostics go to stderr and failures return a nonzero exit code with no stdout. Quote command substitutions so paths containing spaces remain safe:
+
+```bash
+pushd "$(tw working LogicalRoboticsHarness)"
+git -C "$(tw project working LogicalRoboticsHarness)" status
+code "$(tw root Taurworks)"
+```
+
+`taurworks project working PROJECT` currently uses `[paths].working_dir` when configured and falls back to the project root when no distinct working directory is configured. The preferred working directory may intentionally diverge from the project root over time.
 
 ## Dogfood workflows for init/create/activation guidance
 
@@ -577,9 +596,40 @@ source ~/.config/taurworks/taurworks-shell.sh
 
 After it is sourced, `tw` behaves as follows:
 
-- `tw activate [PATH_OR_NAME]` calls `taurworks project activate [PATH_OR_NAME] --print`, reads the stable `working_dir_configured`, `resolved_working_dir`, and `working_dir_exists` diagnostic fields, and runs only `cd -- "$resolved_working_dir"` in the current shell when the working directory is configured and exists.
+- `tw activate [PATH_OR_NAME]` calls `taurworks project activate [PATH_OR_NAME] --shell`, consumes validated shell assignments generated by Taurworks, exports configured variables, and runs `cd -- "$resolved_working_dir"` only when the resolved working directory exists.
+- `taurworks project activate [PATH_OR_NAME] --print` remains read-only human guidance. It reports whether an activation message and exports are configured, including export names and counts, but hides export values.
 - `tw project where`, `tw project list`, `tw project create ...`, and other non-activation invocations delegate directly to `taurworks ...`.
-- failures print Taurworks diagnostics and do not change directory.
+- failures print Taurworks diagnostics and do not change directory or apply partial exports when export-name validation fails.
+
+Project-local `.taurworks/config.toml` may include this safe declarative activation slice:
+
+```toml
+schema_version = 1
+
+[project]
+name = "Alpha"
+
+[paths]
+working_dir = "repo"
+
+[activation]
+message = "Ready for work on project Alpha"
+
+[activation.exports]
+NODE_OPTIONS = "--max-old-space-size=8192"
+```
+
+Then run:
+
+```bash
+tw activate Alpha
+```
+
+Activation export names must match `[A-Za-z_][A-Za-z0-9_]*`, and export
+values must be strings. Taurworks shell-quotes generated export values before
+the sourced helper evaluates them; values are exported literally, so `~` is not
+expanded inside export values in this slice. Normal human output never prints
+export values.
 
 Basic dogfood workflow:
 

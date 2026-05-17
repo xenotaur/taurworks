@@ -211,6 +211,33 @@ class ProjectInternalsTest(unittest.TestCase):
             )
             self.assertEqual(original_config, config_path.read_text(encoding="utf-8"))
 
+    def test_set_working_dir_preserves_nested_activation_exports(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            repo_dir = project_dir / "repo"
+            metadata_dir = project_dir / ".taurworks"
+            repo_dir.mkdir(parents=True)
+            metadata_dir.mkdir()
+            (metadata_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "proj"\n\n'
+                    '[activation]\nmessage = "Ready"\n\n'
+                    '[activation.exports]\nNODE_OPTIONS = "--max-old-space-size=8192"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            project_internals.set_working_dir(project_dir, project_dir, "repo")
+            config = project_internals.read_project_config(project_dir)
+
+        self.assertEqual("repo", config["paths"]["working_dir"])
+        self.assertEqual("Ready", config["activation"]["message"])
+        self.assertEqual(
+            "--max-old-space-size=8192",
+            config["activation"]["exports"]["NODE_OPTIONS"],
+        )
+
     def test_ensure_minimal_project_config_rejects_future_schema_version(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = pathlib.Path(temp_dir) / "proj"

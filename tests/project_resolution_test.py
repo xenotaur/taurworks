@@ -173,6 +173,87 @@ class GlobalActivationResolutionTest(unittest.TestCase):
         assert_same_path(self, diagnostics["resolved_working_dir"], second_repo)
         assert_same_path(self, diagnostics["project_root"], second_root)
 
+    def test_activation_message_and_exports_are_reported_without_values(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            project_root = temp_path / "Project"
+            repo = project_root / "repo"
+            repo.mkdir(parents=True)
+            config_dir = project_root / ".taurworks"
+            config_dir.mkdir()
+            (config_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "Project"\n\n'
+                    '[paths]\nworking_dir = "repo"\n\n'
+                    '[activation]\nmessage = "Ready for work"\n\n'
+                    "[activation.exports]\n"
+                    'NODE_OPTIONS = "--max-old-space-size=8192"\n'
+                    'SECRET_TOKEN = "do-not-print"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                os.chdir(project_root)
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Project"
+                    )
+                )
+                rendered = project_resolution.format_project_activate_print_output(
+                    diagnostics
+                )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertTrue(diagnostics["ok"])
+        self.assertTrue(diagnostics["activation_message_configured"])
+        self.assertTrue(diagnostics["activation_exports_configured"])
+        self.assertEqual(diagnostics["activation_export_count"], 2)
+        self.assertIn("activation_export_names: NODE_OPTIONS,SECRET_TOKEN", rendered)
+        self.assertIn("activation_export_values: hidden", rendered)
+        self.assertNotIn("do-not-print", rendered)
+        self.assertNotIn("--max-old-space-size=8192", rendered)
+
+    def test_invalid_activation_export_name_fails_before_shell_output(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            project_root = temp_path / "Project"
+            repo = project_root / "repo"
+            repo.mkdir(parents=True)
+            config_dir = project_root / ".taurworks"
+            config_dir.mkdir()
+            (config_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "Project"\n\n'
+                    '[paths]\nworking_dir = "repo"\n\n'
+                    "[activation.exports]\n"
+                    '"BAD-NAME" = "value"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                os.chdir(project_root)
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Project"
+                    )
+                )
+                rendered = project_resolution.format_project_activate_shell_output(
+                    diagnostics
+                )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertIn("invalid activation export name", diagnostics["guidance"])
+        self.assertNotIn("export BAD-NAME", rendered)
+
     def test_workspace_only_and_legacy_admin_activate_to_root_with_warnings(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)

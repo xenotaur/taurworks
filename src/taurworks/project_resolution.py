@@ -1125,6 +1125,129 @@ def format_project_working_dir_set_output(
     return "\n".join(lines)
 
 
+def _resolve_project_path_emitter_target(
+    path_or_name: str,
+    cwd: pathlib.Path,
+) -> tuple[project_internals.ProjectResolution, dict[str, object]]:
+    """Resolve path emitters, preferring enclosing project roots for paths."""
+    if _is_path_like_input(path_or_name):
+        resolution = project_internals.resolve_project_target(
+            path_or_name,
+            cwd,
+            prefer_project_root=True,
+        )
+        project = manager.classify_project_entry(resolution.project_root)
+        row = dict(project)
+        row["source"] = "path"
+        row["registered"] = False
+        row["registered_name"] = "none"
+        return resolution, row
+
+    return resolve_global_activation_project(path_or_name, cwd)
+
+
+def gather_project_path_diagnostics(
+    path_or_name: str,
+    path_kind: str,
+) -> dict[str, str | bool]:
+    """Resolve a project path emitter target for script-friendly commands."""
+    cwd = pathlib.Path.cwd().resolve()
+    resolution, project = _resolve_project_path_emitter_target(path_or_name, cwd)
+    project_root = resolution.project_root.resolve()
+    base_diagnostics: dict[str, str | bool] = {
+        "ok": True,
+        "cwd": str(cwd),
+        "input": resolution.input,
+        "project_root": str(project_root),
+        "project_name": str(project["name"]),
+        "resolved_by": resolution.resolved_by.value,
+        "source": str(project.get("source", "unknown")),
+        "project_status": str(project["status"]),
+        "path_kind": path_kind,
+        "path": str(project_root),
+        "message": "Resolved project root.",
+    }
+
+    if base_diagnostics["source"] == "unresolved":
+        base_diagnostics["ok"] = False
+        base_diagnostics["path"] = ""
+        base_diagnostics["message"] = (
+            "Project name was not found in the global registry, configured "
+            "workspace, or current project fallback."
+        )
+        return base_diagnostics
+
+    if not project_root.is_dir():
+        base_diagnostics["ok"] = False
+        base_diagnostics["path"] = ""
+        base_diagnostics["message"] = (
+            f"Resolved project root is not a directory: {project_root}"
+        )
+        return base_diagnostics
+
+    if path_kind == "root":
+        return base_diagnostics
+
+    if path_kind != "working":
+        base_diagnostics["ok"] = False
+        base_diagnostics["path"] = ""
+        base_diagnostics["message"] = f"Unsupported project path kind: {path_kind}"
+        return base_diagnostics
+
+    config_path = project_internals.project_config_path(project_root)
+    if not config_path.is_file():
+        base_diagnostics["message"] = (
+            "No project config was found; preferred working directory defaults "
+            "to the project root."
+        )
+        return base_diagnostics
+
+    try:
+        config = project_internals.read_project_config(project_root)
+        working_dir = project_internals.working_dir_from_config(config)
+        if working_dir is None:
+            base_diagnostics["message"] = (
+                "No working_dir is configured; preferred working directory "
+                "defaults to the project root."
+            )
+            return base_diagnostics
+        (
+            _relative_working_dir,
+            resolved_working_dir,
+            working_dir_exists,
+        ) = project_internals.resolve_configured_working_dir(project_root, working_dir)
+    except (
+        project_internals.ProjectConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+    ) as error:
+        base_diagnostics["ok"] = False
+        base_diagnostics["path"] = ""
+        base_diagnostics["message"] = f"Configured working_dir is invalid: {error}"
+        return base_diagnostics
+
+    if not working_dir_exists:
+        base_diagnostics["ok"] = False
+        base_diagnostics["path"] = ""
+        base_diagnostics["message"] = (
+            "Configured working_dir resolves safely inside the project, but "
+            f"the directory does not exist: {resolved_working_dir}"
+        )
+        return base_diagnostics
+
+    base_diagnostics["path"] = str(resolved_working_dir)
+    base_diagnostics["message"] = "Resolved preferred working directory."
+    return base_diagnostics
+
+
+def format_project_path_error(
+    diagnostics: dict[str, str | bool],
+    command_name: str,
+) -> str:
+    """Format path-emitter diagnostics for stderr only."""
+    return f"{command_name}: {diagnostics['message']}"
+
+
 def _activation_target_diagnostics(
     base_diagnostics: dict[str, str | bool],
     target_dir: pathlib.Path,
@@ -1172,6 +1295,12 @@ def gather_project_activate_print_diagnostics(
         "resolved_working_dir": "none",
         "working_dir_exists": False,
         "activation_command": "none",
+        "activation_message_configured": False,
+        "activation_message": "",
+        "activation_exports_configured": False,
+        "activation_export_count": 0,
+        "activation_export_names": "none",
+        "activation_exports": {},
         "guidance": "",
         "read_only": True,
     }
@@ -1210,6 +1339,17 @@ def gather_project_activate_print_diagnostics(
 
     try:
         config = project_internals.read_project_config(project_root)
+        activation_message = project_internals.activation_message_from_config(config)
+        activation_exports = project_internals.activation_exports_from_config(config)
+        base_diagnostics["activation_message_configured"] = (
+            activation_message is not None
+        )
+        base_diagnostics["activation_message"] = activation_message or ""
+        base_diagnostics["activation_exports_configured"] = bool(activation_exports)
+        base_diagnostics["activation_export_count"] = len(activation_exports)
+        if activation_exports:
+            base_diagnostics["activation_export_names"] = ",".join(activation_exports)
+        base_diagnostics["activation_exports"] = activation_exports
         working_dir = project_internals.working_dir_from_config(config)
         if working_dir is None:
             return _activation_target_diagnostics(
@@ -1231,9 +1371,10 @@ def gather_project_activate_print_diagnostics(
     ) as error:
         base_diagnostics["ok"] = False
         base_diagnostics["guidance"] = (
-            "Configured working_dir is invalid or could not be read safely: "
+            "Configured working_dir is invalid or activation data could not be read safely: "
             f"{error}. Run `taurworks project working-dir set [DIR]` "
-            "from inside the project to replace it."
+            "from inside the project to replace invalid working_dir metadata, or edit "
+            ".taurworks/config.toml to fix activation metadata."
         )
         return base_diagnostics
 
@@ -1282,10 +1423,42 @@ def format_project_activate_print_output(
         f"- resolved_working_dir: {diagnostics['resolved_working_dir']}",
         f"- working_dir_exists: {diagnostics['working_dir_exists']}",
         f"- activation_command: {diagnostics['activation_command']}",
+        f"- activation_message_configured: {diagnostics['activation_message_configured']}",
+        f"- activation_exports_configured: {diagnostics['activation_exports_configured']}",
+        f"- activation_export_count: {diagnostics['activation_export_count']}",
+        f"- activation_export_names: {diagnostics['activation_export_names']}",
+        "- activation_export_values: hidden",
         "- shell_mutation: not performed",
         f"- guidance: {diagnostics['guidance']}",
         "- note: activation_command is printed for inspection only and was not executed",
         "- note: real shell mutation is limited to an explicitly sourced shell wrapper/function such as tw activate",
+    ]
+    return "\n".join(lines)
+
+
+def format_project_activate_shell_output(
+    diagnostics: dict[str, str | bool | int | dict[str, str]],
+) -> str:
+    """Format validated activation data as shell assignments for tw."""
+    if not diagnostics["ok"]:
+        return format_project_activate_print_output(diagnostics)
+
+    activation_exports = diagnostics["activation_exports"]
+    export_commands: list[str] = []
+    if isinstance(activation_exports, dict):
+        for name, value in activation_exports.items():
+            export_commands.append(f"export {name}={shlex.quote(value)}")
+
+    lines = [
+        "# Taurworks project activation shell data",
+        f"TAURWORKS_ACTIVATION_WORKING_DIR={shlex.quote(str(diagnostics['resolved_working_dir']))}",
+        f"TAURWORKS_ACTIVATION_WORKING_DIR_EXISTS={shlex.quote(str(diagnostics['working_dir_exists']))}",
+        f"TAURWORKS_ACTIVATION_WORKING_DIR_CONFIGURED={shlex.quote(str(diagnostics['working_dir_configured']))}",
+        f"TAURWORKS_ACTIVATION_GUIDANCE={shlex.quote(str(diagnostics['guidance']))}",
+        f"TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED={shlex.quote(str(diagnostics['activation_message_configured']))}",
+        f"TAURWORKS_ACTIVATION_MESSAGE={shlex.quote(str(diagnostics['activation_message']))}",
+        f"TAURWORKS_ACTIVATION_EXPORT_COUNT={shlex.quote(str(diagnostics['activation_export_count']))}",
+        f"TAURWORKS_ACTIVATION_EXPORT_COMMANDS={shlex.quote(chr(10).join(export_commands))}",
     ]
     return "\n".join(lines)
 
