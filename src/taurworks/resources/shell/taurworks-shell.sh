@@ -52,6 +52,7 @@ _tw_activate() {
     local activation_message
     local activation_message_configured
     local activation_export_count
+    local activation_export_commands
     local path_or_name
     local verbose
     local target_label
@@ -126,9 +127,10 @@ _tw_activate() {
     local TAURWORKS_ACTIVATION_MESSAGE
     local TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED
     local TAURWORKS_ACTIVATION_EXPORT_COUNT
+    local TAURWORKS_ACTIVATION_EXPORT_COMMANDS
 
     if ! eval "$output"; then
-        printf '%s\n' "tw activate: failed to apply Taurworks activation exports." >&2
+        printf '%s\n' "tw activate: failed to read Taurworks activation shell data." >&2
         return 1
     fi
 
@@ -139,6 +141,7 @@ _tw_activate() {
     activation_message=$TAURWORKS_ACTIVATION_MESSAGE
     activation_message_configured=$TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED
     activation_export_count=$TAURWORKS_ACTIVATION_EXPORT_COUNT
+    activation_export_commands=$TAURWORKS_ACTIVATION_EXPORT_COMMANDS
 
     if [ "$resolved_working_dir" = "" ] || [ "$resolved_working_dir" = "none" ]; then
         printf '%s\n' "tw activate: Taurworks did not report a resolved working directory." >&2
@@ -155,6 +158,13 @@ _tw_activate() {
     if ! cd -- "$resolved_working_dir"; then
         printf '%s\n' "tw activate: failed to change directory to: $resolved_working_dir" >&2
         return 1
+    fi
+
+    if [ "$activation_export_commands" != "" ]; then
+        if ! eval "$activation_export_commands"; then
+            printf '%s\n' "tw activate: failed to apply Taurworks activation exports." >&2
+            return 1
+        fi
     fi
 
     if [ "$working_dir_configured" != "True" ] && [ "$guidance" != "" ]; then

@@ -1320,6 +1320,12 @@ def format_project_activate_shell_output(
     if not diagnostics["ok"]:
         return format_project_activate_print_output(diagnostics)
 
+    activation_exports = diagnostics["activation_exports"]
+    export_commands: list[str] = []
+    if isinstance(activation_exports, dict):
+        for name, value in activation_exports.items():
+            export_commands.append(f"export {name}={shlex.quote(value)}")
+
     lines = [
         "# Taurworks project activation shell data",
         f"TAURWORKS_ACTIVATION_WORKING_DIR={shlex.quote(str(diagnostics['resolved_working_dir']))}",
@@ -1329,11 +1335,8 @@ def format_project_activate_shell_output(
         f"TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED={shlex.quote(str(diagnostics['activation_message_configured']))}",
         f"TAURWORKS_ACTIVATION_MESSAGE={shlex.quote(str(diagnostics['activation_message']))}",
         f"TAURWORKS_ACTIVATION_EXPORT_COUNT={shlex.quote(str(diagnostics['activation_export_count']))}",
+        f"TAURWORKS_ACTIVATION_EXPORT_COMMANDS={shlex.quote(chr(10).join(export_commands))}",
     ]
-    activation_exports = diagnostics["activation_exports"]
-    if isinstance(activation_exports, dict):
-        for name, value in activation_exports.items():
-            lines.append(f"export {name}={shlex.quote(value)}")
     return "\n".join(lines)
 
 
