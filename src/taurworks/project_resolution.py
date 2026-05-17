@@ -1125,6 +1125,105 @@ def format_project_working_dir_set_output(
     return "\n".join(lines)
 
 
+def gather_project_path_diagnostics(
+    path_or_name: str,
+    path_kind: str,
+) -> dict[str, str | bool]:
+    """Resolve a project path emitter target for script-friendly commands."""
+    cwd = pathlib.Path.cwd().resolve()
+    resolution, project = resolve_global_activation_project(path_or_name, cwd)
+    project_root = resolution.project_root.resolve()
+    base_diagnostics: dict[str, str | bool] = {
+        "ok": True,
+        "cwd": str(cwd),
+        "input": resolution.input,
+        "project_root": str(project_root),
+        "project_name": str(project["name"]),
+        "resolved_by": resolution.resolved_by.value,
+        "source": str(project.get("source", "unknown")),
+        "project_status": str(project["status"]),
+        "path_kind": path_kind,
+        "path": str(project_root),
+        "message": "Resolved project root.",
+    }
+
+    if base_diagnostics["source"] == "unresolved":
+        base_diagnostics["ok"] = False
+        base_diagnostics["path"] = ""
+        base_diagnostics["message"] = (
+            "Project name was not found in the global registry, configured "
+            "workspace, or current project fallback."
+        )
+        return base_diagnostics
+
+    if not project_root.is_dir():
+        base_diagnostics["ok"] = False
+        base_diagnostics["path"] = ""
+        base_diagnostics["message"] = (
+            f"Resolved project root is not a directory: {project_root}"
+        )
+        return base_diagnostics
+
+    if path_kind == "root":
+        return base_diagnostics
+
+    if path_kind != "working":
+        base_diagnostics["ok"] = False
+        base_diagnostics["path"] = ""
+        base_diagnostics["message"] = f"Unsupported project path kind: {path_kind}"
+        return base_diagnostics
+
+    config_path = project_internals.project_config_path(project_root)
+    if not config_path.is_file():
+        base_diagnostics["message"] = (
+            "No project config was found; preferred working directory defaults "
+            "to the project root."
+        )
+        return base_diagnostics
+
+    try:
+        config = project_internals.read_project_config(project_root)
+        working_dir = project_internals.working_dir_from_config(config)
+        if working_dir is None:
+            base_diagnostics["message"] = (
+                "No working_dir is configured; preferred working directory "
+                "defaults to the project root."
+            )
+            return base_diagnostics
+        (
+            _relative_working_dir,
+            resolved_working_dir,
+            working_dir_exists,
+        ) = project_internals.resolve_configured_working_dir(project_root, working_dir)
+    except (
+        project_internals.ProjectConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+    ) as error:
+        base_diagnostics["ok"] = False
+        base_diagnostics["path"] = ""
+        base_diagnostics["message"] = f"Configured working_dir is invalid: {error}"
+        return base_diagnostics
+
+    if not working_dir_exists:
+        base_diagnostics["ok"] = False
+        base_diagnostics["path"] = ""
+        base_diagnostics["message"] = (
+            "Configured working_dir resolves safely inside the project, but "
+            f"the directory does not exist: {resolved_working_dir}"
+        )
+        return base_diagnostics
+
+    base_diagnostics["path"] = str(resolved_working_dir)
+    base_diagnostics["message"] = "Resolved preferred working directory."
+    return base_diagnostics
+
+
+def format_project_path_error(diagnostics: dict[str, str | bool]) -> str:
+    """Format path-emitter diagnostics for stderr only."""
+    return f"taurworks project {diagnostics['path_kind']}: " f"{diagnostics['message']}"
+
+
 def _activation_target_diagnostics(
     base_diagnostics: dict[str, str | bool],
     target_dir: pathlib.Path,
