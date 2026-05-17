@@ -1,3 +1,5 @@
+import contextlib
+import io
 import pathlib
 import subprocess
 import tempfile
@@ -23,14 +25,21 @@ class ManagerModuleTest(unittest.TestCase):
         self.assertGreaterEqual(size, 3)
 
     def test_get_conda_environments_returns_empty_set_on_timeout(self):
-        with unittest.mock.patch.object(
-            manager.subprocess,
-            "run",
-            side_effect=subprocess.TimeoutExpired(["conda", "env", "list"], 2),
-        ) as run_mock:
-            envs = manager.get_conda_environments()
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            with unittest.mock.patch.object(
+                manager.subprocess,
+                "run",
+                side_effect=subprocess.TimeoutExpired(["conda", "env", "list"], 2),
+            ) as run_mock:
+                envs = manager.get_conda_environments()
 
         self.assertEqual(envs, set())
+        self.assertIn(
+            "Warning: Could not fetch Conda environments: "
+            "`conda env list` timed out after 2 seconds",
+            stdout.getvalue(),
+        )
         run_mock.assert_called_once_with(
             ["conda", "env", "list"],
             capture_output=True,
