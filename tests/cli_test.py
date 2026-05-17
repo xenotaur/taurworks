@@ -2716,6 +2716,12 @@ class ProjectRegistryCliTest(unittest.TestCase):
             working_alias_result = _run_cli(
                 ["working", "LogicalRoboticsHarness"], outside, env
             )
+            explicit_path_root_result = _run_cli(
+                ["project", "root", str(working_dir)], outside, env
+            )
+            explicit_path_working_result = _run_cli(
+                ["project", "working", str(working_dir)], outside, env
+            )
             activate_result = _run_cli(
                 ["project", "activate", "LogicalRoboticsHarness", "--print"],
                 outside,
@@ -2742,6 +2748,16 @@ class ProjectRegistryCliTest(unittest.TestCase):
             (
                 ["working", "LogicalRoboticsHarness"],
                 working_alias_result,
+                working_dir,
+            ),
+            (
+                ["project", "root", str(working_dir)],
+                explicit_path_root_result,
+                project_root,
+            ),
+            (
+                ["project", "working", str(working_dir)],
+                explicit_path_working_result,
                 working_dir,
             ),
         ]:
@@ -2773,11 +2789,14 @@ class ProjectRegistryCliTest(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(result.stdout, "")
+        self.assertIn("taurworks project root:", result.stderr)
         self.assertIn("not found", result.stderr)
         self.assertNotIn("Traceback", result.stderr)
         self.assertNotEqual(alias_result.returncode, 0)
         self.assertEqual(alias_result.stdout, "")
+        self.assertIn("taurworks working:", alias_result.stderr)
         self.assertIn("not found", alias_result.stderr)
+        self.assertNotIn("taurworks project working:", alias_result.stderr)
         self.assertNotIn("Traceback", alias_result.stderr)
 
 

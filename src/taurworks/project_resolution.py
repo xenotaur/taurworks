@@ -1125,13 +1125,34 @@ def format_project_working_dir_set_output(
     return "\n".join(lines)
 
 
+def _resolve_project_path_emitter_target(
+    path_or_name: str,
+    cwd: pathlib.Path,
+) -> tuple[project_internals.ProjectResolution, dict[str, object]]:
+    """Resolve path emitters, preferring enclosing project roots for paths."""
+    if _is_path_like_input(path_or_name):
+        resolution = project_internals.resolve_project_target(
+            path_or_name,
+            cwd,
+            prefer_project_root=True,
+        )
+        project = manager.classify_project_entry(resolution.project_root)
+        row = dict(project)
+        row["source"] = "path"
+        row["registered"] = False
+        row["registered_name"] = "none"
+        return resolution, row
+
+    return resolve_global_activation_project(path_or_name, cwd)
+
+
 def gather_project_path_diagnostics(
     path_or_name: str,
     path_kind: str,
 ) -> dict[str, str | bool]:
     """Resolve a project path emitter target for script-friendly commands."""
     cwd = pathlib.Path.cwd().resolve()
-    resolution, project = resolve_global_activation_project(path_or_name, cwd)
+    resolution, project = _resolve_project_path_emitter_target(path_or_name, cwd)
     project_root = resolution.project_root.resolve()
     base_diagnostics: dict[str, str | bool] = {
         "ok": True,
@@ -1219,9 +1240,12 @@ def gather_project_path_diagnostics(
     return base_diagnostics
 
 
-def format_project_path_error(diagnostics: dict[str, str | bool]) -> str:
+def format_project_path_error(
+    diagnostics: dict[str, str | bool],
+    command_name: str,
+) -> str:
     """Format path-emitter diagnostics for stderr only."""
-    return f"taurworks project {diagnostics['path_kind']}: " f"{diagnostics['message']}"
+    return f"{command_name}: {diagnostics['message']}"
 
 
 def _activation_target_diagnostics(

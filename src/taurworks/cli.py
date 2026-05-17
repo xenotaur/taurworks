@@ -36,7 +36,7 @@ def _handle_workspace_command(args):
     args.workspace_parser.print_help()
 
 
-def _emit_project_path(path_or_name: str, path_kind: str) -> None:
+def _emit_project_path(path_or_name: str, path_kind: str, command_name: str) -> None:
     """Emit one resolved project path to stdout or diagnostics to stderr."""
     diagnostics = project_resolution.gather_project_path_diagnostics(
         path_or_name,
@@ -46,18 +46,21 @@ def _emit_project_path(path_or_name: str, path_kind: str) -> None:
         print(diagnostics["path"])
         return
 
-    print(project_resolution.format_project_path_error(diagnostics), file=sys.stderr)
+    print(
+        project_resolution.format_project_path_error(diagnostics, command_name),
+        file=sys.stderr,
+    )
     raise SystemExit(1)
 
 
 def _handle_project_command(args):
     """Handle scaffolded `taurworks project ...` commands."""
     if args.project_command == "root":
-        _emit_project_path(args.path_or_name, "root")
+        _emit_project_path(args.path_or_name, "root", "taurworks project root")
         return
 
     if args.project_command == "working":
-        _emit_project_path(args.path_or_name, "working")
+        _emit_project_path(args.path_or_name, "working", "taurworks project working")
         return
 
     if args.project_command == "where":
@@ -255,24 +258,26 @@ def main():
         "root",
         help="Print a project's registered root directory for shell composition.",
         description=(
-            "Resolve PROJECT and print exactly one absolute project root path "
-            "to stdout. Diagnostics are written to stderr on failure."
+            "Resolve PROJECT by name or path and print exactly one absolute "
+            "project root path to stdout. Diagnostics are written to stderr on failure."
         ),
     )
-    parser_root.add_argument("path_or_name", metavar="PROJECT", help="Project name.")
+    parser_root.add_argument(
+        "path_or_name", metavar="PROJECT", help="Project name or path."
+    )
 
     parser_working = subparsers.add_parser(
         "working",
         help="Print a project's preferred working directory for shell composition.",
         description=(
-            "Resolve PROJECT and print exactly one absolute preferred working "
-            "directory path to stdout. Diagnostics are written to stderr on failure."
+            "Resolve PROJECT by name or path and print exactly one absolute "
+            "preferred working directory path to stdout. Diagnostics are written to stderr on failure."
         ),
     )
     parser_working.add_argument(
         "path_or_name",
         metavar="PROJECT",
-        help="Project name.",
+        help="Project name or path.",
     )
 
     # `config` namespace
@@ -354,15 +359,15 @@ def main():
         "root",
         help="Print a project's registered root directory.",
         description=(
-            "Resolve PROJECT and print exactly one absolute project root path "
-            "to stdout for shell composition. Diagnostics are written to stderr "
+            "Resolve PROJECT by name or path and print exactly one absolute "
+            "project root path to stdout for shell composition. Diagnostics are written to stderr "
             "on failure."
         ),
     )
     parser_project_root.add_argument(
         "path_or_name",
         metavar="PROJECT",
-        help="Project name.",
+        help="Project name or path.",
     )
     parser_project_root.set_defaults(project_parser=parser_project)
 
@@ -370,15 +375,15 @@ def main():
         "working",
         help="Print a project's preferred working directory.",
         description=(
-            "Resolve PROJECT and print exactly one absolute preferred working "
-            "directory path to stdout for shell composition. Diagnostics are "
+            "Resolve PROJECT by name or path and print exactly one absolute "
+            "preferred working directory path to stdout for shell composition. Diagnostics are "
             "written to stderr on failure."
         ),
     )
     parser_project_working.add_argument(
         "path_or_name",
         metavar="PROJECT",
-        help="Project name.",
+        help="Project name or path.",
     )
     parser_project_working.set_defaults(project_parser=parser_project)
 
@@ -753,9 +758,9 @@ def main():
     elif args.command == "activate":
         manager.activate_project(args.project_name)
     elif args.command == "root":
-        _emit_project_path(args.path_or_name, "root")
+        _emit_project_path(args.path_or_name, "root", "taurworks root")
     elif args.command == "working":
-        _emit_project_path(args.path_or_name, "working")
+        _emit_project_path(args.path_or_name, "working", "taurworks working")
     elif args.command == "shell":
         _handle_shell_command(args)
     elif args.command == "project":
