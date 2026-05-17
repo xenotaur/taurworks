@@ -2678,6 +2678,131 @@ class ProjectRegistryCliTest(unittest.TestCase):
         self.assertIn("registered path does not currently exist", allowed.stdout)
         self.assertNotIn("project-local config not found", allowed.stdout)
 
+    def test_project_path_emitters_print_only_absolute_paths(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            config_home = root_path / "xdg"
+            outside = root_path / "outside"
+            project_root = root_path / "Project With Spaces"
+            working_dir = project_root / "work dir"
+            outside.mkdir()
+            working_dir.mkdir(parents=True)
+            (project_root / ".taurworks").mkdir(exist_ok=True)
+            (project_root / ".taurworks" / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    "[project]\n"
+                    'name = "LogicalRoboticsHarness"\n\n'
+                    "[paths]\n"
+                    'working_dir = "work dir"\n'
+                ),
+                encoding="utf-8",
+            )
+            env = {"XDG_CONFIG_HOME": str(config_home), "HOME": str(root_path)}
+            register = _run_cli(
+                ["project", "register", "LogicalRoboticsHarness", str(project_root)],
+                outside,
+                env,
+            )
+            project_root_result = _run_cli(
+                ["project", "root", "LogicalRoboticsHarness"], outside, env
+            )
+            project_working_result = _run_cli(
+                ["project", "working", "LogicalRoboticsHarness"], outside, env
+            )
+            root_alias_result = _run_cli(
+                ["root", "LogicalRoboticsHarness"], outside, env
+            )
+            working_alias_result = _run_cli(
+                ["working", "LogicalRoboticsHarness"], outside, env
+            )
+            explicit_path_root_result = _run_cli(
+                ["project", "root", str(working_dir)], outside, env
+            )
+            explicit_path_working_result = _run_cli(
+                ["project", "working", str(working_dir)], outside, env
+            )
+            activate_result = _run_cli(
+                ["project", "activate", "LogicalRoboticsHarness", "--print"],
+                outside,
+                env,
+            )
+
+        register_message = _failure_message(
+            ["project", "register", "LogicalRoboticsHarness", str(project_root)],
+            register,
+        )
+        self.assertEqual(register.returncode, 0, msg=register_message)
+        for args, result, expected_path in [
+            (
+                ["project", "root", "LogicalRoboticsHarness"],
+                project_root_result,
+                project_root,
+            ),
+            (
+                ["project", "working", "LogicalRoboticsHarness"],
+                project_working_result,
+                working_dir,
+            ),
+            (["root", "LogicalRoboticsHarness"], root_alias_result, project_root),
+            (
+                ["working", "LogicalRoboticsHarness"],
+                working_alias_result,
+                working_dir,
+            ),
+            (
+                ["project", "root", str(working_dir)],
+                explicit_path_root_result,
+                project_root,
+            ),
+            (
+                ["project", "working", str(working_dir)],
+                explicit_path_working_result,
+                working_dir,
+            ),
+        ]:
+            failure_message = _failure_message(args, result)
+            self.assertEqual(result.returncode, 0, msg=failure_message)
+            self.assertEqual(result.stderr, "", msg=failure_message)
+            self.assertTrue(result.stdout.endswith("\n"), msg=failure_message)
+            stdout_lines = result.stdout.splitlines()
+            self.assertEqual(len(stdout_lines), 1, msg=failure_message)
+            emitted_path = pathlib.Path(stdout_lines[0])
+            self.assertTrue(emitted_path.is_absolute(), msg=failure_message)
+            assert_same_path(self, emitted_path, expected_path, msg=failure_message)
+
+        self.assertEqual(project_root_result.stdout, root_alias_result.stdout)
+        self.assertEqual(project_working_result.stdout, working_alias_result.stdout)
+        activate_message = _failure_message(
+            ["project", "activate", "LogicalRoboticsHarness", "--print"],
+            activate_result,
+        )
+        self.assertEqual(activate_result.returncode, 0, msg=activate_message)
+        self.assertIn("resolved_working_dir", activate_result.stdout)
+        self.assertIn(str(working_dir), activate_result.stdout)
+
+    def test_project_path_emitters_fail_quietly_on_unknown_project(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            env = {
+                "XDG_CONFIG_HOME": str(root_path / "xdg"),
+                "HOME": str(root_path),
+            }
+            result = _run_cli(["project", "root", "MissingProject"], root_path, env)
+            alias_result = _run_cli(["working", "MissingProject"], root_path, env)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("taurworks project root:", result.stderr)
+        self.assertIn("not found", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertNotEqual(alias_result.returncode, 0)
+        self.assertEqual(alias_result.stdout, "")
+        self.assertIn("taurworks working:", alias_result.stderr)
+        self.assertIn("not found", alias_result.stderr)
+        self.assertNotIn("taurworks project working:", alias_result.stderr)
+        self.assertNotIn("Traceback", alias_result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

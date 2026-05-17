@@ -63,6 +63,7 @@ This roadmap is phased and conservative. It prioritizes command-model alignment,
 
 - Merge registered projects, immediate workspace-root children, initialized projects, legacy-admin projects, and workspace-only projects in `tw projects` / `taurworks projects`.
 - Resolve `tw activate NAME` from anywhere using the canonical priority in `project/design/config_model.md`: registered project, initialized workspace project, legacy-admin workspace project, workspace-only directory, local/enclosing fallback, then child path only for explicitly local commands.
+- Provide script-friendly `tw project root PROJECT`, `tw project working PROJECT`, `tw root PROJECT`, and `tw working PROJECT` path emitters using the same resolution core; stdout remains path-only for shell composition.
 - Keep fallback activation conservative: initialized projects with `working_dir` cd there; initialized without `working_dir`, workspace-only, and legacy-admin cd to project root with warnings; legacy scripts are not sourced by default.
 
 ## Phase 2A — Align project-root and working-directory metadata
