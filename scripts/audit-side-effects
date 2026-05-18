@@ -1,8 +1,13 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$repo_root"
+
+if ! command -v rg >/dev/null 2>&1; then
+  printf '%s\n' "audit-side-effects: error: required command not found: rg" >&2
+  exit 127
+fi
 
 declare -a patterns=(
   'subprocess\.run|subprocess\.call|subprocess\.Popen'
@@ -36,8 +41,16 @@ printf '\n'
 
 for pattern in "${patterns[@]}"; do
   printf '## pattern: %s\n' "$pattern"
-  if ! rg --line-number --color never --glob '!project/executions/**' --glob '!*.pyc' --regexp "$pattern" "${paths[@]}"; then
+  set +e
+  rg --line-number --color never --glob '!project/executions/**' --glob '!*.pyc' --regexp "$pattern" "${paths[@]}"
+  rg_status=$?
+  set -e
+
+  if [ "$rg_status" -eq 1 ]; then
     printf '%s\n' '(no matches)'
+  elif [ "$rg_status" -ne 0 ]; then
+    printf 'audit-side-effects: error: rg failed with status %s while scanning pattern: %s\n' "$rg_status" "$pattern" >&2
+    exit "$rg_status"
   fi
   printf '\n'
 done

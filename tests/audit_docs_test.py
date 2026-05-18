@@ -1,5 +1,7 @@
+import os
 import pathlib
 import subprocess
+import tempfile
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -41,9 +43,32 @@ class SideEffectAuditDocsTest(unittest.TestCase):
             f"stderr:\n{result.stderr}"
         )
         self.assertEqual(result.returncode, 0, msg=failure_message)
+        self.assertEqual(result.stderr, "", msg=failure_message)
         self.assertIn("Taurworks side-effect pattern audit", result.stdout)
         self.assertIn("subprocess", result.stdout)
         self.assertIn("conda", result.stdout)
+        self.assertIn("src/taurworks/manager.py", result.stdout)
+
+    def test_audit_side_effects_script_fails_when_rg_is_missing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            bin_dir = pathlib.Path(temp_dir) / "bin"
+            bin_dir.mkdir()
+            (bin_dir / "dirname").symlink_to("/usr/bin/dirname")
+            env = dict(os.environ)
+            env["PATH"] = str(bin_dir)
+
+            result = subprocess.run(
+                [str(AUDIT_SCRIPT)],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 127)
+        self.assertIn("required command not found: rg", result.stderr)
 
 
 if __name__ == "__main__":
