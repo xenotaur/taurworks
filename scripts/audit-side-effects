@@ -1,0 +1,56 @@
+#!/bin/bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+if ! command -v rg >/dev/null 2>&1; then
+  printf '%s\n' "audit-side-effects: error: required command not found: rg" >&2
+  exit 127
+fi
+
+declare -a patterns=(
+  'subprocess\.run|subprocess\.call|subprocess\.Popen'
+  'os\.system'
+  'shell=True'
+  'conda[[:space:]]+(create|env[[:space:]]+create|activate|init)'
+  'source[[:space:]]+'
+  '(^|[[:space:]])\.[[:space:]]+[^[:space:]]+'
+  'export[[:space:]]+[A-Za-z_]'
+  'eval[[:space:]]+'
+  'exec[[:space:]]+'
+  'Path\.write_text|\.write_text\('
+  "open\([^)]*,[[:space:]]*['\"][wa]"
+  '\.mkdir\(|os\.makedirs'
+  'rmtree\(|\.unlink\(|os\.remove|remove\('
+)
+
+declare -a paths=(
+  'src'
+  'scripts'
+  'tests'
+  'README.md'
+  'project/design'
+  'project/audits'
+)
+
+printf '%s\n' 'Taurworks side-effect pattern audit (best effort, non-destructive)'
+printf '%s\n' 'Scanned paths:'
+printf '  - %s\n' "${paths[@]}"
+printf '\n'
+
+for pattern in "${patterns[@]}"; do
+  printf '## pattern: %s\n' "$pattern"
+  set +e
+  rg --line-number --color never --glob '!project/executions/**' --glob '!*.pyc' --regexp "$pattern" "${paths[@]}"
+  rg_status=$?
+  set -e
+
+  if [ "$rg_status" -eq 1 ]; then
+    printf '%s\n' '(no matches)'
+  elif [ "$rg_status" -ne 0 ]; then
+    printf 'audit-side-effects: error: rg failed with status %s while scanning pattern: %s\n' "$rg_status" "$pattern" >&2
+    exit "$rg_status"
+  fi
+  printf '\n'
+done
