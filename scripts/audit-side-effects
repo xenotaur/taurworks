@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+declare -a patterns=(
+  'subprocess\.run|subprocess\.call|subprocess\.Popen'
+  'os\.system'
+  'shell=True'
+  'conda[[:space:]]+(create|env[[:space:]]+create|activate|init)'
+  'source[[:space:]]+'
+  '(^|[[:space:]])\.[[:space:]]+[^[:space:]]+'
+  'export[[:space:]]+[A-Za-z_]'
+  'eval[[:space:]]+'
+  'exec[[:space:]]+'
+  'Path\.write_text|\.write_text\('
+  "open\([^)]*,[[:space:]]*['\"][wa]"
+  '\.mkdir\(|os\.makedirs'
+  'rmtree\(|\.unlink\(|os\.remove|remove\('
+)
+
+declare -a paths=(
+  'src'
+  'scripts'
+  'tests'
+  'README.md'
+  'project/design'
+  'project/audits'
+)
+
+printf '%s\n' 'Taurworks side-effect pattern audit (best effort, non-destructive)'
+printf '%s\n' 'Scanned paths:'
+printf '  - %s\n' "${paths[@]}"
+printf '\n'
+
+for pattern in "${patterns[@]}"; do
+  printf '## pattern: %s\n' "$pattern"
+  if ! rg --line-number --color never --glob '!project/executions/**' --glob '!*.pyc' --regexp "$pattern" "${paths[@]}"; then
+    printf '%s\n' '(no matches)'
+  fi
+  printf '\n'
+done

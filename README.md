@@ -129,6 +129,18 @@ After setup, run the standard checks from the repository root:
 ./scripts/test
 ```
 
+## Safety audits
+
+Side-effect-sensitive command behavior is tracked in the project control plane.
+The current [side-effect safety audit](project/audits/side_effects.md) documents
+the command taxonomy, Conda creation and activation paths, environment-variable
+exports, shell-helper mutation boundaries, subprocess usage, and recommended
+follow-up work. Developers can run the non-destructive helper with:
+
+```bash
+./scripts/audit-side-effects
+```
+
 Portability-sensitive tests can also be run with isolated global-config
 locations:
 
