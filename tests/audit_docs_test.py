@@ -1,5 +1,6 @@
 import os
 import pathlib
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -27,6 +28,11 @@ class SideEffectAuditDocsTest(unittest.TestCase):
         self.assertIn("project/audits/side_effects.md", readme_text)
 
     def test_audit_side_effects_script_runs(self):
+        if shutil.which("rg") is None:
+            self.skipTest(
+                "rg is not installed; missing-rg failure path is tested separately"
+            )
+
         result = subprocess.run(
             [str(AUDIT_SCRIPT)],
             cwd=REPO_ROOT,
