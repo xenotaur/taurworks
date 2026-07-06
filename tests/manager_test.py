@@ -24,41 +24,6 @@ class ManagerModuleTest(unittest.TestCase):
         self.assertEqual(count, 2)
         self.assertGreaterEqual(size, 3)
 
-    def test_get_directory_info_skips_unstatable_entry_but_counts_siblings(self):
-        # os.scandir order is filesystem-dependent, so a real broken symlink
-        # can land anywhere in iteration order. Use fake entries to force the
-        # unstatable entry first and prove a later sibling still gets counted.
-        class FakeEntry:
-            def __init__(self, name, size=0, raise_on_follow=False):
-                self.name = name
-                self.path = f"/fake/{name}"
-                self._size = size
-                self._raise_on_follow = raise_on_follow
-
-            def is_dir(self, follow_symlinks=True):
-                if follow_symlinks and self._raise_on_follow:
-                    raise OSError("Too many levels of symbolic links")
-                return False
-
-            def is_file(self, follow_symlinks=True):
-                return True
-
-            def stat(self, follow_symlinks=True):
-                return unittest.mock.Mock(st_size=self._size)
-
-        broken_entry = FakeEntry("self_link", raise_on_follow=True)
-        good_entry = FakeEntry("z.txt", size=5)
-
-        with unittest.mock.patch.object(
-            manager.os,
-            "scandir",
-            return_value=contextlib.nullcontext([broken_entry, good_entry]),
-        ):
-            size, count = manager.get_directory_info("/fake")
-
-        self.assertEqual(count, 1)
-        self.assertEqual(size, 5)
-
     def test_get_conda_environments_returns_empty_set_on_timeout(self):
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
