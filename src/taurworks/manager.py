@@ -162,12 +162,23 @@ def get_directory_info(path):
     """Returns the total size and number of files in a directory."""
     total_size = 0
     file_count = 0
-    for root, _, files in os.walk(path):
-        file_count += len(files)
-        for f in files:
-            fp = os.path.join(root, f)
-            if os.path.isfile(fp):
-                total_size += os.path.getsize(fp)
+    dirs = [path]
+    while dirs:
+        current_dir = dirs.pop()
+        try:
+            with os.scandir(current_dir) as entries:
+                for entry in entries:
+                    if entry.is_dir(follow_symlinks=False):
+                        dirs.append(entry.path)
+                    else:
+                        try:
+                            if entry.is_file(follow_symlinks=True):
+                                file_count += 1
+                                total_size += entry.stat(follow_symlinks=True).st_size
+                        except OSError:
+                            pass
+        except OSError:
+            pass
     return total_size, file_count
 
 
