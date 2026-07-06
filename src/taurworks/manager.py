@@ -168,15 +168,15 @@ def get_directory_info(path):
         try:
             with os.scandir(current_dir) as entries:
                 for entry in entries:
-                    if entry.is_dir(follow_symlinks=False):
-                        dirs.append(entry.path)
-                    elif not entry.is_dir(follow_symlinks=True):
-                        file_count += 1
-                        try:
+                    try:
+                        if entry.is_dir(follow_symlinks=False):
+                            dirs.append(entry.path)
+                        elif not entry.is_dir(follow_symlinks=True):
+                            file_count += 1
                             if entry.is_file(follow_symlinks=True):
                                 total_size += entry.stat(follow_symlinks=True).st_size
-                        except OSError:
-                            pass
+                    except OSError:
+                        continue
         except OSError:
             pass
     return total_size, file_count
