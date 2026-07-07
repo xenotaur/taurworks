@@ -4,14 +4,14 @@ This folder contains Taurworks control-plane design notes.
 
 Current design priorities:
 
-- document planned XDG-style global config at `$XDG_CONFIG_HOME/taurworks/config.toml` with `~/.config/taurworks/config.toml` fallback;
-- document a configured workspace root and explicit project registry before broader activation behavior;
 - keep `project_root` and relative `working_dir` semantics stable;
 - preserve `taurworks project activate --print` as read-only activation guidance;
 - treat `tw activate` as shell-mutating only when provided by the explicitly sourced `taurworks-shell.sh` function;
 - classify legacy `Admin/project-setup.source` projects for migration planning rather than automatic fallback sourcing;
-- keep Phase 2 declarative activation design discoverable: `[activation].message`, `[activation.environment] type = "conda"`, `[activation.exports]`, legacy inspect/migrate planning, and trusted hooks deferred behind explicit opt-in;
-- introduce broader `taurworks dev ...` behavior only through small, safe, read-only scaffolds before workflow automation.
+- design and implement `taurworks legacy inspect`/`legacy migrate` and trusted hooks, deferred behind explicit opt-in, as the remaining Phase 2 declarative-activation work (`[activation].message`, `[activation.environment] type = "conda"`, and `[activation.exports]` are already implemented);
+- introduce broader `taurworks dev ...` behavior only through small, safe steps beyond the current read-only scaffold (`dev where`, `dev status`) before workflow automation.
+
+XDG-style global config, the explicit workspace root, and the global project registry described in `config_model.md` are implemented, not just documented.
 
 Key documents:
 

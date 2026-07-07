@@ -1,7 +1,7 @@
 # Unified Command Model
 
 ## Status note
-The command model below is current design direction and roadmap intent. The shipped CLI now includes minimal `taurworks project ...` discovery/scaffold commands, existing-root initialization, working-directory metadata, read-only `project activate --print` guidance, and an explicitly sourced `taurworks-shell.sh` `tw activate` shell helper. Dogfooding showed the next design-aligned phase is shell UX polish, project-list status classification, a minimal read-only `dev` namespace scaffold, and activation-extension design before broader workflow automation or stronger trust behavior.
+The command model below is implemented for the scope described here. The shipped CLI includes `taurworks project ...` discovery/scaffold commands, existing-root initialization, working-directory metadata, read-only `project activate --print` guidance, an explicitly sourced `taurworks-shell.sh` `tw activate` shell helper, XDG-style global config and workspace-root commands, a global project registry, workspace/registry-aware project listing and activation resolution, a minimal read-only `taurworks dev ...` scaffold (`dev where`, `dev status`), and declarative activation (`[activation].message`, `[activation.exports]`, Conda environment activation). Remaining work is legacy `Admin/project-setup.source` inspect/migrate tooling, trusted user-script hooks, and broader `dev` workflow automation beyond read-only diagnostics.
 
 ## Why one primary executable: `taurworks`
 A single primary executable keeps command discovery simple, avoids duplicated initialization paths, and reduces user confusion around which binary owns workspace vs development behavior.
@@ -59,18 +59,17 @@ Do not document `alias tw=taurworks` as equivalent to the sourceable `taurworks-
 - `taurworks dev version`
 - `taurworks dev validate`
 
-## Next project implementation sequence
-The current phase follows successful dogfooding of the sourced `taurworks-shell.sh` `tw activate` function with a configured working directory. It is intentionally not broad repo workflow automation, not automatic legacy setup sourcing, and not multi-repo project management.
+## Remaining implementation sequence
+Shell UX polish, project-list status classification, the read-only `dev` scaffold, and the first declarative-activation slices (message, exports, Conda) are implemented. It is intentionally still not broad repo workflow automation, not automatic legacy setup sourcing, and not multi-repo project management. Remaining work:
 
-1. Polish the `tw` shell UX: concise default `tw activate` output, detailed diagnostics only with `--verbose` or `--debug`, concise default warnings for missing projects or working directories, `tw help` as an alias for `tw --help`, and no change to successful activation semantics.
-2. Classify project-list entries for `tw projects` / `taurworks projects` as initialized projects with `.taurworks/config.toml`, workspace-only directories, or legacy-admin directories with `Admin/project-setup.source`.
-3. Follow the canonical activation contract in `project/design/config_model.md`: initialized projects remain the richest activation targets, while initialized-without-working-dir, workspace-only, and legacy-admin projects may be `cd`-only warning fallbacks. Legacy-admin fallback sourcing must not become default behavior; a future migration or trust flow may handle old `Admin/project-setup.source` scripts.
-4. Add a minimal read-only `taurworks dev ...` scaffold, preferring safe diagnostics such as `dev where` and/or `dev status` before any `dev test`/automation expansion.
-5. Design activation extensions for readiness messages, Conda/venv/Docker-style environment strategies, trusted per-project startup hooks, and legacy setup migration without implementing those behaviors in the polish slice.
+1. Add `taurworks legacy inspect PROJECT` and `taurworks legacy migrate PROJECT --apply` to help migrate `Admin/project-setup.source` projects to declarative config without executing those scripts (see `WI-ACTIVATION-CONFIG-0001`).
+2. Design and implement trusted per-project startup hooks only after legacy inspect/migrate has been dogfooded, with explicit opt-in, warnings, and content-change detection.
+3. Expand `taurworks dev ...` beyond read-only diagnostics (`dev where`, `dev status`) into workflow automation, once trust boundaries for that expansion are designed.
+4. Address the outstanding side-effect audit follow-ups (`project/audits/side_effects.md`), notably that legacy top-level `taurworks refresh`/`create` still create a Conda environment by default despite sounding like safe metadata operations.
 
 ## Compatibility and migration notes
 - Existing top-level commands (`create`, `refresh`, `activate`, `projects`) are retained as compatibility commands.
-- The `project` namespace now implements `where` and `list` as read-only commands. `list` currently supports conservative local metadata discovery and reports its limitations.
+- The `project` namespace implements `where` and `list` as read-only commands. `list` merges registered, workspace, initialized, legacy-admin, and workspace-only projects per `config_model.md`.
 - Migration to namespaced forms should be incremental and documented.
 - Deprecation planning should only begin after namespaced behavior is stable and compatibility coverage is verified.
 - Breaking removals/renames are out of scope for the current documentation-alignment phase.

@@ -56,13 +56,13 @@ Discovery stance:
 - `taurworks workspace set PATH` requires an existing directory, creates config parent directories as needed, stores a normalized absolute root, and preserves unrelated supported TOML fields.
 - Taurworks should require explicit configuration before persisting workspace state, registering projects, or treating an inferred path as authoritative.
 - If no global config exists and `~/Workspace` does not exist, workspace-aware commands show an unconfigured workspace root rather than recursively scanning from the current directory.
-- Registry-backed project listing and activation resolution remain planned Phase 1b/1c work; this phase does not alter `tw activate` resolution.
+- Registry-backed project listing and activation resolution (Phase 1b/1c) are implemented; see below.
 
-## Planned global project registry (Phase 1b)
+## Global project registry (Phase 1b)
 
-Implementation status: planned design only. No project-registry behavior is implemented by this document.
+Implementation status: implemented. `taurworks project register/unregister` and `taurworks project registry list` write and read `[projects.NAME]` entries in the global config.
 
-Taurworks should support explicit registration of projects that are outside normal workspace discovery or intentionally nested in unusual locations. The registry should live in the user-global config so activation and listing can resolve projects from anywhere without recursive scans.
+Taurworks supports explicit registration of projects that are outside normal workspace discovery or intentionally nested in unusual locations. The registry lives in the user-global config so activation and listing can resolve projects from anywhere without recursive scans.
 
 Example config shape:
 
@@ -71,7 +71,7 @@ Example config shape:
 root = "/Users/example/Workspace/TestProject/test_repo/HiddenProject"
 ```
 
-Planned commands:
+Implemented commands:
 
 ```bash
 taurworks project register NAME PATH
@@ -87,11 +87,11 @@ Registry rules:
 - Registry listing should make stale or missing paths visible without silently deleting entries.
 - The registry resolves project roots; normal project status handling still decides whether the target is initialized, legacy-admin, or workspace-only.
 
-## Planned workspace and registry resolution (Phase 1c)
+## Workspace and registry resolution (Phase 1c)
 
-Implementation status: planned design only. Existing commands remain current behavior until a later implementation PR.
+Implementation status: implemented.
 
-`tw projects` and `taurworks projects` should eventually merge these sources into a single status-aware view:
+`tw projects` and `taurworks projects` merge these sources into a single status-aware view:
 
 1. registered projects;
 2. immediate children of the configured workspace root;
@@ -101,7 +101,7 @@ Implementation status: planned design only. Existing commands remain current beh
 
 The listing should avoid recursive discovery by default. Registered projects cover nested or unusual locations that immediate-child workspace discovery intentionally does not find.
 
-`tw activate NAME` should resolve from anywhere using a stable order:
+`tw activate NAME` resolves from anywhere using a stable order:
 
 1. explicit registered project by name;
 2. initialized project under the configured workspace root;

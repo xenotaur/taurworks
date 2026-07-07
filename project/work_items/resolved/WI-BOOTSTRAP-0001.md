@@ -1,6 +1,11 @@
 ---
 id: WI-BOOTSTRAP-0001
+title: Bootstrap LRH project/ directory
+type: deliverable
 status: resolved
+blocked: false
+blocked_reason: null
+resolution: Initial project/ scaffold (goal, design, focus, guardrails, status, decision log) created; superseded by later design-alignment work items.
 ---
 
 # WI-BOOTSTRAP-0001: Bootstrap LRH project/ directory
