@@ -2,13 +2,13 @@
 execution_id: 2026_07_06_22_16_55_WI_LEGACY_CONDA_GATING_0001_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_LEGACY_CONDA_GATING_0001_REVIEW)[2026-07-06T21:26:21-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/60
-commit: e81e3c7
+commit: 098931073fde0c3dc3635fb3444dd7fbd8495be0
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/60
-session_transcript: pending
+session_transcript: claude-app:94d9d00e-f45f-42fc-90c0-53050ac3470c
 created_at: 2026-07-06T22:16:55-04:00
 ---
 
