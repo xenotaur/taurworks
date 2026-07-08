@@ -251,7 +251,11 @@ def main(argv=None):
     parser_create.add_argument(
         "--create-env",
         action="store_true",
-        help="Create a Conda environment for the project (opt-in; default is metadata only).",
+        help=(
+            "Create a Conda environment for the project (opt-in; by default "
+            "only Conda environment creation is skipped — directories and "
+            "the setup script are still created)."
+        ),
     )
 
     # Refresh a project
@@ -282,7 +286,11 @@ def main(argv=None):
     parser_refresh.add_argument(
         "--create-env",
         action="store_true",
-        help="Create a Conda environment for the project (opt-in; default is metadata only).",
+        help=(
+            "Create a Conda environment for the project (opt-in; by default "
+            "only Conda environment creation is skipped — directories and "
+            "the setup script are still created)."
+        ),
     )
 
     # Activate a project

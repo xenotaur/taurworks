@@ -143,6 +143,12 @@ def refresh_project(
         print(
             "Skipping Conda environment creation " "(pass --create-env to create one)."
         )
+        print(
+            f"⚠ Note: the generated setup script will still run "
+            f"`conda activate {env_name}`; it will fail until that Conda "
+            "environment exists (pass --create-env, or activate a different "
+            "environment manually)."
+        )
 
     # Ensure repository directory exists
     if not os.path.exists(repo_dir):
@@ -516,6 +522,12 @@ def create_project(
     else:
         print(
             "Skipping Conda environment creation " "(pass --create-env to create one)."
+        )
+        print(
+            f"⚠ Note: the generated setup script will still run "
+            f"`conda activate {env_name}`; it will fail until that Conda "
+            "environment exists (pass --create-env, or activate a different "
+            "environment manually)."
         )
 
     # Create the repository directory
