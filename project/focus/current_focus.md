@@ -1,42 +1,72 @@
 ---
-updated: 2026-05-15
-basis: global_config_activation_design
+id: FOCUS-CURRENT
+title: Legacy migration tooling and side-effect audit follow-ups
+status: active
+updated: 2026-07-06
+basis: activation_config_slices_1_3_complete
 confidence: high
 ---
 
 # Current Focus
 
-Taurworks is currently focused on **global resolution and activation design alignment**. The `project_root` / `working_dir` metadata model remains correct, and dogfooding showed that Taurworks now needs a configured workspace root and explicit project registry so `tw projects` and `tw activate` can resolve projects reliably from anywhere before activation becomes richer.
+Taurworks has completed global resolution (XDG-style global config, explicit
+workspace root, global project registry, and workspace/registry-aware `tw
+projects`/`tw activate` resolution) and the first three declarative-activation
+slices (`[activation].message`, `[activation.exports]`, and Conda environment
+activation). Focus now shifts to the remaining `WI-ACTIVATION-CONFIG-0001`
+slices, the still-untracked side-effect audit follow-ups, and deciding how far
+to take `taurworks dev ...` beyond read-only diagnostics.
 
 ## Active direction
 
-1. Design Phase 1a XDG-style global config and explicit workspace root commands.
-2. Design Phase 1b global project registry commands for projects outside immediate workspace discovery.
-3. Design Phase 1c workspace/registry-aware `tw projects` and `tw activate` resolution from anywhere, with the canonical priority list maintained in `project/design/config_model.md`.
-4. Preserve `taurworks project activate --print` as read-only guidance and `tw activate` as the explicit shell-mutating wrapper.
-5. Keep workspace-only and legacy-admin fallback activation to `cd`-only with warnings.
-6. Design Phase 2 declarative `.taurworks/config.toml` activation for messages, environment strategies, and exports without arbitrary script sourcing.
-7. Defer user scripts/hooks to a future explicit opt-in trust model with inspection and dry-run support.
+1. Design and implement `taurworks legacy inspect PROJECT` as conservative,
+   read-only extraction of `Admin/project-setup.source` patterns.
+2. Design and implement `taurworks legacy migrate PROJECT --apply` for simple
+   detected patterns, preserving existing config and requiring manual review
+   for unsupported shell constructs.
+3. Address the side-effect audit's outstanding recommendations
+   (`project/audits/side_effects.md`), most notably that legacy top-level
+   `taurworks refresh`/`taurworks create` (and therefore `tw refresh`/`tw
+   create`) still create a Conda environment by default despite sounding like
+   safe metadata operations.
+4. Defer trusted user-script hooks until legacy inspect/migrate has been
+   dogfooded; require explicit opt-in, warnings, inspection/dry-run modes, and
+   per-project trust when that design work starts.
+5. Keep `taurworks project activate --print` read-only and `tw activate` as the
+   only shell-mutating layer.
 
 ## In scope now
 
-- Control-plane documentation for the next PR sequence after the global resolution gap found during dogfooding.
-- XDG-style global config and workspace-root design.
-- Global project registry design for intentionally nested or unusual project locations.
-- Workspace/registry-aware project listing and activation resolution design.
-- Declarative activation config design for readiness messages, Conda/venv-style environments, and exports.
-- Future safe user-script support boundaries: explicit opt-in, warnings, inspection/dry-run, per-project trust, and no default legacy sourcing.
+- Legacy `Admin/project-setup.source` inspect/migrate tooling design and
+  implementation.
+- Side-effect audit follow-ups: gating legacy Conda environment creation
+  behind an explicit command/flag, reducing `tw activate`'s `eval` surface,
+  and treating `taurworks project activate --shell` output as sensitive.
+- Deciding scope for `taurworks dev ...` workflow automation beyond `dev
+  where`/`dev status`.
 
 ## Out of scope now
 
-- Implementing behavior changes in this design-alignment PR.
-- Changing the core `tw activate` activation behavior in this design PR.
-- Adding automatic legacy `Admin/project-setup.source` fallback sourcing.
-- Sourcing legacy-admin scripts or treating them as more than `cd`-only warning fallbacks before explicit migration/trust design.
-- Broad repo workflow automation under `taurworks dev ...`.
+- Implementing trusted user-script hooks before legacy inspect/migrate is
+  dogfooded.
+- Automatic legacy `Admin/project-setup.source` fallback sourcing.
+- Broad repo workflow automation under `taurworks dev ...` without further
+  design.
 - Shell startup-file edits.
 - Multi-repo project management.
 - Breaking command renames or removals.
+
+## Already implemented (do not re-plan)
+
+- XDG-style global config: `taurworks config where`, `taurworks workspace
+  show`, `taurworks workspace set PATH`.
+- Global project registry: `taurworks project register/unregister`,
+  `taurworks project registry list`.
+- Workspace/registry-aware `tw projects`/`taurworks projects` listing and
+  `tw activate NAME` resolution, per the canonical priority list in
+  `project/design/config_model.md`.
+- Declarative activation message, exports, and Conda environment activation.
+- Minimal read-only `taurworks dev where`/`dev status`.
 
 ## Safety stance
 
@@ -46,6 +76,7 @@ taurworks project activate --print
 
 tw activate
   explicit shell-mutating function from sourced taurworks-shell.sh
+  (cd, configured exports, configured Conda activation)
 
 workspace-only / legacy-admin fallback
   cd only, with warning
@@ -57,4 +88,5 @@ user scripts/hooks
   future explicit opt-in only
 ```
 
-Automatic sourcing of legacy project setup scripts is intentionally deferred because it crosses a stronger trust boundary than `cd`-only activation.
+Automatic sourcing of legacy project setup scripts is intentionally deferred
+because it crosses a stronger trust boundary than `cd`-only activation.

@@ -2,11 +2,12 @@
 
 ## Status
 
-This document is a design note. Taurworks now implements the first safe
-declarative activation slice: optional readiness messages and literal
-environment-variable exports consumed by the sourced `tw activate` helper. It
-still must not be used as permission to add Conda/venv/Docker activation,
-startup hooks, or legacy setup sourcing without a separate implementation PR.
+This document is a design note. Taurworks now implements the first three
+safe declarative activation slices: optional readiness messages, literal
+environment-variable exports, and Conda environment activation, all consumed
+by the sourced `tw activate` helper. It still must not be used as permission
+to add venv/Docker activation, startup hooks, or legacy setup sourcing
+without a separate implementation PR.
 
 ## Purpose
 
@@ -16,9 +17,11 @@ Taurworks currently supports activation through an explicitly sourced helper:
 tw activate ProjectName
 ```
 
-The current implementation resolves a Taurworks project, exports any validated
-literal `[activation.exports]`, changes the current shell directory to the
-configured working directory, and prints an optional `activation.message`.
+The current implementation resolves a Taurworks project, activates a
+configured `[activation.environment] type = "conda"` environment, exports any
+validated literal `[activation.exports]`, changes the current shell directory
+to the configured working directory, and prints an optional
+`activation.message`.
 Historical Taurworks-style project setup scripts, especially
 `Admin/project-setup.source`, could do more: source shared shell utilities,
 activate a Conda environment, change directory, and print a readiness message.
@@ -76,16 +79,16 @@ The boundary matters because shell state changes are not all equivalent:
 
 ## Phase 2 declarative activation configuration
 
-Implementation status: the first safe slice is implemented: optional
-`activation.message` and literal string `[activation.exports]`. Environment
-activation and arbitrary hooks remain planned design only.
+Implementation status: implemented: optional `activation.message`, literal
+string `[activation.exports]`, and Conda environment activation via
+`[activation.environment] type = "conda"`. Legacy inspect/migrate tooling and
+arbitrary hooks remain planned design only.
 
-Activation extensions should be represented declaratively in
-`.taurworks/config.toml` before any imperative hook is considered. Phase 2 is the
-safe subset of legacy project setup behavior. The first implemented slice covers
-readiness text and literal exported environment variables. A supported
-environment activation strategy remains a later PR, and arbitrary shell scripts
-remain outside Phase 2.
+Activation extensions are represented declaratively in `.taurworks/config.toml`
+before any imperative hook is considered. Phase 2 is the safe subset of legacy
+project setup behavior. The implemented slices cover readiness text, literal
+exported environment variables, and Conda activation. venv/Docker-style
+environment strategies and arbitrary shell scripts remain outside Phase 2.
 
 A complete Phase 2 configuration may look like this:
 
@@ -160,7 +163,8 @@ with legacy readiness messages without executing additional code.
 
 ## Environment activation
 
-Phase 2 should design only the Conda path for the first implementation:
+Implementation status: implemented. Conda is the only supported environment
+strategy:
 
 ```toml
 [activation.environment]
@@ -168,28 +172,28 @@ type = "conda"
 name = "EnvName"
 ```
 
-Design expectations for the initial implementation:
+Implemented behavior:
 
 - `type` is required when `[activation.environment]` is present.
 - `name` is required for `type = "conda"` and names the Conda environment to
   activate.
-- Unknown environment `type` values should produce an actionable unsupported-type
+- Unknown environment `type` values produce an actionable unsupported-type
   error instead of falling back to arbitrary scripts.
-- Conda activation is a shell-state mutation and therefore belongs behind
+- Conda activation is a shell-state mutation and happens only behind
   explicitly sourced `tw activate`, not direct read-only `taurworks project
   activate --print` execution.
-- A future implementation should add a distinct machine-readable activation
-  payload mode for `tw activate` to evaluate. Human-facing `taurworks project
-  activate --print` output should remain diagnostic and redacted; it must not be
-  the only handoff for secret-bearing shell code.
-- Taurworks should not run `conda init` automatically and should not edit shell
+- `tw activate` reads a distinct machine-readable activation payload
+  (`taurworks project activate --shell`) to evaluate. Human-facing `taurworks
+  project activate --print` output stays diagnostic and redacted; it is not
+  used as the handoff for secret-bearing shell code.
+- Taurworks does not run `conda init` automatically and does not edit shell
   startup files. If the user's shell is not prepared for Conda activation,
-  Taurworks should print a clear diagnostic telling the user to initialize or
+  Taurworks prints a clear diagnostic telling the user to initialize or
   configure Conda outside Taurworks.
 - Failures to locate Conda, initialize the shell hook, or activate the named
-  environment should stop activation before exports and readiness messages are
+  environment stop activation before exports and readiness messages are
   reported as successful.
-- Normal output should avoid excessive detail; verbose/debug output may report
+- Normal output avoids excessive detail; verbose/debug output may report
   the selected environment type and name.
 
 Other environment systems are explicitly deferred:
@@ -203,9 +207,9 @@ Other environment systems are explicitly deferred:
 - If a setup cannot be represented declaratively, Taurworks should require a
   future trusted hook instead of guessing or sourcing scripts implicitly.
 
-Recommendation: add Conda only after message behavior and export payload
-separation are designed and reviewed, keeping the environment type handling
-narrow and explicit.
+Done: Conda was added after message behavior and export payload separation
+were designed and reviewed, keeping the environment type handling narrow and
+explicit.
 
 ## Exports
 
@@ -363,29 +367,32 @@ and migrate commands later, and avoid automatic legacy fallback sourcing.
 
 ## Follow-up implementation package
 
-Phase 2 should be implemented through small PRs after Phase 1 dogfooding:
+Phase 2 is being implemented through small PRs after Phase 1 dogfooding. Items
+1-3 are done; items 4-6 remain and are tracked in `WI-ACTIVATION-CONFIG-0001`:
 
-1. **Activation message:** parse `[activation].message`, print it only after
-   successful activation, and keep the current concise output when the field is
-   absent.
-2. **Exports and payload separation:** implemented for literal string values
-   without `~` expansion. Taurworks parses `[activation.exports]`, validates
-   export names, renders shell-quoted exports only through `--shell` for
-   `tw activate`, redacts values in normal diagnostics, and keeps
+1. **Activation message (done):** parse `[activation].message`, print it only
+   after successful activation, and keep the current concise output when the
+   field is absent.
+2. **Exports and payload separation (done):** implemented for literal string
+   values without `~` expansion. Taurworks parses `[activation.exports]`,
+   validates export names, renders shell-quoted exports only through `--shell`
+   for `tw activate`, redacts values in normal diagnostics, and keeps
    `taurworks project activate --print` read-only and human-safe.
-3. **Conda activation in `tw activate`:** support `[activation.environment]
-   type = "conda"` plus `name`, emit/evaluate the required shell setup only in
-   the sourceable wrapper path, report missing Conda or shell setup clearly, and
-   never run `conda init`.
-4. **Legacy inspect:** add `taurworks legacy inspect PROJECT` to conservatively
-   extract common legacy patterns and report manual-review items without
-   executing scripts.
-5. **Legacy migrate for simple scripts:** add `taurworks legacy migrate PROJECT
-   --apply` to write declarative config for simple detected patterns while
-   preserving existing values and requiring review for unsupported behavior.
-6. **Trusted hooks after dogfood:** design and implement explicit hook trust only
-   after declarative activation has been dogfooded; include opt-in, warnings,
-   revocation, content-change detection, and dry-run/inspection support.
+3. **Conda activation in `tw activate` (done):** supports `[activation.environment]
+   type = "conda"` plus `name`, emits/evaluates the required shell setup only in
+   the sourceable wrapper path, reports missing Conda or shell setup clearly, and
+   never runs `conda init`.
+4. **Legacy inspect (remaining):** add `taurworks legacy inspect PROJECT` to
+   conservatively extract common legacy patterns and report manual-review items
+   without executing scripts.
+5. **Legacy migrate for simple scripts (remaining):** add `taurworks legacy
+   migrate PROJECT --apply` to write declarative config for simple detected
+   patterns while preserving existing values and requiring review for
+   unsupported behavior.
+6. **Trusted hooks after dogfood (remaining):** design and implement explicit
+   hook trust only after declarative activation has been dogfooded; include
+   opt-in, warnings, revocation, content-change detection, and
+   dry-run/inspection support.
 
 ## Options considered
 
@@ -483,18 +490,18 @@ limits and no automatic fallback sourcing.
 
 ## Recommended phased approach
 
-1. **Activation message:** support a future `[activation].message` while keeping
+1. **Activation message (done):** support a future `[activation].message` while keeping
    current concise output as the default when the message is absent.
-2. **Exports:** support `[activation.exports]` only after the implementation has
+2. **Exports (done):** support `[activation.exports]` only after the implementation has
    a separate machine-readable payload channel for `tw activate` and redacted
    human diagnostics.
-3. **Conda activation:** add narrow, documented support for
+3. **Conda activation (done):** add narrow, documented support for
    `[activation.environment] type = "conda"` and `name`; defer venv, Docker,
    and other systems to separate designs.
-4. **Legacy inspect and simple migration:** help users review and migrate
+4. **Legacy inspect and simple migration (remaining):** help users review and migrate
    `Admin/project-setup.source` projects to declarative config without executing
    those scripts.
-5. **Explicit trusted startup hook:** add sourceable hooks only after trust,
+5. **Explicit trusted startup hook (remaining):** add sourceable hooks only after trust,
    warning, confirmation, revocation, and changed-content behavior is designed.
 
 The default should not become automatic legacy `Admin/project-setup.source`
