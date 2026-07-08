@@ -2,13 +2,13 @@
 execution_id: 2026_07_07_23_12_23_REFRESH_CONTROL_PLANE_DOCS_REVIEW
 prompt_id: PROMPT(AD_HOC:REFRESH_CONTROL_PLANE_DOCS_REVIEW)[2026-07-07T23:10:35-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/62
-commit: 02ada7c
+commit: c28a21351d79ba08cc9d921da13128f5cce3ef4a
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/62
-session_transcript: pending
+session_transcript: claude-app:94d9d00e-f45f-42fc-90c0-53050ac3470c
 created_at: 2026-07-07T23:12:23-04:00
 ---
 
