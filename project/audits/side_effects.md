@@ -618,20 +618,58 @@ Recommendation:
 
 1. Migrate or deprecate legacy top-level `taurworks refresh` so refresh is
    metadata-only by default.
+   **Status: partially addressed by `WI-LEGACY-CONDA-GATING-0001`.** Conda
+   environment creation is now gated behind an explicit `--create-env` flag
+   (see recommendation #2), but legacy `refresh`/`create` still create the
+   workspace/project/repository directories and write
+   `.taurworks/project-setup.source` unchanged. Making legacy `refresh`/`create`
+   fully metadata-only (this recommendation in full) is a larger,
+   compatibility-sensitive change left as potential future work — see that work
+   item's Open Questions.
 2. Move Conda creation behind an explicit command such as `taurworks env create`
    or an explicit flag such as `--create-env`; do not create environments from a
    read-only-looking or repair-looking command.
+   **Status: resolved by `WI-LEGACY-CONDA-GATING-0001`.** Legacy top-level
+   `taurworks create NAME` / `taurworks refresh NAME` (and therefore `tw create`
+   / `tw refresh`) now require an explicit `--create-env` flag before calling
+   `conda create` or `conda env create`; the default path no longer creates a
+   Conda environment.
 3. Keep Conda activation limited to `tw activate` or another explicitly sourced
    shell-mutating helper.
+   **Status: already satisfied.** Per the command-by-command inventory above,
+   Conda activation in current Taurworks execution is limited to sourced
+   `tw activate`; no other path was found to call `conda activate`.
 4. Do not source `Admin/project-setup.source`, `.taurworks/activate.source`, or
    other user scripts by default. If script hooks are added later, require an
    explicit trust/opt-in model.
+   **Status: already satisfied; trusted-hooks model is future work.** No
+   current code sources these scripts by default. Designing an explicit
+   trust/opt-in model for user-script hooks is out of scope for
+   `WI-LEGACY-CONDA-GATING-0001` (see that item's Non-Goals) and is tracked
+   under `WI-ACTIVATION-CONFIG-0001` slice 6.
 5. Treat `taurworks project activate --shell` output as sensitive when activation
    exports include secrets; normal `--print` output should continue hiding values.
+   **Status: already satisfied by current behavior.** `--print` output hides
+   export values and `--shell` output is documented above as machine-readable
+   data intended for helper consumption rather than normal diagnostics.
 6. Reduce shell `eval` surface in `tw activate` if a future portable assignment
    protocol can avoid it without making the helper brittle.
+   **Status: reviewed by `WI-LEGACY-CONDA-GATING-0001`; decision is to keep
+   as-is.** Both `eval` calls in `taurworks-shell.sh` operate only on
+   Taurworks-generated data: one reads structured `KEY=value` shell assignments
+   produced by `taurworks project activate --shell`, and the other runs export
+   commands whose variable names are validated against a conservative pattern
+   and whose values are `shlex.quote`-escaped before being emitted (see the
+   "Environment variables" answers above). Replacing `eval` with a safer parser
+   would be a larger change to the activation data protocol, and this work
+   item's Risk Notes flag it as risking breakage of Conda/export activation if
+   not carefully retested. Deferred as potential future work rather than
+   attempted here.
 7. Add CI or developer checks around side-effect-sensitive patterns if command
    behavior expands.
+   **Status: partially satisfied.** `scripts/audit-side-effects` (see "Audit
+   helper" below) already exists as a best-effort, non-destructive scanner;
+   wiring it into CI as an enforced gate remains open.
 
 ## Audit helper
 

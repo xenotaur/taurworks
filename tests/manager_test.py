@@ -119,6 +119,61 @@ class ManagerModuleTest(unittest.TestCase):
         self.assertFalse(missing_workdir_status["activation_eligible"])
         self.assertIn("missing on disk", missing_workdir_status["status_message"])
 
+    def test_refresh_project_default_does_not_create_conda_environment(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(manager.subprocess, "run") as run_mock,
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                manager.refresh_project("Alpha")
+
+            run_mock.assert_not_called()
+            self.assertIn("Skipping Conda environment creation", stdout.getvalue())
+            self.assertTrue((pathlib.Path(temp_dir) / "Alpha" / ".taurworks").exists())
+
+    def test_refresh_project_create_env_creates_conda_environment(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(
+                    manager, "get_conda_environments", return_value=set()
+                ),
+                unittest.mock.patch.object(manager.subprocess, "run") as run_mock,
+            ):
+                manager.refresh_project("Alpha", create_env=True)
+
+        run_mock.assert_called_once_with(
+            ["conda", "create", "--name", "Alpha", "python=3.11", "-y"],
+            check=True,
+        )
+
+    def test_create_project_default_does_not_create_conda_environment(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(manager.subprocess, "run") as run_mock,
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                manager.create_project("Beta")
+
+            run_mock.assert_not_called()
+            self.assertIn("Skipping Conda environment creation", stdout.getvalue())
+            self.assertTrue((pathlib.Path(temp_dir) / "Beta" / ".taurworks").exists())
+
+    def test_create_project_create_env_creates_conda_environment(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(manager.subprocess, "run") as run_mock,
+            ):
+                manager.create_project("Beta", create_env=True)
+
+        run_mock.assert_called_once_with(
+            ["conda", "create", "--name", "Beta", "python=3.11", "-y"],
+            check=True,
+        )
+
     def test_classification_does_not_mutate_files_or_source_legacy_admin(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = pathlib.Path(temp_dir) / "LegacyAdmin"

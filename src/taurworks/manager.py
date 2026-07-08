@@ -109,7 +109,13 @@ def camel_to_snake(name):
     return re.sub(r"(?<!^)([A-Z])", r"_\1", name).lower()
 
 
-def refresh_project(project_name, python_version="3.11", packages=None, env_file=None):
+def refresh_project(
+    project_name,
+    python_version="3.11",
+    packages=None,
+    env_file=None,
+    create_env=False,
+):
     """Ensures a project is correctly set up."""
     project_dir = os.path.join(TAURWORKS_WORKSPACE, project_name)
     admin_dir = os.path.join(project_dir, ".taurworks")
@@ -130,8 +136,19 @@ def refresh_project(project_name, python_version="3.11", packages=None, env_file
         print(f"Creating .taurworks directory: {admin_dir}")
         os.makedirs(admin_dir)
 
-    # Ensure Conda environment exists
-    create_conda_environment(env_name, python_version, packages, env_file)
+    # Ensure Conda environment exists, only when explicitly requested
+    if create_env:
+        create_conda_environment(env_name, python_version, packages, env_file)
+    else:
+        print(
+            "Skipping Conda environment creation " "(pass --create-env to create one)."
+        )
+        print(
+            f"⚠ Note: the generated setup script will still run "
+            f"`conda activate {env_name}`; it will fail until that Conda "
+            "environment exists (pass --create-env, or activate a different "
+            "environment manually)."
+        )
 
     # Ensure repository directory exists
     if not os.path.exists(repo_dir):
@@ -450,7 +467,13 @@ def list_projects(show_details=False):
             )
 
 
-def create_project(project_name, python_version="3.11", packages=None, env_file=None):
+def create_project(
+    project_name,
+    python_version="3.11",
+    packages=None,
+    env_file=None,
+    create_env=False,
+):
     """Creates a new project with the predefined structure."""
     project_dir = os.path.join(TAURWORKS_WORKSPACE, project_name)
 
@@ -471,30 +494,41 @@ def create_project(project_name, python_version="3.11", packages=None, env_file=
     os.makedirs(project_dir, exist_ok=True)
     os.makedirs(admin_dir, exist_ok=True)
 
-    # Create Conda environment
-    print(f"Creating Conda environment: {env_name} ...")
+    # Create Conda environment, only when explicitly requested
+    if create_env:
+        print(f"Creating Conda environment: {env_name} ...")
 
-    if env_file:
-        print(f"Using environment file: {env_file}")
-        subprocess.run(
-            ["conda", "env", "create", "--name", env_name, "--file", env_file],
-            check=True,
-        )
+        if env_file:
+            print(f"Using environment file: {env_file}")
+            subprocess.run(
+                ["conda", "env", "create", "--name", env_name, "--file", env_file],
+                check=True,
+            )
+        else:
+            conda_cmd = [
+                "conda",
+                "create",
+                "--name",
+                env_name,
+                f"python={python_version}",
+                "-y",
+            ]
+            if packages:
+                package_list = packages.split(",")
+                conda_cmd.extend(package_list)
+                print(f"Installing additional packages: {package_list}")
+
+            subprocess.run(conda_cmd, check=True)
     else:
-        conda_cmd = [
-            "conda",
-            "create",
-            "--name",
-            env_name,
-            f"python={python_version}",
-            "-y",
-        ]
-        if packages:
-            package_list = packages.split(",")
-            conda_cmd.extend(package_list)
-            print(f"Installing additional packages: {package_list}")
-
-        subprocess.run(conda_cmd, check=True)
+        print(
+            "Skipping Conda environment creation " "(pass --create-env to create one)."
+        )
+        print(
+            f"⚠ Note: the generated setup script will still run "
+            f"`conda activate {env_name}`; it will fail until that Conda "
+            "environment exists (pass --create-env, or activate a different "
+            "environment manually)."
+        )
 
     # Create the repository directory
     os.makedirs(repo_dir, exist_ok=True)
