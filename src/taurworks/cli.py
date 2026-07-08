@@ -225,7 +225,14 @@ def main(argv=None):
     )
 
     # Create a project
-    parser_create = subparsers.add_parser("create", help="Create a new project.")
+    parser_create = subparsers.add_parser(
+        "create",
+        help="Create a new project.",
+        description=(
+            "Create a new project. Conda environment creation is opt-in via "
+            "--create-env; by default no Conda environment is created."
+        ),
+    )
     parser_create.add_argument(
         "project_name", type=str, help="Name of the project to create."
     )
@@ -241,10 +248,21 @@ def main(argv=None):
     parser_create.add_argument(
         "--file", type=str, help="Path to a Conda environment YAML file."
     )
+    parser_create.add_argument(
+        "--create-env",
+        action="store_true",
+        help="Create a Conda environment for the project (opt-in; default is metadata only).",
+    )
 
     # Refresh a project
     parser_refresh = subparsers.add_parser(
-        "refresh", help="Ensure a project is correctly set up."
+        "refresh",
+        help="Ensure a project is correctly set up.",
+        description=(
+            "Ensure a project is correctly set up. Conda environment creation "
+            "is opt-in via --create-env; by default no Conda environment is "
+            "created."
+        ),
     )
     parser_refresh.add_argument(
         "project_name", type=str, help="Name of the project to refresh."
@@ -260,6 +278,11 @@ def main(argv=None):
     )
     parser_refresh.add_argument(
         "--file", type=str, help="Path to a Conda environment YAML file."
+    )
+    parser_refresh.add_argument(
+        "--create-env",
+        action="store_true",
+        help="Create a Conda environment for the project (opt-in; default is metadata only).",
     )
 
     # Activate a project
@@ -765,6 +788,7 @@ def main(argv=None):
             python_version=args.python,
             packages=args.packages,
             env_file=args.file,
+            create_env=args.create_env,
         )
     elif args.command == "refresh":
         manager.refresh_project(
@@ -772,6 +796,7 @@ def main(argv=None):
             python_version=args.python,
             packages=args.packages,
             env_file=args.file,
+            create_env=args.create_env,
         )
     elif args.command == "config":
         _handle_config_command(args)
