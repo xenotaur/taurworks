@@ -2,14 +2,14 @@
 execution_id: 2026_07_08_13_37_09_WI_LEGACY_CONDA_GATING
 prompt_id: PROMPT(WI-LEGACY-CONDA-GATING-0001:WI_LEGACY_CONDA_GATING)[2026-07-08T13:17:50-04:00]
 work_item: WI-LEGACY-CONDA-GATING-0001
-status: in_progress
+status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/63
-commit: 
+commit: e9c9bf6dc43af620813662fc10fb3fe896e41a37
 created_at: 2026-07-08T13:37:09-04:00
 agent: claude_app
 instruction_source: project/work_items/proposed/WI-LEGACY-CONDA-GATING-0001.md
-session_transcript: pending
+session_transcript: claude-app:8d50d14e-57c6-4894-b351-2d95ae102df3
 ---
 
 # Summary

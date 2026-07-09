@@ -1,11 +1,11 @@
 ---
-resolution: null
+resolution: Legacy `taurworks refresh`/`create` Conda environment creation gated behind explicit `--create-env` opt-in; misleading activation guidance and help text fixed per review. Side-effect audit follow-up #2 resolved, #1 partially addressed. Implemented and merged in PR #63 (commit e9c9bf6).
 blocked_reason: null
 blocked: false
 id: WI-LEGACY-CONDA-GATING-0001
 title: Gate legacy Conda environment creation behind explicit opt-in
 type: operation
-status: proposed
+status: resolved
 owner: null
 contributors: []
 assigned_agents: []
