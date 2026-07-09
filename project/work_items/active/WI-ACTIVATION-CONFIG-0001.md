@@ -12,8 +12,10 @@ resolution: null
 
 ## Status
 Slices 1-3 (activation message, exports, Conda activation) are implemented and
-merged. Remaining active scope is slices 4-6: legacy inspect, legacy migrate,
-and trusted hooks.
+merged. Active scope for this item is slices 4-5: legacy inspect and legacy
+migrate. Slice 6 (trusted hooks) is deferred out of scope for this item — see
+`## Out of Scope` — and will be tracked as a separate future work item once
+legacy inspect/migrate has been dogfooded.
 
 ## Objective
 Implement the safe declarative subset of legacy activation behavior from
@@ -132,7 +134,9 @@ confirm before implementation.
 - Sensitive export values are redacted in `legacy inspect` output by default.
 - New/updated tests cover both commands' parsing, validation, and failure
   paths.
-- `lrh validate` passes with 0 errors.
+- `lrh validate` introduces no new errors or warnings relative to the
+  pre-implementation baseline (the repo has pre-existing, unrelated
+  `contributors.md` validation errors this item does not fix).
 
 ## Open Questions
 - Exact `Likely Files` module name/location (`legacy.py` vs. extending
@@ -159,7 +163,8 @@ confirm before implementation.
    preserving existing config and requiring manual review for unsupported shell.
    **Remaining.**
 6. Design and implement trusted hooks only after declarative activation has been
-   dogfooded. **Remaining.**
+   dogfooded. **Deferred — out of scope for this item; see `## Out of Scope`.
+   Track as a separate future work item.**
 
 ## Validation expectations
 Each implementation slice should include unit tests for parsing, validation,
