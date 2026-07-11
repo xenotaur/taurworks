@@ -1,6 +1,8 @@
+import os
 import pathlib
 import tempfile
 import unittest
+import unittest.mock
 
 from taurworks import legacy
 from taurworks import project_internals
@@ -82,6 +84,14 @@ class ParseLegacySetupScriptTest(unittest.TestCase):
         self.assertEqual(matches[0]["kind"], "unsupported")
         self.assertIn("<redacted>", matches[0]["raw"])
 
+    def test_invalid_conda_environment_name_is_unsupported(self):
+        matches = legacy.parse_legacy_setup_script(
+            "conda activate /opt/conda/envs/foo\n"
+        )
+        self.assertEqual(len(matches), 1)
+        self.assertEqual(matches[0]["kind"], "unsupported")
+        self.assertIn("not a valid Taurworks Conda", matches[0]["note"])
+
 
 class GatherLegacyInspectDiagnosticsTest(unittest.TestCase):
     def test_reports_missing_legacy_script(self):
@@ -103,10 +113,10 @@ class GatherLegacyInspectDiagnosticsTest(unittest.TestCase):
 
             after = sorted(p.relative_to(project_dir) for p in project_dir.rglob("*"))
 
-        self.assertTrue(diagnostics["ok"])
-        self.assertEqual(before, after)
-        self.assertFalse(sentinel.exists())
-        self.assertFalse((project_dir / ".taurworks").exists())
+            self.assertTrue(diagnostics["ok"])
+            self.assertEqual(before, after)
+            self.assertFalse(sentinel.exists())
+            self.assertFalse((project_dir / ".taurworks").exists())
 
     def test_inspect_counts_supported_and_unsupported(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -139,10 +149,10 @@ class GatherLegacyMigrateDiagnosticsTest(unittest.TestCase):
                 str(project_dir), apply=False
             )
 
-        self.assertTrue(diagnostics["ok"])
-        self.assertFalse(diagnostics["config_written"])
-        self.assertFalse((project_dir / ".taurworks").exists())
-        self.assertTrue(len(diagnostics["applied"]) > 0)
+            self.assertTrue(diagnostics["ok"])
+            self.assertFalse(diagnostics["config_written"])
+            self.assertFalse((project_dir / ".taurworks").exists())
+            self.assertTrue(len(diagnostics["applied"]) > 0)
 
     def test_apply_writes_unambiguous_fields(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -236,6 +246,97 @@ class GatherLegacyMigrateDiagnosticsTest(unittest.TestCase):
         self.assertTrue(diagnostics["ok"])
         self.assertFalse(diagnostics["config_written"])
         self.assertIn("nothing would change", diagnostics["message"])
+
+    def test_absolute_cd_target_inside_project_root_migrates(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "LegacyProject"
+            repo_dir = project_dir / "repo"
+            repo_dir.mkdir(parents=True)
+            script = f'cd "{repo_dir}"\n'
+            _write_legacy_script(project_dir, script)
+
+            diagnostics = legacy.gather_legacy_migrate_diagnostics(
+                str(project_dir), apply=True
+            )
+
+            config = project_internals.read_project_config(project_dir)
+
+        self.assertTrue(diagnostics["ok"])
+        self.assertTrue(diagnostics["config_written"])
+        self.assertEqual(config["paths"]["working_dir"], "repo")
+
+    def test_absolute_cd_target_outside_project_root_requires_manual_review(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "LegacyProject"
+            outside_dir = pathlib.Path(temp_dir) / "elsewhere"
+            outside_dir.mkdir(parents=True)
+            script = f'cd "{outside_dir}"\n'
+            _write_legacy_script(project_dir, script)
+
+            diagnostics = legacy.gather_legacy_migrate_diagnostics(
+                str(project_dir), apply=True
+            )
+
+        self.assertTrue(diagnostics["ok"])
+        self.assertFalse(diagnostics["config_written"])
+        self.assertTrue(
+            any(
+                "outside the project root" in note
+                for note in diagnostics["manual_review"]
+            )
+        )
+
+    def test_malformed_config_toml_reports_error_without_crashing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "LegacyProject"
+            _write_legacy_script(project_dir)
+            metadata_dir = project_dir / ".taurworks"
+            metadata_dir.mkdir()
+            (metadata_dir / "config.toml").write_text(
+                "this is not valid toml [[[", encoding="utf-8"
+            )
+
+            diagnostics = legacy.gather_legacy_migrate_diagnostics(
+                str(project_dir), apply=True
+            )
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertFalse(diagnostics["config_written"])
+        self.assertTrue(diagnostics["message"])
+
+
+class GatherLegacyInspectGlobalResolutionTest(unittest.TestCase):
+    def test_inspect_resolves_workspace_project_by_bare_name(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            outside = temp_path / "outside"
+            project_dir = workspace / "WorkspaceProject"
+            _write_legacy_script(project_dir)
+            outside.mkdir()
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                with unittest.mock.patch.dict(
+                    os.environ,
+                    {
+                        "XDG_CONFIG_HOME": str(temp_path / "xdg"),
+                        "HOME": str(temp_path / "home"),
+                        "TAURWORKS_WORKSPACE": str(workspace),
+                    },
+                ):
+                    os.chdir(outside)
+                    diagnostics = legacy.gather_legacy_inspect_diagnostics(
+                        "WorkspaceProject"
+                    )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertTrue(diagnostics["ok"])
+        self.assertEqual(
+            pathlib.Path(diagnostics["project_root"]).resolve(),
+            project_dir.resolve(),
+        )
 
 
 if __name__ == "__main__":

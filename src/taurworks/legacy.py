@@ -1,9 +1,11 @@
 import pathlib
 import re
 import shlex
+import tomllib
 from typing import Any
 
 from taurworks import project_internals
+from taurworks import project_resolution
 
 CONDA_ACTIVATE_PATTERN = re.compile(r"^conda\s+activate\s+(\S.*)$")
 EXPORT_PATTERN = re.compile(r"^export\s+(\S+?)=(.*)$")
@@ -11,11 +13,6 @@ CD_PATTERN = re.compile(r"^cd\s+(\S.*)$")
 MESSAGE_PATTERN = re.compile(r"^(?:echo|printf)\s+(\S.*)$")
 
 _UNSAFE_VALUE_MARKERS = ("$", "`", "|", "&", ";", "<", ">", "*", "?", "(", ")")
-
-
-def legacy_setup_path(project_root: pathlib.Path) -> pathlib.Path:
-    """Return the conventional legacy setup script path for a project root."""
-    return project_root / "Admin" / "project-setup.source"
 
 
 def _split_literal_tokens(value: str) -> list[str] | None:
@@ -62,6 +59,15 @@ def _classify_line(line_number: int, raw_line: str, stripped: str) -> dict[str, 
         tokens = _split_literal_tokens(conda_match.group(1))
         if tokens is not None and len(tokens) == 1:
             name = tokens[0]
+            try:
+                project_internals.validate_conda_environment_name(name)
+            except project_internals.ProjectConfigError:
+                return _unsupported(
+                    line_number,
+                    raw_line,
+                    "conda activate target is not a valid Taurworks Conda "
+                    f"environment name: {name!r}; requires manual review",
+                )
             return {
                 "line": line_number,
                 "raw": raw_line,
@@ -166,11 +172,12 @@ def parse_legacy_setup_script(text: str) -> list[dict[str, Any]]:
 def gather_legacy_inspect_diagnostics(path_or_name: str | None) -> dict[str, Any]:
     """Collect conservative, read-only legacy setup script inspection data."""
     cwd = pathlib.Path.cwd().resolve()
-    resolution = project_internals.resolve_project_target(
-        path_or_name, cwd, prefer_project_root=True
+    resolution, project = project_resolution.resolve_global_activation_project(
+        path_or_name, cwd
     )
     project_root = resolution.project_root
-    setup_path = legacy_setup_path(project_root)
+    setup_path = pathlib.Path(str(project["legacy_setup_path"]))
+    setup_exists = bool(project["legacy_setup_exists"])
 
     base: dict[str, Any] = {
         "ok": True,
@@ -179,14 +186,14 @@ def gather_legacy_inspect_diagnostics(path_or_name: str | None) -> dict[str, Any
         "project_root": str(project_root),
         "resolved_by": resolution.resolved_by.value,
         "legacy_setup_path": str(setup_path),
-        "legacy_setup_exists": setup_path.is_file(),
+        "legacy_setup_exists": setup_exists,
         "matches": [],
         "supported_count": 0,
         "unsupported_count": 0,
         "message": "",
     }
 
-    if not setup_path.is_file():
+    if not setup_exists:
         base["ok"] = False
         base["message"] = f"No legacy setup script found at {setup_path}."
         return base
@@ -250,12 +257,27 @@ def format_legacy_inspect_output(diagnostics: dict[str, Any]) -> str:
         elif kind == "message":
             lines.append(f"- line {match['line']}: readiness message ({match['note']})")
         else:
-            lines.append(
-                f"- line {match['line']}: unsupported — {match['note']}: {match['raw'].strip()}"
-            )
+            lines.append(f"- line {match['line']}: unsupported — {match['note']}")
 
     lines.append(f"- message: {diagnostics['message']}")
     return "\n".join(lines)
+
+
+def _normalize_cd_target(project_root: pathlib.Path, raw_path: str) -> str | None:
+    """Convert an absolute cd target inside project_root to a relative path string.
+
+    Returns the input unchanged for already-relative paths, a project-root-relative
+    path string for absolute targets that resolve inside project_root, or None for
+    absolute targets that escape project_root.
+    """
+    candidate = pathlib.Path(raw_path).expanduser()
+    if not candidate.is_absolute():
+        return raw_path
+    try:
+        relative = candidate.resolve().relative_to(project_root.resolve())
+    except ValueError:
+        return None
+    return relative.as_posix() if str(relative) != "." else "."
 
 
 def _deep_merge_config(base: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
@@ -374,29 +396,38 @@ def _merge_legacy_matches_into_config(
             )
         else:
             raw_path = candidate["detected"]["path"]
-            try:
-                relative_path, exists = project_internals.relative_working_dir_metadata(
-                    project_root, raw_path
-                )
-            except project_internals.ProjectConfigError as error:
+            normalized_path = _normalize_cd_target(project_root, raw_path)
+            if normalized_path is None:
                 manual_review.append(
-                    "legacy cd target could not be mapped to working_dir safely "
-                    f"(line {candidate['line']}): {error}"
+                    "legacy cd target is an absolute path outside the project "
+                    f"root (line {candidate['line']}): {raw_path}"
                 )
             else:
-                if not exists:
+                try:
+                    relative_path, exists = (
+                        project_internals.relative_working_dir_metadata(
+                            project_root, normalized_path
+                        )
+                    )
+                except project_internals.ProjectConfigError as error:
                     manual_review.append(
-                        "legacy cd target does not exist under the project root "
-                        f"(line {candidate['line']}): {raw_path}"
+                        "legacy cd target could not be mapped to working_dir safely "
+                        f"(line {candidate['line']}): {error}"
                     )
                 else:
-                    patch.setdefault("paths", {})[
-                        "working_dir"
-                    ] = relative_path.as_posix()
-                    applied.append(
-                        f"paths.working_dir set to {relative_path.as_posix()} "
-                        f"(line {candidate['line']})"
-                    )
+                    if not exists:
+                        manual_review.append(
+                            "legacy cd target does not exist under the project root "
+                            f"(line {candidate['line']}): {raw_path}"
+                        )
+                    else:
+                        patch.setdefault("paths", {})[
+                            "working_dir"
+                        ] = relative_path.as_posix()
+                        applied.append(
+                            f"paths.working_dir set to {relative_path.as_posix()} "
+                            f"(line {candidate['line']})"
+                        )
 
     for match in matches:
         if match["kind"] == "unsupported":
@@ -428,7 +459,11 @@ def gather_legacy_migrate_diagnostics(
 
     try:
         existing_config = project_internals.read_project_config(project_root)
-    except (project_internals.ProjectConfigError, OSError) as error:
+    except (
+        project_internals.ProjectConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+    ) as error:
         base["ok"] = False
         base["message"] = f"Could not read project config: {error}"
         return base
