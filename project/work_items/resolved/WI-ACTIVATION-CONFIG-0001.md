@@ -2,10 +2,10 @@
 id: WI-ACTIVATION-CONFIG-0001
 title: Implement declarative activation config
 type: deliverable
-status: active
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: Legacy inspect/migrate (slices 4-5) implemented and merged in PR #65 (commit 5242d8d). Slice 6 (trusted hooks) deferred to a separate future work item.
 ---
 
 # WI-ACTIVATION-CONFIG-0001: Implement declarative activation config

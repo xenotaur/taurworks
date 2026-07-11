@@ -2,14 +2,14 @@
 execution_id: 2026_07_11_01_28_23_WI_ACTIVATION_CONFIG_0001_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_ACTIVATION_CONFIG_0001_REVIEW)[2026-07-10T02:27:00-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_07_09_22_12_46_WI_ACTIVATION_CONFIG_0001
 pr: https://github.com/xenotaur/taurworks/pull/65
-commit: 
+commit: 5242d8d1870f955994a2987c7d8232237a7b6f18
 created_at: 2026-07-11T01:28:23-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/65
-session_transcript: pending
+session_transcript: claude-app:8d50d14e-57c6-4894-b351-2d95ae102df3
 ---
 
 # Summary
