@@ -3,6 +3,7 @@ import sys
 
 from taurworks import dev
 from taurworks import global_config
+from taurworks import legacy
 from taurworks import manager
 from taurworks import project_registry
 from taurworks import project_resolution
@@ -178,6 +179,27 @@ def _handle_dev_command(args):
         return
 
     args.dev_parser.print_help()
+
+
+def _handle_legacy_command(args):
+    """Handle `taurworks legacy ...` commands."""
+    if args.legacy_command == "inspect":
+        diagnostics = legacy.gather_legacy_inspect_diagnostics(args.path_or_name)
+        print(legacy.format_legacy_inspect_output(diagnostics))
+        if not diagnostics["ok"]:
+            raise SystemExit(1)
+        return
+
+    if args.legacy_command == "migrate":
+        diagnostics = legacy.gather_legacy_migrate_diagnostics(
+            args.path_or_name, apply=args.apply
+        )
+        print(legacy.format_legacy_migrate_output(diagnostics))
+        if not diagnostics["ok"]:
+            raise SystemExit(1)
+        return
+
+    args.legacy_parser.print_help()
 
 
 def _handle_shell_command(args):
@@ -786,6 +808,54 @@ def main(argv=None):
     parser_shell_print.set_defaults(shell_parser=parser_shell)
     parser_shell.set_defaults(shell_parser=parser_shell)
 
+    # `legacy` namespace
+    parser_legacy = subparsers.add_parser(
+        "legacy",
+        help="Inspect and migrate legacy Admin/project-setup.source projects.",
+        description=(
+            "Conservative, read-only inspection and opt-in migration of legacy "
+            "Admin/project-setup.source scripts into declarative "
+            ".taurworks/config.toml fields. Never executes or sources legacy scripts."
+        ),
+    )
+    legacy_subparsers = parser_legacy.add_subparsers(
+        dest="legacy_command",
+        required=False,
+    )
+
+    parser_legacy_inspect = legacy_subparsers.add_parser(
+        "inspect",
+        help="Report detected legacy setup patterns (read-only).",
+        description=(
+            "Read and classify Admin/project-setup.source into common patterns "
+            "without executing or sourcing it. Export values are always redacted."
+        ),
+    )
+    parser_legacy_inspect.add_argument(
+        "path_or_name", nargs="?", metavar="PROJECT", help="Project name or path."
+    )
+    parser_legacy_inspect.set_defaults(legacy_parser=parser_legacy)
+
+    parser_legacy_migrate = legacy_subparsers.add_parser(
+        "migrate",
+        help="Propose or apply declarative config for detected legacy patterns.",
+        description=(
+            "Propose (default) or apply (--apply) unambiguous declarative "
+            ".taurworks/config.toml fields for detected legacy setup patterns. "
+            "Existing config values are never overwritten."
+        ),
+    )
+    parser_legacy_migrate.add_argument(
+        "path_or_name", nargs="?", metavar="PROJECT", help="Project name or path."
+    )
+    parser_legacy_migrate.add_argument(
+        "--apply",
+        action="store_true",
+        help="Write the proposed changes to .taurworks/config.toml (default is dry run).",
+    )
+    parser_legacy_migrate.set_defaults(legacy_parser=parser_legacy)
+    parser_legacy.set_defaults(legacy_parser=parser_legacy)
+
     args = parser.parse_args(argv)
 
     if args.command == "projects":
@@ -820,6 +890,8 @@ def main(argv=None):
         _emit_project_path(args.path_or_name, "working", "taurworks working")
     elif args.command == "shell":
         _handle_shell_command(args)
+    elif args.command == "legacy":
+        _handle_legacy_command(args)
     elif args.command == "project":
         if (
             args.project_command == "init"
