@@ -11,29 +11,53 @@ confidence: medium
 
 This roadmap is phased and conservative. It prioritizes command-model alignment, safe incremental delivery, and explicit trust boundaries.
 
-## Current phase snapshot (2026-07-06)
+## Current phase snapshot (2026-07-11)
 
-Phases 1 through 2D below are implemented and merged. The active phase is the
-remainder of Phase 5 (legacy inspect/migrate) plus the side-effect audit
-follow-ups; Phase 5A (trusted hooks) and Phase 6/7 remain future work.
+Phases 1 through 2D below are implemented and merged, as is Phase 5's legacy
+inspect/migrate tooling. The 2026-07-11 dogfood session (the dogfooding that
+Phase 5A was waiting on) found that the activation consumer chain works
+end-to-end but no shipped command writes `[activation.environment]`, and
+that `legacy migrate` matches 0 of the 12 real legacy scripts because they
+use variable indirection. The active phase is the dogfood recovery plan:
+WI-INTERIM-TL-PIPX-0001, WI-LEGACY-BATCH-MIGRATION-0001,
+WI-ACTIVATION-PRODUCERS-0001, and WI-TRUSTED-LEGACY-SOURCING-0001.
 
 ### In scope now
 
-- `taurworks legacy inspect`/`legacy migrate` design and implementation for `Admin/project-setup.source` projects.
-- Side-effect audit follow-ups (`project/audits/side_effects.md`), especially gating legacy Conda environment creation behind an explicit command/flag.
+- Interim bridge: a feature-frozen `tl` helper and a pipx-based install so
+  daily activation works while the plan lands; both carry a written
+  retirement criterion (WI-INTERIM-TL-PIPX-0001).
+- One-time, human-reviewed batch migration of the 12 real
+  `Admin/project-setup.source` projects to declarative config
+  (WI-LEGACY-BATCH-MIGRATION-0001). This supersedes any general-purpose
+  upgrade of the `legacy migrate` matcher, which is not planned (zero
+  external users).
+- Producer-side activation authoring: `project env set`, `--env` on
+  create/init, legacy create/refresh convergence onto `config.toml`, and
+  next-step guidance strings (WI-ACTIVATION-PRODUCERS-0001). Every
+  activation work item now carries the end-to-end acceptance criterion: a
+  fresh user can reach Conda-switching activation using only shipped
+  commands.
+- Phase 5A, re-scoped: trust-gated sourcing of legacy setup scripts behind a
+  two-tier consent model (user-global switch plus per-project content-digest
+  trust records in user-owned config), sized by the batch migration's
+  findings (WI-TRUSTED-LEGACY-SOURCING-0001).
 - Deciding scope for `taurworks dev ...` workflow automation beyond read-only diagnostics.
-- Future safe user-script support design behind explicit opt-in (Phase 5A), once legacy inspect/migrate is dogfooded.
 
 ### Out of scope now
 
-- Implementing trusted hooks before legacy inspect/migrate is dogfooded.
-- Automatic fallback sourcing of `Admin/project-setup.source`.
-- Treating legacy-admin projects as anything more than `cd`-only warning fallbacks before explicit migration/trust design.
+- Automatic (unconsented) fallback sourcing of `Admin/project-setup.source`.
+- General-purpose `legacy migrate` matcher upgrades (superseded by the
+  one-time batch migration).
+- venv/Docker/devcontainer environment activation strategies.
 - Broad `taurworks dev ...` workflow automation without further design.
-- Shell startup-file edits.
+- Shell startup-file edits and automatic `conda init`.
 - Multi-repo project management.
 - Breaking removals or renames of compatibility commands.
 - Broad refactors unrelated to project metadata and shell UX alignment.
+- Publishing to PyPI (pipx installs from the local checkout; the README's
+  current `pipx install taurworks` guidance is reconciled to the
+  local-checkout form by WI-INTERIM-TL-PIPX-0001).
 
 ## Phase 1 — Document unified product direction (done)
 
@@ -117,16 +141,26 @@ follow-ups; Phase 5A (trusted hooks) and Phase 6/7 remain future work.
 - `[activation.exports]` declarative environment data is implemented.
 - Conda environment activation (`[activation.environment] type = "conda"`) is implemented in `tw activate`.
 - venv, Docker/devcontainer, and other environment activation strategies remain deferred to separate designs.
-- `taurworks legacy inspect PROJECT` and `taurworks legacy migrate PROJECT --apply` remain the active remaining work in this phase (see `WI-ACTIVATION-CONFIG-0001`).
+- `taurworks legacy inspect PROJECT` and `taurworks legacy migrate PROJECT --apply` are implemented (`WI-ACTIVATION-CONFIG-0001`, PR #65). Dogfooding found the migrate matcher handles none of the 12 real legacy scripts (variable indirection); rather than generalizing the matcher, the real corpus is being migrated once via `WI-LEGACY-BATCH-MIGRATION-0001`, and the missing producer commands are tracked in `WI-ACTIVATION-PRODUCERS-0001`.
 - Arbitrary user-script sourcing remains out of scope for this phase.
 
-## Phase 5A — Future safe user-script support (not started)
+## Phase 5A — Trust-gated legacy script sourcing (re-scoped 2026-07-11, active)
 
-- Design trusted per-project startup hooks with explicit opt-in and disablement semantics.
-- Require warnings, inspection/dry-run modes, and per-project trust before executing hooks.
+- Re-scoped after dogfooding: instead of a new hook-file schema, the first
+  trusted "hook" is the existing legacy `Admin/project-setup.source`,
+  sourced by `tw activate` behind a two-tier consent model
+  (WI-TRUSTED-LEGACY-SOURCING-0001).
+- Tier 1: a user-global enable switch in XDG config, off by default; while
+  off, behavior is unchanged and prompt-free.
+- Tier 2: per-project trust records (script path plus sha256 content digest)
+  stored only in the user-owned global config — never inside the project, so
+  arriving content cannot approve itself. Content changes force re-consent.
+- First-use prompts show an inspect-style summary; `--legacy`/`--no-legacy`
+  give per-invocation control; non-interactive shells fail open to cd-only.
 - Preserve no default automatic legacy `Admin/project-setup.source` sourcing.
-- Design migration for legacy setup scripts into declarative config plus explicitly trusted hooks where necessary.
-- Start only after Phase 5's legacy inspect/migrate tooling has been dogfooded.
+- Sizing and priority are determined by WI-LEGACY-BATCH-MIGRATION-0001's
+  findings on how many projects genuinely need arbitrary shell after
+  declarative migration.
 
 ## Phase 6 — Defer higher-risk dev commands until stable (not started)
 
