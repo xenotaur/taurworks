@@ -43,11 +43,15 @@ dogfood session (stdlib-only runtime deps, working console_scripts entry).
    error otherwise.
 2. Audit `sourceme/completions.source`: it must not advertise `tl` and should
    not break when both helpers are sourced.
-3. Add a README section documenting
-   `pipx install --editable ~/Workspace/Taurworks/taurworks` as the supported
-   install path (with `scripts/develop` remaining the constrained dev-env
-   path), including how it fixes the command-not-found-after-env-switch
-   failure.
+3. Update the README install guidance to document
+   `pipx install --editable <path-to-checkout>` as the supported install
+   path (with `scripts/develop` remaining the constrained dev-env path),
+   including how it fixes the command-not-found-after-env-switch failure.
+   Reconcile the existing README install section, which currently instructs
+   `pipx install taurworks` / `pip install taurworks` — commands that cannot
+   work because the package is not published to PyPI (a roadmap
+   out-of-scope item). Use a placeholder path, not a personal checkout
+   path.
 4. Record the retirement criterion in the README section and in this work
    item: `tl` is deleted (and `sourceme/aliases.source` removed) once every
    project the owner activates in a normal week works via `tw activate`.

@@ -55,7 +55,9 @@ WI-ACTIVATION-PRODUCERS-0001, and WI-TRUSTED-LEGACY-SOURCING-0001.
 - Multi-repo project management.
 - Breaking removals or renames of compatibility commands.
 - Broad refactors unrelated to project metadata and shell UX alignment.
-- Publishing to PyPI (pipx installs from the local checkout).
+- Publishing to PyPI (pipx installs from the local checkout; the README's
+  current `pipx install taurworks` guidance is reconciled to the
+  local-checkout form by WI-INTERIM-TL-PIPX-0001).
 
 ## Phase 1 — Document unified product direction (done)
 

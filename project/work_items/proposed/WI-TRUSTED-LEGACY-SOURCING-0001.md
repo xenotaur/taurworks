@@ -30,8 +30,9 @@ actually need this; its scope or priority may shrink accordingly.
 
 ## Scope
 - Tier 1: global enable switch in the XDG user config, off by default.
-- Tier 2: per-project trust records (script path + sha256) in the same
-  user-owned config, with trust/untrust/list commands.
+- Tier 2: per-project trust records (script path + sha256) in a dedicated
+  `[trust.NAME]` table in the same user-owned config, with
+  `taurworks project trust set/unset/list` commands.
 - `tw activate` prompt-and-source flow with digest change detection and
   per-invocation override flags.
 
@@ -40,10 +41,17 @@ actually need this; its scope or priority may shrink accordingly.
    global config model in `src/taurworks/global_config.py`, plus a
    `taurworks config` subcommand to set/show it. While false: no prompting,
    no sourcing — current behavior exactly.
-2. Add per-project trust records under the existing `[projects.NAME]` global
-   config tables: approved script path and sha256 content digest. Add
-   `taurworks project trust NAME`, `untrust NAME`, and `trust list`.
-   Records are written only by these user-invoked commands.
+2. Add per-project trust records in a dedicated `[trust.NAME]` table in the
+   global config: approved script path and sha256 content digest. Trust
+   records must not live under `[projects.NAME]` — the registry requires
+   every `[projects.NAME]` entry to have a non-empty `root`
+   (`src/taurworks/project_registry.py` `_project_entry_root`) and the
+   registry list iterates all such entries, so a trust-only entry would
+   break existing registry handling. Add the commands
+   `taurworks project trust set NAME`, `taurworks project trust unset NAME`,
+   and `taurworks project trust list` (nested-subcommand style matching
+   `taurworks project registry list` and `taurworks project working-dir
+   set/show`). Records are written only by these user-invoked commands.
 3. Extend the `--shell` payload
    (`src/taurworks/project_resolution.py`
    `format_project_activate_shell_output`) with legacy-script path/existence
