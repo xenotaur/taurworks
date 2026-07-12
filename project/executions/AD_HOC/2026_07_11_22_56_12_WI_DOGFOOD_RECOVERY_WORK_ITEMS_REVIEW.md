@@ -2,14 +2,14 @@
 execution_id: 2026_07_11_22_56_12_WI_DOGFOOD_RECOVERY_WORK_ITEMS_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_DOGFOOD_RECOVERY_WORK_ITEMS_REVIEW)[2026-07-11T21:21:58-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/66
-commit: 98ca395
+commit: 6512983
 created_at: 2026-07-11T22:56:12-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/66
-session_transcript: pending
+session_transcript: claude-app:149f0939-369e-4d12-afa5-29a079bb476f
 ---
 
 # Summary
@@ -59,7 +59,7 @@ Nothing was skipped.
 
 # Follow-up
 
-- Update `session_transcript` from `pending` to `claude-app:<session-id>`
-  after the session ends.
-- On merge: set `status: landed` here, and resolve review conversations on
-  GitHub (human decision).
+None — PR #66 merged (commit 6512983), record marked landed, and
+session_transcript populated at closeout on 2026-07-12. The four proposed
+work items it created remain in `project/work_items/proposed/` awaiting
+implementation, starting with WI-INTERIM-TL-PIPX-0001.
