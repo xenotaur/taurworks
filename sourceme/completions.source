@@ -27,7 +27,10 @@ _taurworks_completion() {
     esac
 }
 
-# Register completion for both 'taurworks' and 'tw'
+# Register completion for 'taurworks' only. The `tw` shell function comes
+# from `taurworks shell print` and has a wider command surface than the
+# legacy list above, so registering this completion for `tw` would
+# misdescribe it. The interim `tl` helper is feature-frozen
+# (WI-INTERIM-TL-PIPX-0001) and intentionally gets no completion.
 complete -F _taurworks_completion taurworks
-complete -F _taurworks_completion tw
 

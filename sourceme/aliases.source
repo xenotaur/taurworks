@@ -1,19 +1,45 @@
-# Source me, bro.
+# Taurworks Legacy (`tl`) — interim activation helper. Source me from bash.
+#
+# `tl activate NAME` finds a project's setup script under the workspace root
+# and sources it in the current shell:
+#
+#   1. $TAURWORKS_WORKSPACE/NAME/Admin/project-setup.source   (legacy layout)
+#   2. $TAURWORKS_WORKSPACE/NAME/.taurworks/project-setup.source
+#
+# This helper is FEATURE-FROZEN (WI-INTERIM-TL-PIPX-0001): it does lookup and
+# source, nothing else. If `tl` seems to need a feature, fix `tw` instead —
+# the supported helper printed by `taurworks shell print`.
+#
+# Retirement criterion: this file is deleted once every project activated in
+# a normal week works through `tw activate`.
+#
+# Note: `tl` is pure shell with no dependency on the `taurworks` executable,
+# so it keeps working even when switching Conda environments hides the
+# Python CLI.
 
-function tw() {
-    if [[ "$1" == "activate" && -n "$2" ]]; then
-        PROJECT_NAME="$2"
-        TAURWORKS_WORKSPACE="${TAURWORKS_WORKSPACE:-$HOME/Workspace}"
-        SETUP_SCRIPT="$TAURWORKS_WORKSPACE/$PROJECT_NAME/.taurworks/project-setup.source"
+function tl() {
+    if [[ "$1" != "activate" || -z "$2" || -n "$3" ]]; then
+        echo "usage: tl activate PROJECT_NAME" >&2
+        return 2
+    fi
 
-        if [[ -f "$SETUP_SCRIPT" ]]; then
-            echo "Activating project '$PROJECT_NAME'..."
-            source "$SETUP_SCRIPT"
-        else
-            echo "❌ Error: Activation script not found for project '$PROJECT_NAME' at $SETUP_SCRIPT" >&2
-            return 1
-        fi
+    local project_name workspace legacy_script taurworks_script
+
+    project_name="$2"
+    workspace="${TAURWORKS_WORKSPACE:-$HOME/Workspace}"
+    legacy_script="$workspace/$project_name/Admin/project-setup.source"
+    taurworks_script="$workspace/$project_name/.taurworks/project-setup.source"
+
+    if [[ -f "$legacy_script" ]]; then
+        echo "tl: sourcing $legacy_script"
+        source "$legacy_script"
+    elif [[ -f "$taurworks_script" ]]; then
+        echo "tl: sourcing $taurworks_script"
+        source "$taurworks_script"
     else
-        taurworks "$@"
+        echo "tl: no setup script found for project '$project_name'" >&2
+        echo "tl: looked for $legacy_script" >&2
+        echo "tl: and        $taurworks_script" >&2
+        return 1
     fi
 }
