@@ -27,10 +27,14 @@ _taurworks_completion() {
     esac
 }
 
-# Register completion for 'taurworks' only. The `tw` shell function comes
-# from `taurworks shell print` and has a wider command surface than the
-# legacy list above, so registering this completion for `tw` would
-# misdescribe it. The interim `tl` helper is feature-frozen
-# (WI-INTERIM-TL-PIPX-0001) and intentionally gets no completion.
+# Register completion for 'taurworks' only, and only as a legacy
+# convenience: the four-command list above is an intentionally limited
+# subset that undersells the full `taurworks` CLI surface (`config`,
+# `workspace`, `project`, `dev`, `shell`, `legacy`, ...). It is kept as-is
+# because this interim file is feature-frozen pending retirement
+# (WI-INTERIM-TL-PIPX-0001). It is not registered for `tw` — the supported
+# helper from `taurworks shell print` — so an incomplete list does not
+# misdescribe that command; the interim `tl` helper likewise gets no
+# completion.
 complete -F _taurworks_completion taurworks
 
