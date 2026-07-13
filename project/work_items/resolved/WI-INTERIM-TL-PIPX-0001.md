@@ -2,10 +2,10 @@
 id: WI-INTERIM-TL-PIPX-0001
 title: Interim tl activation helper, pipx install path, and retirement criterion
 type: deliverable
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: "Implemented and merged in PR #67 (commit 3e62655): tl interim helper, pipx install docs, retirement criterion; pipx editable install performed live."
 ---
 
 # WI-INTERIM-TL-PIPX-0001: Interim tl helper, pipx install path, and retirement criterion

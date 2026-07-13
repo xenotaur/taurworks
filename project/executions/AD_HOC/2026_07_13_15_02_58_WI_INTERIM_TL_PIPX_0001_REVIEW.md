@@ -2,10 +2,10 @@
 execution_id: 2026_07_13_15_02_58_WI_INTERIM_TL_PIPX_0001_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_INTERIM_TL_PIPX_0001_REVIEW)[2026-07-13T13:33:19-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_07_13_01_24_56_WI_INTERIM_TL_PIPX_0001
 pr: https://github.com/xenotaur/taurworks/pull/67
-commit: 9da9371
+commit: 3e62655
 created_at: 2026-07-13T15:02:58-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/67
