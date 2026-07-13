@@ -4,18 +4,29 @@ Taurworks is a command-line development framework for creating, switching to, an
 
 ## User install and shell helper setup
 
-For normal CLI use, prefer installing Taurworks with `pipx` so the
-`taurworks` command is isolated from project environments:
+Taurworks is not published to PyPI (a roadmap out-of-scope item), so install
+it from a local checkout. Prefer `pipx` so the `taurworks` command lives in
+its own isolated environment with a shim on `~/.local/bin`: it stays on PATH
+no matter which Conda environment is active, which fixes the
+`taurworks: command not found` failure that otherwise appears after
+activating a project environment that lacks the package. Use `--editable`
+if the checkout is your development copy, so code changes take effect
+without reinstalling:
 
 ```bash
-pipx install taurworks
+pipx install --editable <path-to-checkout>
 ```
 
-A regular `pip` install also exposes the Python CLI:
+A regular `pip` install from the checkout also exposes the Python CLI, but
+only inside the environment you install it into:
 
 ```bash
-pip install taurworks
+pip install <path-to-checkout>
 ```
+
+For working on Taurworks itself, `scripts/develop` remains the supported
+constrained development install (pinned tool versions via
+`constraints-dev.txt`).
 
 The `taurworks` executable is a Python command-line program. Like any normal
 child process, it cannot mutate the parent shell, so
@@ -83,6 +94,29 @@ Declarative activation currently supports a readiness message, string environmen
 exports, and Conda environment activation only. Virtualenv activation, Docker
 activation, arbitrary user hooks/scripts, and legacy `Admin/project-setup.source`
 migration remain deferred.
+
+## Interim `tl` helper (temporary, feature-frozen)
+
+Until every project activates through `tw`, `sourceme/aliases.source`
+provides `tl` ("Taurworks Legacy"), a pure-shell interim helper:
+
+```bash
+source <path-to-checkout>/sourceme/aliases.source
+tl activate PROJECT_NAME
+```
+
+`tl activate NAME` finds `NAME/Admin/project-setup.source` (or, failing
+that, `NAME/.taurworks/project-setup.source`) under the workspace root and
+sources it in the current shell — exactly what you would do by hand, with
+the path lookup automated. Because it never invokes the `taurworks`
+executable, it works even in Conda environments where the CLI is not
+installed.
+
+`tl` is feature-frozen by design (`WI-INTERIM-TL-PIPX-0001`): lookup and
+source, nothing else — no completions, no listing, no flags. If `tl` seems
+to need a feature, that is a signal to fix `tw` instead. Retirement
+criterion: `tl` and `sourceme/aliases.source` are deleted once every
+project activated in a normal week works through `tw activate`.
 
 Configure Conda activation in `.taurworks/config.toml` with:
 
