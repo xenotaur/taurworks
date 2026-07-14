@@ -79,6 +79,36 @@ class PreprocessScriptTest(unittest.TestCase):
         normalized = migrate.preprocess_script(text, HOME)
         self.assertIn("export CREDENTIALS=$(realpath ~/key.pem)", normalized)
 
+    def test_does_not_expand_inside_single_quotes(self):
+        # Single quotes suppress shell expansion; the preprocessor must not
+        # resolve the reference or record the symbol, so the cd line passes
+        # through verbatim for the downstream parser to mark manual-review.
+        text = "WORKSPACE=repo\ncd '$WORKSPACE'\n"
+        symbols = migrate.build_symbol_table(text, HOME)
+        self.assertEqual(symbols.get("WORKSPACE"), "repo")
+        normalized = migrate.preprocess_script(text, HOME)
+        self.assertIn("cd '$WORKSPACE'", normalized)
+        self.assertNotIn("cd 'repo'", normalized)
+
+    def test_single_quoted_assignment_value_is_not_resolved(self):
+        text = "TARGET='$OTHER'\nconda activate $TARGET\n"
+        symbols = migrate.build_symbol_table(text, HOME)
+        self.assertNotIn("TARGET", symbols)
+        normalized = migrate.preprocess_script(text, HOME)
+        self.assertIn("conda activate $TARGET", normalized)
+
+
+class CliFlagTest(unittest.TestCase):
+    def test_dry_run_flag_is_accepted(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            # An empty workspace: no legacy projects, exit 0, no writes.
+            code = migrate.main(["--dry-run", "--workspace", tmp_dir])
+            self.assertEqual(code, 0)
+
+    def test_dry_run_and_apply_are_mutually_exclusive(self):
+        with self.assertRaises(SystemExit):
+            migrate.main(["--dry-run", "--apply", "--workspace", "/tmp"])
+
 
 class PlanProjectTest(unittest.TestCase):
     def _make_project(self, tmp: pathlib.Path, script: str) -> pathlib.Path:

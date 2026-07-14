@@ -90,6 +90,11 @@ def _expand_leading_tilde(text: str, home: pathlib.Path) -> str:
 
 def _resolve_value(raw: str, symbols: dict[str, str], home: pathlib.Path) -> str | None:
     """Resolve an assignment RHS to a literal, or None if not safely literal."""
+    # Single quotes suppress expansion in the shell, so resolving references
+    # inside them would change semantics. Refuse the value and let the
+    # dependent line fall through to manual review rather than guessing.
+    if "'" in raw:
+        return None
     value = _strip_quotes(raw)
     if not value or "$(" in value or any(marker in value for marker in _UNSAFE_MARKERS):
         return None
@@ -135,6 +140,10 @@ def preprocess_script(text: str, home: pathlib.Path) -> str:
     have their known references and a leading ``~`` resolved. Every other line
     (``export``, ``source``, unknown constructs) passes through verbatim so it
     is classified exactly as the shipped tool would classify it.
+
+    Lines containing a single quote are never rewritten: single quotes suppress
+    shell expansion, so they are passed through untouched and left to the
+    existing shlex-based parser (which quotes correctly on its own).
     """
     symbols = build_symbol_table(text, home)
     out_lines: list[str] = []
@@ -147,7 +156,7 @@ def preprocess_script(text: str, home: pathlib.Path) -> str:
             )
             if is_bare_assignment:
                 continue
-            if _REWRITABLE_PATTERN.match(stripped):
+            if _REWRITABLE_PATTERN.match(stripped) and "'" not in stripped:
                 expanded = _expand_references(stripped, symbols)
                 if expanded is not None:
                     if expanded.split(" ", 1)[0] == "cd":
@@ -266,10 +275,16 @@ def _print_plan(plan: dict[str, object], name: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--apply",
         action="store_true",
         help="Write proposed config (default is a dry run that only prints diffs).",
+    )
+    mode.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Explicitly select dry-run mode (the default); cannot be combined with --apply.",
     )
     parser.add_argument(
         "--project",
