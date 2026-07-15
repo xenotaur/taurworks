@@ -2,10 +2,10 @@
 id: WI-LEGACY-BATCH-MIGRATION-0001
 title: One-time reviewed migration of the 12 legacy Admin projects to declarative config
 type: operation
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: "Implemented and merged in PR #68 (commit cb2a265): bin/migrate_legacy_projects.py migrated all 11 real legacy projects to declarative config; applied and verified live."
 ---
 
 # WI-LEGACY-BATCH-MIGRATION-0001: One-time reviewed migration of legacy Admin projects

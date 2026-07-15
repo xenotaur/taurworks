@@ -2,10 +2,10 @@
 execution_id: 2026_07_13_22_13_52_WI_LEGACY_BATCH_MIGRATION_0001
 prompt_id: PROMPT(WI-LEGACY-BATCH-MIGRATION-0001:WI_LEGACY_BATCH_MIGRATION_0001)[2026-07-13T17:23:13-04:00]
 work_item: WI-LEGACY-BATCH-MIGRATION-0001
-status: in_progress
+status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/68
-commit: 53dcec8
+commit: cb2a265
 created_at: 2026-07-13T22:13:52-04:00
 agent: claude_app
 instruction_source: project/work_items/proposed/WI-LEGACY-BATCH-MIGRATION-0001.md
