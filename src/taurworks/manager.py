@@ -116,7 +116,10 @@ def _write_initial_project_config(project_root, env_name, repo_dir_name):
     safely interpret) are left untouched; only genuinely missing fields are
     filled in. Returns human-readable descriptions of what was written.
     """
-    config = project_internals.read_project_config(project_root)
+    try:
+        config = project_internals.read_project_config(project_root)
+    except (project_internals.ProjectConfigError, OSError, tomllib.TOMLDecodeError):
+        return []  # config unreadable/invalid; leave it untouched
     changes = []
 
     try:

@@ -537,6 +537,57 @@ class GlobalActivationResolutionTest(unittest.TestCase):
 
 
 class ProjectEnvDiagnosticsTest(unittest.TestCase):
+    def test_env_set_resolves_registered_project_outside_cwd(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            registered_root = temp_path / "Elsewhere" / "RegisteredProject"
+            outside_cwd = temp_path / "outside"
+            registered_root.mkdir(parents=True)
+            outside_cwd.mkdir()
+            (registered_root / ".taurworks").mkdir()
+            (registered_root / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "RegisteredProject"\n',
+                encoding="utf-8",
+            )
+
+            xdg_home = temp_path / "xdg"
+            config_path = xdg_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                "schema_version = 1\n\n"
+                "[projects.RegisteredProject]\n"
+                f'root = "{registered_root}"\n',
+                encoding="utf-8",
+            )
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                with mock.patch.dict(
+                    os.environ,
+                    {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)},
+                ):
+                    os.chdir(outside_cwd)
+                    set_diagnostics = (
+                        project_resolution.gather_project_env_set_diagnostics(
+                            "RegEnv", "RegisteredProject"
+                        )
+                    )
+                    show_diagnostics = (
+                        project_resolution.gather_project_env_show_diagnostics(
+                            "RegisteredProject"
+                        )
+                    )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertTrue(
+            set_diagnostics["ok"],
+            msg=f"expected registered project to resolve: {set_diagnostics}",
+        )
+        self.assertEqual("RegEnv", set_diagnostics["environment_name"])
+        self.assertTrue(show_diagnostics["ok"])
+        self.assertEqual("RegEnv", show_diagnostics["environment_name"])
+
     def test_env_show_reports_no_environment_configured(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = pathlib.Path(temp_dir) / "proj"

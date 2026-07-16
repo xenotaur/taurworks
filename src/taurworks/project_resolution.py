@@ -1251,13 +1251,14 @@ def format_project_working_dir_set_output(
 def gather_project_env_show_diagnostics(
     path_or_name: str | None = None,
 ) -> dict[str, str | bool]:
-    """Collect activation environment metadata for a resolved project context."""
+    """Collect activation environment metadata for a resolved project context.
+
+    Uses the same registry/workspace/current-project resolution as
+    `taurworks project activate`, so a project resolved by registered or
+    workspace name (not just cwd-relative) can be targeted here too.
+    """
     cwd = pathlib.Path.cwd().resolve()
-    resolution = project_internals.resolve_project_target(
-        path_or_name,
-        cwd,
-        prefer_project_root=True,
-    )
+    resolution, _project = resolve_global_activation_project(path_or_name, cwd)
     project_root = resolution.project_root
     if not (project_root / ".taurworks").is_dir():
         return {
@@ -1348,13 +1349,14 @@ def gather_project_env_set_diagnostics(
     name: str,
     path_or_name: str | None = None,
 ) -> dict[str, str | bool]:
-    """Set the Conda activation environment for a resolved project context."""
+    """Set the Conda activation environment for a resolved project context.
+
+    Uses the same registry/workspace/current-project resolution as
+    `taurworks project activate`, so a project resolved by registered or
+    workspace name (not just cwd-relative) can be targeted here too.
+    """
     cwd = pathlib.Path.cwd().resolve()
-    resolution = project_internals.resolve_project_target(
-        path_or_name,
-        cwd,
-        prefer_project_root=True,
-    )
+    resolution, _project = resolve_global_activation_project(path_or_name, cwd)
     project_root = resolution.project_root
     if not (project_root / ".taurworks").is_dir():
         return {

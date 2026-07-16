@@ -280,6 +280,31 @@ class ProjectInternalsTest(unittest.TestCase):
         self.assertEqual("NewEnv", configured_name)
         self.assertEqual("NewEnv", config["activation"]["environment"]["name"])
 
+    def test_set_activation_environment_overwrites_malformed_existing_value(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            metadata_dir = project_dir / ".taurworks"
+            metadata_dir.mkdir(parents=True)
+            (metadata_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "proj"\n\n'
+                    "[activation.environment]\n"
+                    'type = "venv"\n'  # unsupported type: malformed per validator
+                ),
+                encoding="utf-8",
+            )
+
+            previous_name, configured_name, _repairs = (
+                project_internals.set_activation_environment(project_dir, "NewEnv")
+            )
+            config = project_internals.read_project_config(project_dir)
+
+        self.assertIsNone(previous_name)
+        self.assertEqual("NewEnv", configured_name)
+        self.assertEqual("conda", config["activation"]["environment"]["type"])
+        self.assertEqual("NewEnv", config["activation"]["environment"]["name"])
+
     def test_set_activation_environment_rejects_invalid_name(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = pathlib.Path(temp_dir) / "proj"

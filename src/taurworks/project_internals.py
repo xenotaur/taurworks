@@ -420,10 +420,18 @@ def set_activation_environment(
     project_root: pathlib.Path,
     name: str,
 ) -> tuple[str | None, str, list[str]]:
-    """Update project config with a validated Conda activation environment name."""
+    """Update project config with a validated Conda activation environment name.
+
+    This is an explicit setter: a malformed existing `[activation.environment]`
+    (invalid type, missing name, etc.) is overwritten rather than blocking the
+    write, since the whole point of this command is to replace it.
+    """
     validate_conda_environment_name(name)
     config = read_project_config(project_root)
-    existing_environment = activation_environment_from_config(config)
+    try:
+        existing_environment = activation_environment_from_config(config)
+    except ProjectConfigError:
+        existing_environment = None
     previous_name = existing_environment["name"] if existing_environment else None
     config, repairs = ensure_minimal_project_config(project_root, config)
 

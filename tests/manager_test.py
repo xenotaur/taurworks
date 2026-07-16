@@ -241,6 +241,26 @@ class ManagerModuleTest(unittest.TestCase):
             config = project_internals.read_project_config(project_dir)
             self.assertEqual("CustomEnv", config["activation"]["environment"]["name"])
 
+    def test_refresh_project_does_not_crash_on_invalid_existing_config(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "Alpha"
+            metadata_dir = project_dir / ".taurworks"
+            metadata_dir.mkdir(parents=True)
+            invalid_config = metadata_dir / "config.toml"
+            invalid_config.write_text("this is not [ valid toml\n", encoding="utf-8")
+
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(manager.subprocess, "run"),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                manager.refresh_project("Alpha")  # must not raise
+
+            self.assertEqual(
+                "this is not [ valid toml\n",
+                invalid_config.read_text(encoding="utf-8"),
+            )
+
     def test_create_project_writes_config_toml_not_setup_script(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             with (
