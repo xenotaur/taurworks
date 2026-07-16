@@ -416,6 +416,27 @@ def activation_environment_from_config(config: dict[str, Any]) -> dict[str, str]
     return {"type": environment_type, "name": name}
 
 
+def set_activation_environment(
+    project_root: pathlib.Path,
+    name: str,
+) -> tuple[str | None, str, list[str]]:
+    """Update project config with a validated Conda activation environment name."""
+    validate_conda_environment_name(name)
+    config = read_project_config(project_root)
+    existing_environment = activation_environment_from_config(config)
+    previous_name = existing_environment["name"] if existing_environment else None
+    config, repairs = ensure_minimal_project_config(project_root, config)
+
+    activation_table = config.get("activation")
+    if not isinstance(activation_table, dict):
+        activation_table = {}
+        config["activation"] = activation_table
+    activation_table["environment"] = {"type": "conda", "name": name}
+
+    write_project_config(project_root, config)
+    return previous_name, name, repairs
+
+
 def working_dir_from_config(config: dict[str, Any]) -> str | None:
     """Return configured working_dir if present and valid enough to display."""
     paths_table = config.get("paths")

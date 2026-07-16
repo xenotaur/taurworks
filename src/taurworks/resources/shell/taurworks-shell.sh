@@ -193,6 +193,8 @@ _tw_activate() {
 
     if [ "$working_dir_configured" != "True" ] && [ "$guidance" != "" ]; then
         printf '%s\n' "tw activate: warning: $guidance" >&2
+    elif [ "$environment_configured" != "True" ] && [ "$guidance" != "" ]; then
+        printf '%s\n' "tw activate: note: $guidance" >&2
     fi
     if [ "$activation_export_count" != "" ] && [ "$activation_export_count" != "0" ]; then
         printf '%s\n' "tw activate: exported $activation_export_count variable(s)"

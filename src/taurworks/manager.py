@@ -109,6 +109,51 @@ def camel_to_snake(name):
     return re.sub(r"(?<!^)([A-Z])", r"_\1", name).lower()
 
 
+def _write_initial_project_config(project_root, env_name, repo_dir_name):
+    """Write missing declarative activation config; never overwrite existing values.
+
+    Existing config values (including malformed ones this function cannot
+    safely interpret) are left untouched; only genuinely missing fields are
+    filled in. Returns human-readable descriptions of what was written.
+    """
+    config = project_internals.read_project_config(project_root)
+    changes = []
+
+    try:
+        has_environment = (
+            project_internals.activation_environment_from_config(config) is not None
+        )
+    except project_internals.ProjectConfigError:
+        has_environment = True  # unreadable activation data; leave untouched
+
+    has_working_dir = project_internals.working_dir_from_config(config) is not None
+
+    config, repairs = project_internals.ensure_minimal_project_config(
+        project_root, config
+    )
+    changes.extend(f"config repair: {repair}" for repair in repairs)
+
+    if not has_environment:
+        activation_table = config.get("activation")
+        if not isinstance(activation_table, dict):
+            activation_table = {}
+            config["activation"] = activation_table
+        activation_table["environment"] = {"type": "conda", "name": env_name}
+        changes.append(f"config: activation.environment.name set to {env_name}")
+
+    if not has_working_dir:
+        paths_table = config.get("paths")
+        if not isinstance(paths_table, dict):
+            paths_table = {}
+            config["paths"] = paths_table
+        paths_table["working_dir"] = repo_dir_name
+        changes.append(f"config: paths.working_dir set to {repo_dir_name}")
+
+    if changes:
+        project_internals.write_project_config(project_root, config)
+    return changes
+
+
 def refresh_project(
     project_name,
     python_version="3.11",
@@ -144,10 +189,10 @@ def refresh_project(
             "Skipping Conda environment creation " "(pass --create-env to create one)."
         )
         print(
-            f"⚠ Note: the generated setup script will still run "
-            f"`conda activate {env_name}`; it will fail until that Conda "
-            "environment exists (pass --create-env, or activate a different "
-            "environment manually)."
+            f"⚠ Note: `tw activate` will still try to activate Conda "
+            f"environment '{env_name}'; it will fail until that environment "
+            "exists (pass --create-env, or activate a different environment "
+            "manually)."
         )
 
     # Ensure repository directory exists
@@ -155,24 +200,26 @@ def refresh_project(
         print(f"Creating repository directory: {repo_dir}")
         os.makedirs(repo_dir)
 
-    # Ensure project-setup.source script exists
-    setup_script = os.path.join(admin_dir, "project-setup.source")
-    if not os.path.exists(setup_script):
-        print(f"Creating setup script: {setup_script}")
-        with open(setup_script, "w") as f:
-            f.write(f"""#!/bin/bash
-# Activate Conda environment
-source $(conda info --base)/etc/profile.d/conda.sh
-conda activate {env_name}
-# Change to repository directory
-cd "{repo_dir}"
-""")
-        os.chmod(setup_script, 0o755)  # Make executable
+    # Ensure declarative activation config exists (never overwrites existing values)
+    config_changes = _write_initial_project_config(
+        pathlib.Path(project_dir), env_name, repo_name
+    )
+    config_path = project_internals.project_config_path(pathlib.Path(project_dir))
+    if config_changes:
+        print(f"Updating Taurworks config: {config_path}")
+        for change in config_changes:
+            print(f"  {change}")
     else:
-        print("✔ Setup script already exists.")
+        print(f"✔ Taurworks config already up to date: {config_path}")
 
-    print(f"✔ Project {project_name} is fully set up.")
-    print(f"To activate, run: source {setup_script}")
+    if create_env:
+        print(f"✔ Project {project_name} is fully set up.")
+    else:
+        print(
+            f"✔ Project {project_name} metadata is set up, but no Conda "
+            f"environment was created (pass --create-env to create '{env_name}')."
+        )
+    print(f"To activate, run: tw activate {project_name}")
 
 
 def get_directory_info(path):
@@ -524,29 +571,33 @@ def create_project(
             "Skipping Conda environment creation " "(pass --create-env to create one)."
         )
         print(
-            f"⚠ Note: the generated setup script will still run "
-            f"`conda activate {env_name}`; it will fail until that Conda "
-            "environment exists (pass --create-env, or activate a different "
-            "environment manually)."
+            f"⚠ Note: `tw activate` will still try to activate Conda "
+            f"environment '{env_name}'; it will fail until that environment "
+            "exists (pass --create-env, or activate a different environment "
+            "manually)."
         )
 
     # Create the repository directory
     os.makedirs(repo_dir, exist_ok=True)
 
-    # Generate the project-setup.source script
-    setup_script = os.path.join(admin_dir, "project-setup.source")
-    with open(setup_script, "w") as f:
-        f.write(f"""#!/bin/bash
-# Activate Conda environment
-source $(conda info --base)/etc/profile.d/conda.sh
-conda activate {env_name}
-# Change to repository directory
-cd "{repo_dir}"
-""")
-    os.chmod(setup_script, 0o755)  # Make executable
+    # Ensure declarative activation config exists (never overwrites existing values)
+    config_changes = _write_initial_project_config(
+        pathlib.Path(project_dir), env_name, project_name
+    )
+    config_path = project_internals.project_config_path(pathlib.Path(project_dir))
+    if config_changes:
+        print(f"Updating Taurworks config: {config_path}")
+        for change in config_changes:
+            print(f"  {change}")
 
-    print(f"✔ Project '{project_name}' created successfully.")
-    print(f"To activate, run: source {setup_script}")
+    if create_env:
+        print(f"✔ Project '{project_name}' created successfully.")
+    else:
+        print(
+            f"✔ Project '{project_name}' metadata created, but no Conda "
+            f"environment was created (pass --create-env to create '{env_name}')."
+        )
+    print(f"To activate, run: tw activate {project_name}")
 
 
 def activate_project(project_name):

@@ -620,6 +620,101 @@ class ShellHelperTest(unittest.TestCase):
         self.assertEqual(conda_name, "FakeAlphaEnv")
         assert_same_path(self, conda_cwd, workspace)
 
+    def test_fresh_user_project_create_env_flag_activates_conda_before_cd(self):
+        """Fresh-user acceptance test (WI-ACTIVATION-PRODUCERS-0001): a project
+        created with only shipped commands (`project create --env`) must reach
+        Conda-switching `tw activate`, with no manual config.toml editing."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            workspace = temp_path / "Workspace"
+            order_path = temp_path / "tw-conda-order.out"
+            bin_dir.mkdir()
+            workspace.mkdir()
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            env["TAURWORKS_CONDA_ORDER_PATH"] = str(order_path)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    "conda() {\n"
+                    '  if [ "$1" = "activate" ] && [ "$2" = "FreshEnv" ]; then\n'
+                    '    export TAURWORKS_FAKE_CONDA_ENV="$2"\n'
+                    "    return 0\n"
+                    "  fi\n"
+                    "  return 1\n"
+                    "}\n"
+                    'source "$1" && '
+                    'cd "$2" && '
+                    "taurworks project create Fresh --local --env FreshEnv "
+                    "--working-dir fresh_repo --create-working-dir >/dev/null && "
+                    "tw activate Fresh >/dev/null && "
+                    "pwd && "
+                    "printf '%s\n' \"$TAURWORKS_FAKE_CONDA_ENV\""
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        expected_dir = workspace / "Fresh" / "fresh_repo"
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        stdout_lines = result.stdout.splitlines()
+        assert_same_path(self, stdout_lines[-2], expected_dir)
+        self.assertEqual(stdout_lines[-1], "FreshEnv")
+
+    def test_tw_activate_notes_missing_environment_configuration(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            workspace = temp_path / "Workspace"
+            bin_dir.mkdir()
+            workspace.mkdir()
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    'cd "$2" && '
+                    "taurworks project create NoEnv --local "
+                    "--working-dir repo --create-working-dir >/dev/null && "
+                    "tw activate NoEnv >/tmp/tw-noenv.out 2>/tmp/tw-noenv.err && "
+                    "cat /tmp/tw-noenv.err"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("tw activate: note:", result.stdout)
+        self.assertIn("taurworks project env set", result.stdout)
+
     def test_tw_activate_conda_failure_does_not_change_directory_or_export(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)

@@ -112,6 +112,7 @@ def _handle_project_command(args):
             args.path_or_name,
             args.working_dir,
             create_working_dir=args.create_working_dir,
+            env=args.env,
         )
         print(project_resolution.format_project_init_output(diagnostics))
         if not diagnostics["ok"]:
@@ -138,6 +139,24 @@ def _handle_project_command(args):
             if not diagnostics["ok"]:
                 raise SystemExit(1)
             return
+    if args.project_command == "env":
+        if args.env_command == "show":
+            diagnostics = project_resolution.gather_project_env_show_diagnostics(
+                args.path_or_name
+            )
+            print(project_resolution.format_project_env_show_output(diagnostics))
+            if not diagnostics["ok"]:
+                raise SystemExit(1)
+            return
+        if args.env_command == "set":
+            diagnostics = project_resolution.gather_project_env_set_diagnostics(
+                args.env_name,
+                args.path_or_name,
+            )
+            print(project_resolution.format_project_env_set_output(diagnostics))
+            if not diagnostics["ok"]:
+                raise SystemExit(1)
+            return
     if args.project_command == "create":
         diagnostics = project_resolution.gather_project_create_diagnostics(
             args.path_or_name,
@@ -146,6 +165,7 @@ def _handle_project_command(args):
             nested=args.nested,
             local=args.local,
             explicit_path=args.path,
+            env=args.env,
         )
         print(project_resolution.format_project_create_output(diagnostics))
         if not diagnostics["ok"]:
@@ -594,6 +614,13 @@ def main(argv=None):
             "stays inside the project root."
         ),
     )
+    parser_project_init.add_argument(
+        "--env",
+        help=(
+            "Optional Conda environment name to record as "
+            "[activation.environment] type=conda for this project."
+        ),
+    )
     parser_project_init.set_defaults(project_parser=parser_project)
 
     parser_project_working_dir = project_subparsers.add_parser(
@@ -643,6 +670,63 @@ def main(argv=None):
         help="Optional existing directory to store relative to the project root.",
     )
     parser_project_working_dir_set.set_defaults(project_parser=parser_project)
+
+    parser_project_env = project_subparsers.add_parser(
+        "env",
+        help="Show or set the project Conda activation environment metadata.",
+        description=(
+            "Read or update project-local [activation.environment] metadata "
+            "used by `tw activate` to activate a Conda environment. Only "
+            "type=conda is supported."
+        ),
+    )
+    env_subparsers = parser_project_env.add_subparsers(
+        dest="env_command",
+        required=True,
+    )
+
+    parser_project_env_show = env_subparsers.add_parser(
+        "show",
+        help="Show the configured project activation environment.",
+        description=(
+            "Resolve a Taurworks project and show configured "
+            "[activation.environment] metadata when present."
+        ),
+    )
+    parser_project_env_show.add_argument(
+        "path_or_name",
+        nargs="?",
+        help=(
+            "Optional project path or name. Defaults to the current project "
+            "when run inside Taurworks metadata."
+        ),
+    )
+    parser_project_env_show.set_defaults(project_parser=parser_project)
+
+    parser_project_env_set = env_subparsers.add_parser(
+        "set",
+        help="Set the configured project Conda activation environment.",
+        description=(
+            "Set [activation.environment] type=conda and name=ENV_NAME for a "
+            "resolved project. Existing metadata is overwritten explicitly by "
+            "this command; use --project to target a project other than the "
+            "current one."
+        ),
+    )
+    parser_project_env_set.add_argument(
+        "env_name",
+        metavar="ENV_NAME",
+        help="Conda environment name to record for activation.",
+    )
+    parser_project_env_set.add_argument(
+        "--project",
+        dest="path_or_name",
+        help=(
+            "Optional project path or name. Defaults to the current project "
+            "when run inside Taurworks metadata."
+        ),
+    )
+    parser_project_env_set.set_defaults(project_parser=parser_project)
 
     parser_project_create = project_subparsers.add_parser(
         "create",
@@ -704,6 +788,13 @@ def main(argv=None):
         help=(
             "Allow intentional nested same-name project creation when the current "
             "project or current directory already has NAME."
+        ),
+    )
+    parser_project_create.add_argument(
+        "--env",
+        help=(
+            "Optional Conda environment name to record as "
+            "[activation.environment] type=conda for this project."
         ),
     )
     parser_project_create.set_defaults(project_parser=parser_project)
