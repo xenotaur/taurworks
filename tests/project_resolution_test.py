@@ -437,10 +437,42 @@ class GlobalActivationResolutionTest(unittest.TestCase):
             self, workspace_diagnostics["resolved_working_dir"], workspace_only
         )
         self.assertIn("not initialized", str(workspace_diagnostics["guidance"]))
+        self.assertIn(
+            "taurworks project init WorkspaceOnly",
+            str(workspace_diagnostics["guidance"]),
+        )
         self.assertTrue(legacy_diagnostics["ok"])
         assert_same_path(self, legacy_diagnostics["resolved_working_dir"], legacy)
         self.assertIn("was not sourced", str(legacy_diagnostics["guidance"]))
+        self.assertIn(
+            "taurworks legacy migrate Legacy --apply",
+            str(legacy_diagnostics["guidance"]),
+        )
         self.assertFalse(sentinel.exists())
+
+    def test_activate_without_environment_names_env_set_in_guidance(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            project_root = temp_path / "Project"
+            repo = project_root / "repo"
+            repo.mkdir(parents=True)
+            self._write_project_config(project_root, "Project", "repo")
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                os.chdir(project_root)
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Project"
+                    )
+                )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertTrue(diagnostics["ok"])
+        self.assertFalse(diagnostics["environment_configured"])
+        self.assertIn("taurworks project env set", str(diagnostics["guidance"]))
+        self.assertIn("--project Project", str(diagnostics["guidance"]))
 
     def test_registered_hidden_project_lists_and_activates_without_workspace_duplicate(
         self,
@@ -502,6 +534,133 @@ class GlobalActivationResolutionTest(unittest.TestCase):
         names = [project["name"] for project in listing["projects"]]
         self.assertIn("Parent", names)
         self.assertNotIn("Nested", names)
+
+
+class ProjectEnvDiagnosticsTest(unittest.TestCase):
+    def test_env_set_resolves_registered_project_outside_cwd(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            registered_root = temp_path / "Elsewhere" / "RegisteredProject"
+            outside_cwd = temp_path / "outside"
+            registered_root.mkdir(parents=True)
+            outside_cwd.mkdir()
+            (registered_root / ".taurworks").mkdir()
+            (registered_root / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "RegisteredProject"\n',
+                encoding="utf-8",
+            )
+
+            xdg_home = temp_path / "xdg"
+            config_path = xdg_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                "schema_version = 1\n\n"
+                "[projects.RegisteredProject]\n"
+                f'root = "{registered_root}"\n',
+                encoding="utf-8",
+            )
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                with mock.patch.dict(
+                    os.environ,
+                    {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)},
+                ):
+                    os.chdir(outside_cwd)
+                    set_diagnostics = (
+                        project_resolution.gather_project_env_set_diagnostics(
+                            "RegEnv", "RegisteredProject"
+                        )
+                    )
+                    show_diagnostics = (
+                        project_resolution.gather_project_env_show_diagnostics(
+                            "RegisteredProject"
+                        )
+                    )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertTrue(
+            set_diagnostics["ok"],
+            msg=f"expected registered project to resolve: {set_diagnostics}",
+        )
+        self.assertEqual("RegEnv", set_diagnostics["environment_name"])
+        self.assertTrue(show_diagnostics["ok"])
+        self.assertEqual("RegEnv", show_diagnostics["environment_name"])
+
+    def test_env_show_reports_no_environment_configured(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            (project_dir / ".taurworks").mkdir(parents=True)
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "proj"\n',
+                encoding="utf-8",
+            )
+
+            diagnostics = project_resolution.gather_project_env_show_diagnostics(
+                str(project_dir)
+            )
+
+        self.assertTrue(diagnostics["ok"])
+        self.assertFalse(diagnostics["environment_configured"])
+
+    def test_env_set_then_show_round_trips_environment_name(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            (project_dir / ".taurworks").mkdir(parents=True)
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "proj"\n',
+                encoding="utf-8",
+            )
+
+            set_diagnostics = project_resolution.gather_project_env_set_diagnostics(
+                "MyEnv", str(project_dir)
+            )
+            show_diagnostics = project_resolution.gather_project_env_show_diagnostics(
+                str(project_dir)
+            )
+
+        self.assertTrue(set_diagnostics["ok"])
+        self.assertEqual("none", set_diagnostics["previous_environment"])
+        self.assertEqual("MyEnv", set_diagnostics["environment_name"])
+        self.assertTrue(show_diagnostics["ok"])
+        self.assertTrue(show_diagnostics["environment_configured"])
+        self.assertEqual("MyEnv", show_diagnostics["environment_name"])
+        self.assertEqual("conda", show_diagnostics["environment_type"])
+
+    def test_env_set_rejects_invalid_name_before_writing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            (project_dir / ".taurworks").mkdir(parents=True)
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "proj"\n',
+                encoding="utf-8",
+            )
+
+            diagnostics = project_resolution.gather_project_env_set_diagnostics(
+                "../unsafe", str(project_dir)
+            )
+            show_diagnostics = project_resolution.gather_project_env_show_diagnostics(
+                str(project_dir)
+            )
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertIn(
+            "invalid Conda activation environment name", diagnostics["message"]
+        )
+        self.assertFalse(show_diagnostics["environment_configured"])
+
+    def test_env_set_fails_for_uninitialized_project(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            project_dir.mkdir(parents=True)
+
+            diagnostics = project_resolution.gather_project_env_set_diagnostics(
+                "MyEnv", str(project_dir)
+            )
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertIn("No Taurworks project metadata found", diagnostics["message"])
 
 
 if __name__ == "__main__":

@@ -524,6 +524,110 @@ class CliCommandTest(unittest.TestCase):
                 msg=changed_message,
             )
 
+    def test_project_create_with_env_flag_writes_activation_environment(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            project_dir = workspace / "EnvProject"
+
+            create_args = [
+                "project",
+                "create",
+                "EnvProject",
+                "--local",
+                "--env",
+                "EnvProjectEnv",
+                "--working-dir",
+                "repo",
+                "--create-working-dir",
+            ]
+            create_result = _run_cli(create_args, workspace)
+            create_message = _failure_message(create_args, create_result)
+            self.assertEqual(create_result.returncode, 0, msg=create_message)
+            self.assertIn("env_requested: True", create_result.stdout)
+            self.assertIn("environment_name: EnvProjectEnv", create_result.stdout)
+
+            with open(project_dir / ".taurworks" / "config.toml", "rb") as config_file:
+                config = tomllib.load(config_file)
+            self.assertEqual(
+                "EnvProjectEnv", config["activation"]["environment"]["name"]
+            )
+            self.assertEqual("conda", config["activation"]["environment"]["type"])
+
+            show_args = ["project", "env", "show", "EnvProject"]
+            show_result = _run_cli(show_args, workspace)
+            show_message = _failure_message(show_args, show_result)
+            self.assertEqual(show_result.returncode, 0, msg=show_message)
+            self.assertIn("environment_name: EnvProjectEnv", show_result.stdout)
+
+    def test_project_init_with_env_flag_writes_activation_environment(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "InitEnvProject"
+            project_dir.mkdir(parents=True)
+
+            init_args = ["project", "init", "--env", "InitEnvProjectEnv"]
+            init_result = _run_cli(init_args, project_dir)
+            init_message = _failure_message(init_args, init_result)
+            self.assertEqual(init_result.returncode, 0, msg=init_message)
+            self.assertIn("environment_name: InitEnvProjectEnv", init_result.stdout)
+
+            with open(project_dir / ".taurworks" / "config.toml", "rb") as config_file:
+                config = tomllib.load(config_file)
+            self.assertEqual(
+                "InitEnvProjectEnv", config["activation"]["environment"]["name"]
+            )
+
+    def test_project_env_set_rejects_invalid_name_without_writing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "InvalidEnvProject"
+            project_dir.mkdir(parents=True)
+            init_result = _run_cli(["project", "init"], project_dir)
+            self.assertEqual(
+                init_result.returncode,
+                0,
+                msg=_failure_message(["project", "init"], init_result),
+            )
+
+            set_args = ["project", "env", "set", "../unsafe"]
+            set_result = _run_cli(set_args, project_dir)
+            self.assertNotEqual(set_result.returncode, 0)
+            self.assertIn(
+                "invalid Conda activation environment name", set_result.stdout
+            )
+
+            show_result = _run_cli(["project", "env", "show"], project_dir)
+            self.assertIn("environment_configured: False", show_result.stdout)
+
+    def test_project_env_set_then_show_round_trips_via_project_flag(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            project_dir = workspace / "RoundTripProject"
+            project_dir.mkdir(parents=True)
+            init_result = _run_cli(["project", "init"], project_dir)
+            self.assertEqual(
+                init_result.returncode,
+                0,
+                msg=_failure_message(["project", "init"], init_result),
+            )
+
+            set_args = [
+                "project",
+                "env",
+                "set",
+                "RoundTripEnv",
+                "--project",
+                "RoundTripProject",
+            ]
+            set_result = _run_cli(set_args, workspace)
+            set_message = _failure_message(set_args, set_result)
+            self.assertEqual(set_result.returncode, 0, msg=set_message)
+            self.assertIn("previous_environment: none", set_result.stdout)
+            self.assertIn("environment_name: RoundTripEnv", set_result.stdout)
+
+            show_result = _run_cli(
+                ["project", "env", "show", "RoundTripProject"], workspace
+            )
+            self.assertIn("environment_name: RoundTripEnv", show_result.stdout)
+
     def test_project_list_succeeds_without_discovered_projects(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             cmd = [sys.executable, "-m", "taurworks.cli", "project", "list"]

@@ -238,6 +238,109 @@ class ProjectInternalsTest(unittest.TestCase):
             config["activation"]["exports"]["NODE_OPTIONS"],
         )
 
+    def test_set_activation_environment_writes_new_environment(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            metadata_dir = project_dir / ".taurworks"
+            metadata_dir.mkdir(parents=True)
+
+            previous_name, configured_name, repairs = (
+                project_internals.set_activation_environment(project_dir, "MyEnv")
+            )
+            config = project_internals.read_project_config(project_dir)
+
+        self.assertIsNone(previous_name)
+        self.assertEqual("MyEnv", configured_name)
+        self.assertIn("schema_version set to 1", repairs)
+        self.assertEqual("conda", config["activation"]["environment"]["type"])
+        self.assertEqual("MyEnv", config["activation"]["environment"]["name"])
+
+    def test_set_activation_environment_overwrites_previous_value(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            metadata_dir = project_dir / ".taurworks"
+            metadata_dir.mkdir(parents=True)
+            (metadata_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "proj"\n\n'
+                    "[activation.environment]\n"
+                    'type = "conda"\n'
+                    'name = "OldEnv"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            previous_name, configured_name, _repairs = (
+                project_internals.set_activation_environment(project_dir, "NewEnv")
+            )
+            config = project_internals.read_project_config(project_dir)
+
+        self.assertEqual("OldEnv", previous_name)
+        self.assertEqual("NewEnv", configured_name)
+        self.assertEqual("NewEnv", config["activation"]["environment"]["name"])
+
+    def test_set_activation_environment_overwrites_malformed_existing_value(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            metadata_dir = project_dir / ".taurworks"
+            metadata_dir.mkdir(parents=True)
+            (metadata_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "proj"\n\n'
+                    "[activation.environment]\n"
+                    'type = "venv"\n'  # unsupported type: malformed per validator
+                ),
+                encoding="utf-8",
+            )
+
+            previous_name, configured_name, _repairs = (
+                project_internals.set_activation_environment(project_dir, "NewEnv")
+            )
+            config = project_internals.read_project_config(project_dir)
+
+        self.assertIsNone(previous_name)
+        self.assertEqual("NewEnv", configured_name)
+        self.assertEqual("conda", config["activation"]["environment"]["type"])
+        self.assertEqual("NewEnv", config["activation"]["environment"]["name"])
+
+    def test_set_activation_environment_rejects_invalid_name(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            metadata_dir = project_dir / ".taurworks"
+            metadata_dir.mkdir(parents=True)
+
+            with self.assertRaises(project_internals.ProjectConfigError) as context:
+                project_internals.set_activation_environment(project_dir, "../unsafe")
+            self.assertIn(
+                "invalid Conda activation environment name", str(context.exception)
+            )
+            self.assertFalse(
+                (metadata_dir / "config.toml").exists(),
+                "invalid name must not write config",
+            )
+
+    def test_set_activation_environment_preserves_nested_working_dir(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            metadata_dir = project_dir / ".taurworks"
+            metadata_dir.mkdir(parents=True)
+            (metadata_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "proj"\n\n'
+                    '[paths]\nworking_dir = "repo"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            project_internals.set_activation_environment(project_dir, "MyEnv")
+            config = project_internals.read_project_config(project_dir)
+
+        self.assertEqual("repo", config["paths"]["working_dir"])
+        self.assertEqual("MyEnv", config["activation"]["environment"]["name"])
+
     def test_ensure_minimal_project_config_rejects_future_schema_version(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = pathlib.Path(temp_dir) / "proj"

@@ -7,6 +7,7 @@ import unittest
 import unittest.mock
 
 from taurworks import manager
+from taurworks import project_internals
 
 
 class ManagerModuleTest(unittest.TestCase):
@@ -173,6 +174,126 @@ class ManagerModuleTest(unittest.TestCase):
             ["conda", "create", "--name", "Beta", "python=3.11", "-y"],
             check=True,
         )
+
+    def test_refresh_project_writes_config_toml_not_setup_script(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(manager.subprocess, "run"),
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                manager.refresh_project("Alpha")
+
+            project_dir = pathlib.Path(temp_dir) / "Alpha"
+            self.assertFalse(
+                (project_dir / ".taurworks" / "project-setup.source").exists()
+            )
+            self.assertTrue((project_dir / ".taurworks" / "config.toml").is_file())
+            config = project_internals.read_project_config(project_dir)
+            self.assertEqual("Alpha", config["activation"]["environment"]["name"])
+            self.assertEqual("conda", config["activation"]["environment"]["type"])
+            self.assertEqual("alpha", config["paths"]["working_dir"])
+            self.assertIn(
+                "metadata is set up, but no Conda environment was created",
+                stdout.getvalue(),
+            )
+
+    def test_refresh_project_with_create_env_reports_fully_set_up(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(
+                    manager, "get_conda_environments", return_value=set()
+                ),
+                unittest.mock.patch.object(manager.subprocess, "run"),
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                manager.refresh_project("Alpha", create_env=True)
+
+            self.assertIn("is fully set up.", stdout.getvalue())
+            self.assertNotIn(
+                "metadata is set up, but no Conda environment", stdout.getvalue()
+            )
+
+    def test_refresh_project_does_not_overwrite_existing_environment(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "Alpha"
+            metadata_dir = project_dir / ".taurworks"
+            metadata_dir.mkdir(parents=True)
+            (metadata_dir / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "Alpha"\n\n'
+                    "[activation.environment]\n"
+                    'type = "conda"\n'
+                    'name = "CustomEnv"\n'
+                ),
+                encoding="utf-8",
+            )
+
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(manager.subprocess, "run"),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                manager.refresh_project("Alpha")
+
+            config = project_internals.read_project_config(project_dir)
+            self.assertEqual("CustomEnv", config["activation"]["environment"]["name"])
+
+    def test_refresh_project_does_not_crash_on_invalid_existing_config(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "Alpha"
+            metadata_dir = project_dir / ".taurworks"
+            metadata_dir.mkdir(parents=True)
+            invalid_config = metadata_dir / "config.toml"
+            invalid_config.write_text("this is not [ valid toml\n", encoding="utf-8")
+
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(manager.subprocess, "run"),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                manager.refresh_project("Alpha")  # must not raise
+
+            self.assertEqual(
+                "this is not [ valid toml\n",
+                invalid_config.read_text(encoding="utf-8"),
+            )
+
+    def test_create_project_writes_config_toml_not_setup_script(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(manager.subprocess, "run"),
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                manager.create_project("Beta")
+
+            project_dir = pathlib.Path(temp_dir) / "Beta"
+            self.assertFalse(
+                (project_dir / ".taurworks" / "project-setup.source").exists()
+            )
+            self.assertTrue((project_dir / ".taurworks" / "config.toml").is_file())
+            config = project_internals.read_project_config(project_dir)
+            self.assertEqual("Beta", config["activation"]["environment"]["name"])
+            self.assertEqual("Beta", config["paths"]["working_dir"])
+            self.assertIn(
+                "metadata created, but no Conda environment was created",
+                stdout.getvalue(),
+            )
+
+    def test_create_project_with_create_env_reports_created_successfully(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(manager.subprocess, "run"),
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                manager.create_project("Beta", create_env=True)
+
+            self.assertIn("created successfully.", stdout.getvalue())
+            self.assertNotIn("metadata created, but no Conda", stdout.getvalue())
 
     def test_classification_does_not_mutate_files_or_source_legacy_admin(self):
         with tempfile.TemporaryDirectory() as temp_dir:

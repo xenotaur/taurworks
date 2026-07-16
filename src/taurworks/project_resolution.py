@@ -238,6 +238,7 @@ def _project_init_failure_diagnostics(
     message: str,
     *,
     working_dir_requested: bool,
+    env_requested: bool = False,
 ) -> dict[str, str | bool | list[str]]:
     """Build a stable non-mutating init failure diagnostic payload."""
     project_root = resolution.project_root
@@ -267,7 +268,68 @@ def _project_init_failure_diagnostics(
         "working_dir_changed": False,
         "working_dir_message": message,
         "working_dir_repairs": [],
+        "env_requested": env_requested,
+        "previous_environment": "none",
+        "environment_name": "none",
+        "environment_changed": False,
+        "environment_message": (
+            "Activation environment metadata was not evaluated because an "
+            "earlier step failed."
+            if env_requested
+            else "No --env requested; activation environment metadata left unchanged."
+        ),
     }
+
+
+def _apply_env_to_diagnostics(
+    diagnostics: dict[str, str | bool | list[str]],
+    project_root: pathlib.Path,
+    env: str | None,
+) -> dict[str, str | bool | list[str]]:
+    """Apply an optional --env request to init/create diagnostics in place."""
+    diagnostics["env_requested"] = env is not None
+    diagnostics["previous_environment"] = "none"
+    diagnostics["environment_name"] = "none"
+    diagnostics["environment_changed"] = False
+    diagnostics["environment_message"] = (
+        "No --env requested; activation environment metadata left unchanged."
+    )
+
+    if env is None:
+        return diagnostics
+
+    try:
+        previous_name, configured_name, repairs = (
+            project_internals.set_activation_environment(project_root, env)
+        )
+    except (
+        project_internals.ProjectConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+    ) as error:
+        diagnostics["ok"] = False
+        diagnostics["environment_message"] = str(error)
+        diagnostics["warnings"] = [*diagnostics["warnings"], str(error)]
+        return diagnostics
+
+    environment_changed = previous_name != configured_name
+    diagnostics["previous_environment"] = previous_name or "none"
+    diagnostics["environment_name"] = configured_name
+    diagnostics["environment_changed"] = environment_changed
+    if environment_changed:
+        diagnostics["changed"] = True
+        updated = list(diagnostics["updated"])
+        updated.append(
+            f"config updated: activation.environment.name set to {configured_name}"
+        )
+        updated.extend(f"config repair: {repair}" for repair in repairs)
+        diagnostics["updated"] = updated
+    diagnostics["environment_message"] = (
+        "Activation environment metadata recorded."
+        if environment_changed
+        else "Activation environment metadata already matched; no change made."
+    )
+    return diagnostics
 
 
 def gather_project_init_diagnostics(
@@ -275,21 +337,25 @@ def gather_project_init_diagnostics(
     working_dir: str | None = None,
     *,
     create_working_dir: bool = False,
+    env: str | None = None,
 ) -> dict[str, str | bool | list[str]]:
     """Initialize existing/current project roots with safe metadata scaffolding."""
     resolution = resolve_project_init_target(path_or_name)
     project_root = resolution.project_root
+    env_requested = env is not None
     if not project_root.exists():
         return _project_init_failure_diagnostics(
             resolution,
             "project init target must be an existing directory; use `taurworks project create` to create a new project root",
             working_dir_requested=working_dir is not None,
+            env_requested=env_requested,
         )
     if not project_root.is_dir():
         return _project_init_failure_diagnostics(
             resolution,
             f"project init target exists but is not a directory: {project_root}",
             working_dir_requested=working_dir is not None,
+            env_requested=env_requested,
         )
 
     if working_dir is not None:
@@ -305,6 +371,7 @@ def gather_project_init_diagnostics(
                 resolution,
                 str(error),
                 working_dir_requested=True,
+                env_requested=env_requested,
             )
         resolved_working_dir = (project_root.resolve() / relative_working_dir).resolve()
         if resolved_working_dir.exists() and not resolved_working_dir.is_dir():
@@ -313,12 +380,14 @@ def gather_project_init_diagnostics(
                 "working_dir target exists but is not a directory: "
                 f"{resolved_working_dir}",
                 working_dir_requested=True,
+                env_requested=env_requested,
             )
         if not working_dir_exists and not create_working_dir:
             return _project_init_failure_diagnostics(
                 resolution,
                 "working_dir target must be an existing directory unless --create-working-dir is supplied",
                 working_dir_requested=True,
+                env_requested=env_requested,
             )
 
     diagnostics = gather_project_refresh_diagnostics(str(project_root))
@@ -348,62 +417,71 @@ def gather_project_init_diagnostics(
     )
     diagnostics["working_dir_repairs"] = []
 
-    if working_dir is None:
-        return diagnostics
-
-    try:
-        working_dir_created = False
-        if create_working_dir:
+    if working_dir is not None:
+        try:
+            working_dir_created = False
+            if create_working_dir:
+                (
+                    _relative_working_dir,
+                    _resolved_working_dir,
+                    working_dir_created,
+                ) = project_internals.create_working_dir_metadata_target(
+                    project_root, working_dir
+                )
             (
-                _relative_working_dir,
-                _resolved_working_dir,
-                working_dir_created,
-            ) = project_internals.create_working_dir_metadata_target(
-                project_root, working_dir
+                previous_working_dir,
+                configured_working_dir,
+                working_dir_exists,
+                working_dir_changed,
+                repairs,
+            ) = project_internals.set_working_dir_metadata(project_root, working_dir)
+        except (
+            project_internals.ProjectConfigError,
+            OSError,
+            tomllib.TOMLDecodeError,
+        ) as error:
+            diagnostics["ok"] = False
+            diagnostics["working_dir"] = "none"
+            diagnostics["working_dir_message"] = str(error)
+            diagnostics["warnings"] = [*diagnostics["warnings"], str(error)]
+            diagnostics["env_requested"] = env_requested
+            diagnostics["previous_environment"] = "none"
+            diagnostics["environment_name"] = "none"
+            diagnostics["environment_changed"] = False
+            diagnostics["environment_message"] = (
+                "Activation environment metadata was not evaluated because an "
+                "earlier step failed."
+                if env_requested
+                else "No --env requested; activation environment metadata left unchanged."
             )
-        (
-            previous_working_dir,
-            configured_working_dir,
-            working_dir_exists,
-            working_dir_changed,
-            repairs,
-        ) = project_internals.set_working_dir_metadata(project_root, working_dir)
-    except (
-        project_internals.ProjectConfigError,
-        OSError,
-        tomllib.TOMLDecodeError,
-    ) as error:
-        diagnostics["ok"] = False
-        diagnostics["working_dir"] = "none"
-        diagnostics["working_dir_message"] = str(error)
-        diagnostics["warnings"] = [*diagnostics["warnings"], str(error)]
-        return diagnostics
+            return diagnostics
 
-    diagnostics["previous_working_dir"] = previous_working_dir or "none"
-    diagnostics["working_dir"] = configured_working_dir
-    diagnostics["working_dir_exists"] = working_dir_exists or working_dir_created
-    diagnostics["working_dir_created"] = working_dir_created
-    diagnostics["working_dir_changed"] = working_dir_changed
-    if working_dir_changed or working_dir_created:
-        diagnostics["changed"] = True
-        updated = list(diagnostics["updated"])
-        if working_dir_changed:
-            updated.append(
-                f"config updated: paths.working_dir set to {configured_working_dir}"
-            )
-            updated.extend(f"config repair: {repair}" for repair in repairs)
-        if working_dir_created:
-            created = list(diagnostics["created"])
-            created.append(f"directory: {project_root / configured_working_dir}")
-            diagnostics["created"] = created
-        diagnostics["updated"] = updated
-    diagnostics["working_dir_message"] = (
-        "Working directory metadata recorded; missing directory was created."
-        if working_dir_created
-        else "Working directory metadata recorded; existing directory was not created."
-    )
-    diagnostics["working_dir_repairs"] = repairs
-    return diagnostics
+        diagnostics["previous_working_dir"] = previous_working_dir or "none"
+        diagnostics["working_dir"] = configured_working_dir
+        diagnostics["working_dir_exists"] = working_dir_exists or working_dir_created
+        diagnostics["working_dir_created"] = working_dir_created
+        diagnostics["working_dir_changed"] = working_dir_changed
+        if working_dir_changed or working_dir_created:
+            diagnostics["changed"] = True
+            updated = list(diagnostics["updated"])
+            if working_dir_changed:
+                updated.append(
+                    f"config updated: paths.working_dir set to {configured_working_dir}"
+                )
+                updated.extend(f"config repair: {repair}" for repair in repairs)
+            if working_dir_created:
+                created = list(diagnostics["created"])
+                created.append(f"directory: {project_root / configured_working_dir}")
+                diagnostics["created"] = created
+            diagnostics["updated"] = updated
+        diagnostics["working_dir_message"] = (
+            "Working directory metadata recorded; missing directory was created."
+            if working_dir_created
+            else "Working directory metadata recorded; existing directory was not created."
+        )
+        diagnostics["working_dir_repairs"] = repairs
+
+    return _apply_env_to_diagnostics(diagnostics, project_root, env)
 
 
 def format_project_init_output(
@@ -443,6 +521,15 @@ def format_project_init_output(
     else:
         lines.append("- working_dir_repairs: none")
     lines.append(f"- working_dir_message: {diagnostics['working_dir_message']}")
+    lines.extend(
+        [
+            f"- env_requested: {diagnostics['env_requested']}",
+            f"- previous_environment: {diagnostics['previous_environment']}",
+            f"- environment_name: {diagnostics['environment_name']}",
+            f"- environment_changed: {diagnostics['environment_changed']}",
+            f"- environment_message: {diagnostics['environment_message']}",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -622,6 +709,7 @@ def _project_create_failure_diagnostics(
     *,
     working_dir_requested: bool,
     target_resolution: dict[str, str | bool] | None = None,
+    env_requested: bool = False,
 ) -> dict[str, str | bool | list[str]]:
     """Build a stable non-mutating create failure diagnostic payload."""
     diagnostics: dict[str, str | bool | list[str]] = {
@@ -646,6 +734,16 @@ def _project_create_failure_diagnostics(
         "working_dir_changed": False,
         "working_dir_message": message,
         "working_dir_repairs": [],
+        "env_requested": env_requested,
+        "previous_environment": "none",
+        "environment_name": "none",
+        "environment_changed": False,
+        "environment_message": (
+            "Activation environment metadata was not evaluated because an "
+            "earlier step failed."
+            if env_requested
+            else "No --env requested; activation environment metadata left unchanged."
+        ),
     }
     diagnostics.update(_default_project_create_target_resolution())
     if target_resolution is not None:
@@ -714,8 +812,10 @@ def gather_project_create_diagnostics(
     nested: bool = False,
     local: bool = False,
     explicit_path: str | None = None,
+    env: str | None = None,
 ) -> dict[str, str | bool | list[str]]:
     """Collect safe create actions by delegating to refresh scaffolding logic."""
+    env_requested = env is not None
     if path_or_name is None:
         if explicit_path is not None or local:
             message = "project create requires NAME when --local or --path is supplied"
@@ -723,6 +823,7 @@ def gather_project_create_diagnostics(
                 pathlib.Path.cwd().resolve(),
                 message,
                 working_dir_requested=working_dir is not None,
+                env_requested=env_requested,
                 target_resolution=_project_create_target_resolution(
                     "unresolved",
                     message,
@@ -731,7 +832,7 @@ def gather_project_create_diagnostics(
                 ),
             )
         diagnostics = gather_project_init_diagnostics(
-            None, working_dir, create_working_dir=create_working_dir
+            None, working_dir, create_working_dir=create_working_dir, env=env
         )
         diagnostics = dict(diagnostics)
         diagnostics.update(_default_project_create_target_resolution())
@@ -757,6 +858,7 @@ def gather_project_create_diagnostics(
             project_root,
             target_error,
             working_dir_requested=working_dir is not None,
+            env_requested=env_requested,
             target_resolution=target_resolution,
         )
 
@@ -775,6 +877,7 @@ def gather_project_create_diagnostics(
             project_root,
             message,
             working_dir_requested=working_dir is not None,
+            env_requested=env_requested,
             target_resolution=target_resolution,
         )
 
@@ -792,6 +895,7 @@ def gather_project_create_diagnostics(
                 project_root,
                 str(error),
                 working_dir_requested=True,
+                env_requested=env_requested,
                 target_resolution=target_resolution,
             )
         resolved_working_dir = (project_root.resolve() / relative_working_dir).resolve()
@@ -801,6 +905,7 @@ def gather_project_create_diagnostics(
                 "working_dir target exists but is not a directory: "
                 f"{resolved_working_dir}",
                 working_dir_requested=True,
+                env_requested=env_requested,
                 target_resolution=target_resolution,
             )
     diagnostics = gather_project_refresh_diagnostics(str(project_root))
@@ -840,62 +945,71 @@ def gather_project_create_diagnostics(
     )
     diagnostics["working_dir_repairs"] = []
 
-    if working_dir is None:
-        return diagnostics
-
-    try:
-        working_dir_created = False
-        if create_working_dir:
+    if working_dir is not None:
+        try:
+            working_dir_created = False
+            if create_working_dir:
+                (
+                    _relative_working_dir,
+                    _resolved_working_dir,
+                    working_dir_created,
+                ) = project_internals.create_working_dir_metadata_target(
+                    project_root, working_dir
+                )
             (
-                _relative_working_dir,
-                _resolved_working_dir,
-                working_dir_created,
-            ) = project_internals.create_working_dir_metadata_target(
-                project_root, working_dir
+                previous_working_dir,
+                configured_working_dir,
+                working_dir_exists,
+                working_dir_changed,
+                repairs,
+            ) = project_internals.set_working_dir_metadata(project_root, working_dir)
+        except (
+            project_internals.ProjectConfigError,
+            OSError,
+            tomllib.TOMLDecodeError,
+        ) as error:
+            diagnostics["ok"] = False
+            diagnostics["working_dir"] = "none"
+            diagnostics["working_dir_message"] = str(error)
+            diagnostics["warnings"] = [*diagnostics["warnings"], str(error)]
+            diagnostics["env_requested"] = env_requested
+            diagnostics["previous_environment"] = "none"
+            diagnostics["environment_name"] = "none"
+            diagnostics["environment_changed"] = False
+            diagnostics["environment_message"] = (
+                "Activation environment metadata was not evaluated because an "
+                "earlier step failed."
+                if env_requested
+                else "No --env requested; activation environment metadata left unchanged."
             )
-        (
-            previous_working_dir,
-            configured_working_dir,
-            working_dir_exists,
-            working_dir_changed,
-            repairs,
-        ) = project_internals.set_working_dir_metadata(project_root, working_dir)
-    except (
-        project_internals.ProjectConfigError,
-        OSError,
-        tomllib.TOMLDecodeError,
-    ) as error:
-        diagnostics["ok"] = False
-        diagnostics["working_dir"] = "none"
-        diagnostics["working_dir_message"] = str(error)
-        diagnostics["warnings"] = [*diagnostics["warnings"], str(error)]
-        return diagnostics
+            return diagnostics
 
-    diagnostics["previous_working_dir"] = previous_working_dir or "none"
-    diagnostics["working_dir"] = configured_working_dir
-    diagnostics["working_dir_exists"] = working_dir_exists or working_dir_created
-    diagnostics["working_dir_created"] = working_dir_created
-    diagnostics["working_dir_changed"] = working_dir_changed
-    if working_dir_changed or working_dir_created:
-        diagnostics["changed"] = True
-        updated = list(diagnostics["updated"])
-        if working_dir_changed:
-            updated.append(
-                f"config updated: paths.working_dir set to {configured_working_dir}"
-            )
-            updated.extend(f"config repair: {repair}" for repair in repairs)
-        if working_dir_created:
-            created = list(diagnostics["created"])
-            created.append(f"directory: {project_root / configured_working_dir}")
-            diagnostics["created"] = created
-        diagnostics["updated"] = updated
-    diagnostics["working_dir_message"] = (
-        "Working directory metadata recorded; missing directory was created."
-        if working_dir_created
-        else "Working directory metadata recorded; directory was not created."
-    )
-    diagnostics["working_dir_repairs"] = repairs
-    return diagnostics
+        diagnostics["previous_working_dir"] = previous_working_dir or "none"
+        diagnostics["working_dir"] = configured_working_dir
+        diagnostics["working_dir_exists"] = working_dir_exists or working_dir_created
+        diagnostics["working_dir_created"] = working_dir_created
+        diagnostics["working_dir_changed"] = working_dir_changed
+        if working_dir_changed or working_dir_created:
+            diagnostics["changed"] = True
+            updated = list(diagnostics["updated"])
+            if working_dir_changed:
+                updated.append(
+                    f"config updated: paths.working_dir set to {configured_working_dir}"
+                )
+                updated.extend(f"config repair: {repair}" for repair in repairs)
+            if working_dir_created:
+                created = list(diagnostics["created"])
+                created.append(f"directory: {project_root / configured_working_dir}")
+                diagnostics["created"] = created
+            diagnostics["updated"] = updated
+        diagnostics["working_dir_message"] = (
+            "Working directory metadata recorded; missing directory was created."
+            if working_dir_created
+            else "Working directory metadata recorded; directory was not created."
+        )
+        diagnostics["working_dir_repairs"] = repairs
+
+    return _apply_env_to_diagnostics(diagnostics, project_root, env)
 
 
 def format_project_create_output(
@@ -940,6 +1054,15 @@ def format_project_create_output(
     else:
         lines.append("- working_dir_repairs: none")
     lines.append(f"- working_dir_message: {diagnostics['working_dir_message']}")
+    lines.extend(
+        [
+            f"- env_requested: {diagnostics['env_requested']}",
+            f"- previous_environment: {diagnostics['previous_environment']}",
+            f"- environment_name: {diagnostics['environment_name']}",
+            f"- environment_changed: {diagnostics['environment_changed']}",
+            f"- environment_message: {diagnostics['environment_message']}",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -1122,6 +1245,181 @@ def format_project_working_dir_set_output(
 
     lines.append(f"- ok: {diagnostics['ok']}")
     lines.append(f"- message: {diagnostics['message']}")
+    return "\n".join(lines)
+
+
+def gather_project_env_show_diagnostics(
+    path_or_name: str | None = None,
+) -> dict[str, str | bool]:
+    """Collect activation environment metadata for a resolved project context.
+
+    Uses the same registry/workspace/current-project resolution as
+    `taurworks project activate`, so a project resolved by registered or
+    workspace name (not just cwd-relative) can be targeted here too.
+    """
+    cwd = pathlib.Path.cwd().resolve()
+    resolution, _project = resolve_global_activation_project(path_or_name, cwd)
+    project_root = resolution.project_root
+    if not (project_root / ".taurworks").is_dir():
+        return {
+            "ok": False,
+            "cwd": str(cwd),
+            "input": resolution.input,
+            "project_root": str(project_root),
+            "resolved_by": resolution.resolved_by.value,
+            "config_path": "unresolved",
+            "environment_configured": False,
+            "environment_type": "",
+            "environment_name": "",
+            "message": "No Taurworks project metadata found for the resolved target.",
+        }
+
+    config_path = project_internals.project_config_path(project_root)
+    try:
+        config = project_internals.read_project_config(project_root)
+        environment = project_internals.activation_environment_from_config(config)
+    except (
+        project_internals.ProjectConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+    ) as error:
+        return {
+            "ok": False,
+            "cwd": str(cwd),
+            "input": resolution.input,
+            "project_root": str(project_root),
+            "resolved_by": resolution.resolved_by.value,
+            "config_path": str(config_path),
+            "environment_configured": False,
+            "environment_type": "",
+            "environment_name": "",
+            "message": f"Could not read project config: {error}",
+        }
+
+    if environment is None:
+        return {
+            "ok": True,
+            "cwd": str(cwd),
+            "input": resolution.input,
+            "project_root": str(project_root),
+            "resolved_by": resolution.resolved_by.value,
+            "config_path": str(config_path),
+            "environment_configured": False,
+            "environment_type": "",
+            "environment_name": "",
+            "message": "No activation environment is configured for this project.",
+        }
+
+    return {
+        "ok": True,
+        "cwd": str(cwd),
+        "input": resolution.input,
+        "project_root": str(project_root),
+        "resolved_by": resolution.resolved_by.value,
+        "config_path": str(config_path),
+        "environment_configured": True,
+        "environment_type": environment["type"],
+        "environment_name": environment["name"],
+        "message": "Configured activation environment found.",
+    }
+
+
+def format_project_env_show_output(diagnostics: dict[str, str | bool]) -> str:
+    """Format `project env show` output as stable text."""
+    lines = [
+        "Taurworks project activation environment",
+        f"- cwd: {diagnostics['cwd']}",
+        f"- input: {diagnostics['input']}",
+        f"- project_root: {diagnostics['project_root']}",
+        f"- resolved_by: {diagnostics['resolved_by']}",
+        f"- config_path: {diagnostics['config_path']}",
+        f"- environment_configured: {diagnostics['environment_configured']}",
+    ]
+    if diagnostics["environment_configured"]:
+        lines.append(f"- environment_type: {diagnostics['environment_type']}")
+        lines.append(f"- environment_name: {diagnostics['environment_name']}")
+    else:
+        lines.append("- environment_type: none")
+        lines.append("- environment_name: none")
+    lines.append(f"- message: {diagnostics['message']}")
+    return "\n".join(lines)
+
+
+def gather_project_env_set_diagnostics(
+    name: str,
+    path_or_name: str | None = None,
+) -> dict[str, str | bool]:
+    """Set the Conda activation environment for a resolved project context.
+
+    Uses the same registry/workspace/current-project resolution as
+    `taurworks project activate`, so a project resolved by registered or
+    workspace name (not just cwd-relative) can be targeted here too.
+    """
+    cwd = pathlib.Path.cwd().resolve()
+    resolution, _project = resolve_global_activation_project(path_or_name, cwd)
+    project_root = resolution.project_root
+    if not (project_root / ".taurworks").is_dir():
+        return {
+            "ok": False,
+            "cwd": str(cwd),
+            "input": resolution.input,
+            "project_root": str(project_root),
+            "resolved_by": resolution.resolved_by.value,
+            "config_path": "unresolved",
+            "previous_environment": "none",
+            "environment_name": "none",
+            "message": "No Taurworks project metadata found for the resolved target.",
+        }
+
+    config_path = project_internals.project_config_path(project_root)
+    try:
+        previous_name, configured_name, _repairs = (
+            project_internals.set_activation_environment(project_root, name)
+        )
+    except (
+        project_internals.ProjectConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+    ) as error:
+        return {
+            "ok": False,
+            "cwd": str(cwd),
+            "input": resolution.input,
+            "project_root": str(project_root),
+            "resolved_by": resolution.resolved_by.value,
+            "config_path": str(config_path),
+            "previous_environment": "none",
+            "environment_name": "none",
+            "message": str(error),
+        }
+
+    return {
+        "ok": True,
+        "cwd": str(cwd),
+        "input": resolution.input,
+        "project_root": str(project_root),
+        "resolved_by": resolution.resolved_by.value,
+        "config_path": str(config_path),
+        "previous_environment": previous_name or "none",
+        "environment_name": configured_name,
+        "message": "Activation environment updated.",
+    }
+
+
+def format_project_env_set_output(diagnostics: dict[str, str | bool]) -> str:
+    """Format `project env set` output as stable text."""
+    lines = [
+        "Taurworks project activation environment update",
+        f"- cwd: {diagnostics['cwd']}",
+        f"- input: {diagnostics['input']}",
+        f"- project_root: {diagnostics['project_root']}",
+        f"- resolved_by: {diagnostics['resolved_by']}",
+        f"- config_path: {diagnostics['config_path']}",
+        f"- previous_environment: {diagnostics['previous_environment']}",
+        f"- environment_name: {diagnostics['environment_name']}",
+        f"- ok: {diagnostics['ok']}",
+        f"- message: {diagnostics['message']}",
+    ]
     return "\n".join(lines)
 
 
@@ -1317,18 +1615,25 @@ def gather_project_activate_print_diagnostics(
         return base_diagnostics
 
     if project_status == manager.PROJECT_STATUS_WORKSPACE_ONLY:
+        project_name = str(project["name"])
         return _activation_target_diagnostics(
             base_diagnostics,
             project_root,
-            "Project is not initialized; activation only changes directory to the project root.",
+            "Project is not initialized; activation only changes directory to "
+            "the project root. Run "
+            f"`taurworks project init {project_name}` to initialize it.",
             ok=project_root.is_dir(),
         )
 
     if project_status == manager.PROJECT_STATUS_LEGACY_ADMIN:
+        project_name = str(project["name"])
         return _activation_target_diagnostics(
             base_diagnostics,
             project_root,
-            "Legacy Admin/project-setup.source exists but was not sourced; activation only changes directory to the project root.",
+            "Legacy Admin/project-setup.source exists but was not sourced; "
+            "activation only changes directory to the project root. Run "
+            f"`taurworks legacy migrate {project_name} --apply` to migrate it "
+            "to declarative activation config.",
             ok=project_root.is_dir(),
         )
 
@@ -1396,10 +1701,19 @@ def gather_project_activate_print_diagnostics(
         f"cd {shlex.quote(str(resolved_working_dir))}"
     )
     if working_dir_exists:
-        base_diagnostics["guidance"] = (
-            "Activation guidance is ready. Inspect the command below and run it "
-            "manually if you want to change your shell directory."
-        )
+        if base_diagnostics["environment_configured"]:
+            base_diagnostics["guidance"] = (
+                "Activation guidance is ready. Inspect the command below and run it "
+                "manually if you want to change your shell directory."
+            )
+        else:
+            project_name = str(project["name"])
+            base_diagnostics["guidance"] = (
+                "Activation guidance is ready, but no Conda activation "
+                "environment is configured. Inspect the command below, or run "
+                f"`taurworks project env set ENV_NAME --project {project_name}` "
+                "to configure Conda environment activation."
+            )
     else:
         base_diagnostics["guidance"] = (
             "Configured working_dir resolves safely inside the project, but the "
