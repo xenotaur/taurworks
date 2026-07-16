@@ -2,10 +2,10 @@
 id: WI-ACTIVATION-PRODUCERS-0001
 title: Add producer-side commands and guidance for activation environment config
 type: deliverable
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: "Implemented and merged in PR #69 (commit 51f090e): project env set/show, --env on create/init, legacy create/refresh convergence onto config.toml, three guidance-string fixes. Fresh-user end-to-end criterion verified live with real conda."
 ---
 
 # WI-ACTIVATION-PRODUCERS-0001: Producer-side activation authoring and guidance

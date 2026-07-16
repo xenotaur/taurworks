@@ -2,10 +2,10 @@
 execution_id: 2026_07_16_03_16_44_WI_ACTIVATION_PRODUCERS_0001_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_ACTIVATION_PRODUCERS_0001_REVIEW)[2026-07-16T02:46:12-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_07_15_22_19_02_WI_ACTIVATION_PRODUCERS_0001
 pr: https://github.com/xenotaur/taurworks/pull/69
-commit: 2055dd0
+commit: 51f090e
 created_at: 2026-07-16T03:16:44-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/69

@@ -2,10 +2,10 @@
 execution_id: 2026_07_15_22_19_02_WI_ACTIVATION_PRODUCERS_0001
 prompt_id: PROMPT(WI-ACTIVATION-PRODUCERS-0001:WI_ACTIVATION_PRODUCERS_0001)[2026-07-15T20:57:56-04:00]
 work_item: WI-ACTIVATION-PRODUCERS-0001
-status: in_progress
+status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/69
-commit: 7d8e777
+commit: 51f090e
 created_at: 2026-07-15T22:19:02-04:00
 agent: claude_app
 instruction_source: project/work_items/proposed/WI-ACTIVATION-PRODUCERS-0001.md
