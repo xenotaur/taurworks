@@ -3,11 +3,12 @@
 ## Status
 
 This document is a design note. Taurworks now implements the first three
-safe declarative activation slices: optional readiness messages, literal
-environment-variable exports, and Conda environment activation, all consumed
-by the sourced `tw activate` helper. It still must not be used as permission
-to add venv/Docker activation, startup hooks, or legacy setup sourcing
-without a separate implementation PR.
+safe declarative activation slices (optional readiness messages, literal
+environment-variable exports, and Conda environment activation), all consumed
+by the sourced `tw activate` helper, plus `taurworks legacy inspect`/`migrate`
+and the two-tier trust-gated legacy-script sourcing described below
+(`WI-TRUSTED-LEGACY-SOURCING-0001`). It still must not be used as permission
+to add venv/Docker activation without a separate implementation PR.
 
 ## Purpose
 
@@ -253,59 +254,117 @@ Recommendation: implement exports after message-only polish and before Conda
 activation, because export rendering, machine-payload separation, and redaction
 rules are useful independently of any environment manager.
 
-## User scripts and hooks
+## User scripts and hooks (implemented: trust-gated legacy sourcing)
 
-Implementation status: future design only. User scripts and hooks must not be
-sourced or run by default.
+Implementation status: implemented (`WI-TRUSTED-LEGACY-SOURCING-0001`). This
+section originally sketched a future generic `[activation.hooks]` schema
+(arbitrary `source`/`run` lists per project). Dogfooding
+(`WI-LEGACY-BATCH-MIGRATION-0001`) found the actual remaining need was
+narrower and more concrete: every real legacy project sources
+`~/bin/utilities.source` for behavior declarative config cannot model. Rather
+than a general hook schema, Taurworks implements trust-gated sourcing of the
+one concrete artifact that already exists: legacy `Admin/project-setup.source`
+itself, as the first (and currently only) supported "hook." A generic
+multi-source/multi-command hook schema remains unimplemented and is not
+proposed by this update.
 
-Some legacy projects need behavior that declarative messages, Conda activation,
-and exports cannot safely model. Taurworks may support this later only as trusted
-code behind explicit opt-in. A possible future shape is:
+The implemented model is two-tier, direnv-allow-style consent:
+
+**Tier 1 — global enable switch**, off by default, in the user-owned global
+config:
 
 ```toml
-[activation.hooks]
-enabled = false
-source = [".taurworks/activate.source"]
-run = []
+[activation]
+legacy_sourcing = false
 ```
 
-The exact hook schema is not approved by this Phase 2 design. Any future hook
-schema must satisfy these requirements before implementation:
+Commands: `taurworks config legacy-sourcing show|enable|disable`. While off,
+`tw activate` never sources a legacy script and never prompts, regardless of
+any per-project trust record — behavior is byte-identical to before this
+feature existed.
 
-1. `enabled` or an equivalent trust flag defaults to `false`.
-2. Hooks are never discovered and sourced merely because a filename exists.
-3. The user must opt in explicitly through project configuration or a future
-   command such as `tw config trust PROJECT .taurworks/activate.source`.
-4. Trust should be per project and should record enough detail to detect path or
-   content changes, such as an approved script path and content digest.
-5. Inspection and dry-run modes must show what would be sourced or run without
-   executing it.
-6. `tw activate` should warn clearly before first hook use and when trusted hook
-   content changes.
-7. Documentation must state that hooks are arbitrary code that may alter shell
-   state, files, credentials, prompts, aliases, functions, and commands.
+**Tier 2 — per-project trust records**, also in the user-owned global config,
+in a dedicated table separate from the project registry:
 
-The safety boundary remains:
+```toml
+[trust.PROJECT_NAME]
+path = "/absolute/path/to/Admin/project-setup.source"
+digest = "sha256 hex digest of the script's current content"
+```
+
+Commands: `taurworks project trust set|unset|list NAME`. `trust set` always
+overwrites any existing record for the project — it is an explicit "I have
+reviewed and approve this exact content" action, not a merge.
+
+Trust records are never stored inside any project directory (not even
+`.taurworks/`): storing them in `[projects.NAME]` was considered and rejected,
+because the registry requires every `[projects.NAME]` entry to have a
+non-empty `root` and iterates all such entries
+(`project_registry._project_entry_root`), so a trust-only entry there would
+break existing registry handling — hence the separate `[trust.NAME]` table.
+Keeping trust exclusively in user-owned global config (never project-local)
+is also the load-bearing safety property: a project's own files — including
+a cloned or synced repository landing at a project root — can never grant
+themselves trust. Only a command the user runs can.
+
+### `tw activate` flow
+
+When `legacy_setup_exists` is true (checked after the existing config-driven
+activation steps, so trust-gated sourcing composes with declarative
+activation rather than replacing it — this also means it still applies to a
+project already migrated to `config.toml` that has a leftover legacy script):
+
+- **Tier 1 off:** nothing happens; no output related to this feature.
+- **Tier 1 on, trusted (recorded digest matches the script's current sha256):**
+  source silently.
+- **Tier 1 on, `--legacy` flag passed:** source once, regardless of trust
+  state. Requires Tier 1 to already be on.
+- **Tier 1 on, untrusted, interactive TTY:** print a `taurworks legacy
+  inspect`-style summary, then prompt: `[s]ource once`, `[t]rust and
+  source`, `[n]ever ask again`, or `[k]ip`. Trusting calls `taurworks
+  project trust set` before sourcing.
+- **Tier 1 on, untrusted, non-interactive (no TTY), no `--legacy`:** fail open
+  to the existing cd-only behavior with a one-line note pointing at
+  `--legacy` and `trust set`. Never hangs waiting for input.
+- **Tier 1 on, previously trusted but the script's content has changed
+  (digest mismatch):** treated as untrusted for sourcing purposes, with the
+  interactive prompt wording calling out that the script changed since it
+  was trusted. Editing a trusted script causes exactly one re-prompt on the
+  next activation; trusting again re-records the new digest.
+- **`--no-legacy` flag:** never source for this invocation, even if trusted.
+
+The prompt-parsing logic (`_tw_legacy_prompt_choice`) is a small, separately
+testable function so it can be exercised with piped stdin in tests without
+needing a real TTY; the outer `[ -t 0 ] && [ -t 1 ]` gate in `_tw_activate` is
+what actually decides whether to prompt versus fail open.
+
+The safety boundary is now:
 
 ```text
 taurworks project activate --print
   read-only activation guidance
 
 tw activate
-  explicit shell-mutating wrapper for cd, declarations, and supported env setup
+  explicit shell-mutating wrapper for cd, declarations, and supported env
+  setup, plus trust-gated legacy-script sourcing when Tier 1 is enabled
 
-workspace-only / legacy-admin fallback
+workspace-only fallback
   cd only, with warning
 
-legacy Admin/project-setup.source
-  recognized, but not sourced by default
+legacy Admin/project-setup.source, Tier 1 off (default)
+  recognized, but not sourced
 
-user scripts/hooks
-  future explicit opt-in trusted code only
+legacy Admin/project-setup.source, Tier 1 on, untrusted
+  cd-only fallback, or one-time consent prompt on a real TTY, or --legacy
+  for an explicit one-shot source
+
+legacy Admin/project-setup.source, Tier 1 on, trusted
+  sourced silently on each activation until content changes or trust is
+  revoked with `taurworks project trust unset`
 ```
 
-Recommendation: defer hooks until after Phase 2 dogfooding confirms which legacy
-behaviors remain impossible to express declaratively.
+A generic hook schema (arbitrary `run = [...]` commands, non-legacy-script
+sources) remains unimplemented; this design does not propose adding one.
 
 ## Legacy `Admin/project-setup.source` migration
 
@@ -367,8 +426,7 @@ and migrate commands later, and avoid automatic legacy fallback sourcing.
 
 ## Follow-up implementation package
 
-Phase 2 is being implemented through small PRs after Phase 1 dogfooding. Items
-1-3 are done; items 4-6 remain and are tracked in `WI-ACTIVATION-CONFIG-0001`:
+All six items are now done:
 
 1. **Activation message (done):** parse `[activation].message`, print it only
    after successful activation, and keep the current concise output when the
@@ -382,17 +440,19 @@ Phase 2 is being implemented through small PRs after Phase 1 dogfooding. Items
    type = "conda"` plus `name`, emits/evaluates the required shell setup only in
    the sourceable wrapper path, reports missing Conda or shell setup clearly, and
    never runs `conda init`.
-4. **Legacy inspect (remaining):** add `taurworks legacy inspect PROJECT` to
-   conservatively extract common legacy patterns and report manual-review items
-   without executing scripts.
-5. **Legacy migrate for simple scripts (remaining):** add `taurworks legacy
-   migrate PROJECT --apply` to write declarative config for simple detected
-   patterns while preserving existing values and requiring review for
-   unsupported behavior.
-6. **Trusted hooks after dogfood (remaining):** design and implement explicit
-   hook trust only after declarative activation has been dogfooded; include
-   opt-in, warnings, revocation, content-change detection, and
-   dry-run/inspection support.
+4. **Legacy inspect (done, `WI-ACTIVATION-CONFIG-0001`):** `taurworks legacy
+   inspect PROJECT` conservatively extracts common legacy patterns and
+   reports manual-review items without executing scripts.
+5. **Legacy migrate for simple scripts (done, `WI-ACTIVATION-CONFIG-0001` +
+   the `WI-LEGACY-BATCH-MIGRATION-0001` one-time real-corpus migration):**
+   `taurworks legacy migrate PROJECT --apply` writes declarative config for
+   simple detected patterns while preserving existing values and requiring
+   review for unsupported behavior.
+6. **Trusted legacy-script sourcing (done, `WI-TRUSTED-LEGACY-SOURCING-0001`):**
+   two-tier consent (global switch + per-project sha256 trust records in
+   user-owned global config only), with opt-in, warnings, revocation
+   (`trust unset`), content-change detection, and `legacy inspect` used as
+   the pre-consent summary — see "User scripts and hooks" above.
 
 ## Options considered
 
@@ -498,16 +558,19 @@ limits and no automatic fallback sourcing.
 3. **Conda activation (done):** add narrow, documented support for
    `[activation.environment] type = "conda"` and `name`; defer venv, Docker,
    and other systems to separate designs.
-4. **Legacy inspect and simple migration (remaining):** help users review and migrate
+4. **Legacy inspect and simple migration (done):** help users review and migrate
    `Admin/project-setup.source` projects to declarative config without executing
    those scripts.
-5. **Explicit trusted startup hook (remaining):** add sourceable hooks only after trust,
-   warning, confirmation, revocation, and changed-content behavior is designed.
+5. **Explicit trusted legacy-script sourcing (done):** sourceable only after
+   explicit per-project trust (content-digest verified) behind a global
+   opt-in switch; see "User scripts and hooks" above.
 
-The default should not become automatic legacy `Admin/project-setup.source`
-fallback sourcing. That behavior would execute project-controlled code based on a
-filename convention and would weaken the trust boundary that Taurworks has kept
-explicit so far.
+The default remains that legacy `Admin/project-setup.source` is never sourced
+automatically based on filename alone. What is implemented is consented
+sourcing: a project only gets sourced after the user has explicitly enabled
+the feature and explicitly trusted that project's script content, both
+recorded outside the project itself. Silent, filename-triggered sourcing —
+the thing this design always ruled out — remains ruled out.
 
 ## Non-goals for this design PR
 

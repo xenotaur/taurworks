@@ -17,6 +17,30 @@ def _handle_config_command(args):
         print(global_config.format_config_where_output(diagnostics))
         return
 
+    if args.config_command == "legacy-sourcing":
+        if args.legacy_sourcing_command == "show":
+            diagnostics = global_config.gather_config_legacy_sourcing_show_diagnostics()
+            print(global_config.format_config_legacy_sourcing_show_output(diagnostics))
+            if not diagnostics["ok"]:
+                raise SystemExit(1)
+            return
+        if args.legacy_sourcing_command == "enable":
+            diagnostics = global_config.gather_config_legacy_sourcing_set_diagnostics(
+                True
+            )
+            print(global_config.format_config_legacy_sourcing_set_output(diagnostics))
+            if not diagnostics["ok"]:
+                raise SystemExit(1)
+            return
+        if args.legacy_sourcing_command == "disable":
+            diagnostics = global_config.gather_config_legacy_sourcing_set_diagnostics(
+                False
+            )
+            print(global_config.format_config_legacy_sourcing_set_output(diagnostics))
+            if not diagnostics["ok"]:
+                raise SystemExit(1)
+            return
+
     args.config_parser.print_help()
 
 
@@ -154,6 +178,29 @@ def _handle_project_command(args):
                 args.path_or_name,
             )
             print(project_resolution.format_project_env_set_output(diagnostics))
+            if not diagnostics["ok"]:
+                raise SystemExit(1)
+            return
+    if args.project_command == "trust":
+        if args.trust_command == "set":
+            diagnostics = project_resolution.gather_project_trust_set_diagnostics(
+                args.path_or_name
+            )
+            print(project_resolution.format_project_trust_set_output(diagnostics))
+            if not diagnostics["ok"]:
+                raise SystemExit(1)
+            return
+        if args.trust_command == "unset":
+            diagnostics = project_resolution.gather_project_trust_unset_diagnostics(
+                args.path_or_name
+            )
+            print(project_resolution.format_project_trust_unset_output(diagnostics))
+            if not diagnostics["ok"]:
+                raise SystemExit(1)
+            return
+        if args.trust_command == "list":
+            diagnostics = project_resolution.gather_project_trust_list_diagnostics()
+            print(project_resolution.format_project_trust_list_output(diagnostics))
             if not diagnostics["ok"]:
                 raise SystemExit(1)
             return
@@ -391,6 +438,37 @@ def main(argv=None):
         ),
     )
     parser_config_where.set_defaults(config_parser=parser_config)
+
+    parser_config_legacy_sourcing = config_subparsers.add_parser(
+        "legacy-sourcing",
+        help="Show or set the Tier 1 legacy-sourcing switch.",
+        description=(
+            "Control whether `tw activate` may ever source a legacy "
+            "Admin/project-setup.source script. Off by default; while off, "
+            "no prompting or sourcing occurs regardless of per-project trust "
+            "records (see `taurworks project trust ...`)."
+        ),
+    )
+    legacy_sourcing_subparsers = parser_config_legacy_sourcing.add_subparsers(
+        dest="legacy_sourcing_command",
+        required=True,
+    )
+    parser_config_legacy_sourcing_show = legacy_sourcing_subparsers.add_parser(
+        "show",
+        help="Show whether legacy sourcing is enabled (read-only).",
+    )
+    parser_config_legacy_sourcing_show.set_defaults(config_parser=parser_config)
+    parser_config_legacy_sourcing_enable = legacy_sourcing_subparsers.add_parser(
+        "enable",
+        help="Enable legacy sourcing (Tier 1). Sourcing still requires per-project trust.",
+    )
+    parser_config_legacy_sourcing_enable.set_defaults(config_parser=parser_config)
+    parser_config_legacy_sourcing_disable = legacy_sourcing_subparsers.add_parser(
+        "disable",
+        help="Disable legacy sourcing (Tier 1); restores cd-only fallback behavior.",
+    )
+    parser_config_legacy_sourcing_disable.set_defaults(config_parser=parser_config)
+    parser_config_legacy_sourcing.set_defaults(config_parser=parser_config)
     parser_config.set_defaults(config_parser=parser_config)
 
     # `workspace` namespace
@@ -727,6 +805,64 @@ def main(argv=None):
         ),
     )
     parser_project_env_set.set_defaults(project_parser=parser_project)
+
+    parser_project_trust = project_subparsers.add_parser(
+        "trust",
+        help="Show, grant, or revoke trust for a project's legacy setup script.",
+        description=(
+            "Manage per-project trust records (script path + sha256 content "
+            "digest) used to gate `tw activate` sourcing of a legacy "
+            "Admin/project-setup.source script. Trust records are stored only "
+            "in the user-owned global config, never inside any project "
+            "directory, so project content can never grant itself trust. "
+            "Also requires `taurworks config legacy-sourcing enable`."
+        ),
+    )
+    trust_subparsers = parser_project_trust.add_subparsers(
+        dest="trust_command",
+        required=True,
+    )
+
+    parser_project_trust_set = trust_subparsers.add_parser(
+        "set",
+        help="Trust a project's current legacy setup script content.",
+        description=(
+            "Record the current sha256 digest of the resolved project's "
+            "Admin/project-setup.source as trusted. Always overwrites any "
+            "existing trust record for the project; re-run this after "
+            "reviewing an edited script to re-trust it."
+        ),
+    )
+    parser_project_trust_set.add_argument(
+        "path_or_name",
+        nargs="?",
+        help=(
+            "Optional project path or name. Defaults to the current project "
+            "when run inside Taurworks metadata."
+        ),
+    )
+    parser_project_trust_set.set_defaults(project_parser=parser_project)
+
+    parser_project_trust_unset = trust_subparsers.add_parser(
+        "unset",
+        help="Remove a project's trust record.",
+    )
+    parser_project_trust_unset.add_argument(
+        "path_or_name",
+        nargs="?",
+        help=(
+            "Optional project path or name. Defaults to the current project "
+            "when run inside Taurworks metadata."
+        ),
+    )
+    parser_project_trust_unset.set_defaults(project_parser=parser_project)
+
+    parser_project_trust_list = trust_subparsers.add_parser(
+        "list",
+        help="List all trust records in the global config (read-only).",
+    )
+    parser_project_trust_list.set_defaults(project_parser=parser_project)
+    parser_project_trust.set_defaults(project_parser=parser_project)
 
     parser_project_create = project_subparsers.add_parser(
         "create",

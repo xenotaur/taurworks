@@ -10,6 +10,12 @@ GLOBAL_CONFIG_SCHEMA_VERSION = 1
 BARE_TOML_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 TOML_TABLE_HEADER_PATTERN = re.compile(r"^\s*\[+\s*([^\[\]]+?)\s*\]+\s*(?:#.*)?$")
 TOML_ROOT_KEY_PATTERN = re.compile(r"^(?P<indent>\s*)root\s*=.*$")
+ACTIVATION_LEGACY_SOURCING_KEY_PATTERN = re.compile(
+    r"^(?P<indent>\s*)legacy_sourcing\s*=.*$"
+)
+TRUST_PATH_KEY_PATTERN = re.compile(r"^(?P<indent>\s*)path\s*=.*$")
+TRUST_DIGEST_KEY_PATTERN = re.compile(r"^(?P<indent>\s*)digest\s*=.*$")
+TRUST_DIGEST_VALUE_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
 class GlobalConfigError(ValueError):
@@ -549,3 +555,298 @@ def format_workspace_set_output(diagnostics: dict[str, Any]) -> str:
             f"- mutation_performed: {diagnostics['mutation_performed']}",
         ]
     )
+
+
+# --- Tier 1: global legacy-sourcing enable switch --------------------------
+#
+# Off by default. While off, `tw activate` never sources a legacy setup
+# script and never prompts, regardless of any per-project trust record.
+
+
+def configured_legacy_sourcing_enabled(config: dict[str, Any]) -> bool:
+    """Return the Tier 1 legacy-sourcing switch; defaults to disabled."""
+    activation_table = config.get("activation")
+    if not isinstance(activation_table, dict):
+        return False
+    return activation_table.get("legacy_sourcing") is True
+
+
+def _set_activation_legacy_sourcing_in_toml(config_text: str, enabled: bool) -> str:
+    value_line = f"legacy_sourcing = {'true' if enabled else 'false'}"
+    lines = config_text.splitlines()
+    table_start = None
+    table_end = len(lines)
+    for index, line in enumerate(lines):
+        table_name = _toml_table_name(line)
+        if table_name == "activation":
+            table_start = index
+            continue
+        if table_start is not None and table_name is not None:
+            table_end = index
+            break
+
+    if table_start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.extend(["[activation]", value_line])
+        return "\n".join(lines) + "\n"
+
+    for index in range(table_start + 1, table_end):
+        match = ACTIVATION_LEGACY_SOURCING_KEY_PATTERN.match(lines[index])
+        if match is not None:
+            lines[index] = f"{match.group('indent')}{value_line}"
+            return "\n".join(lines) + "\n"
+
+    lines.insert(table_end, value_line)
+    return "\n".join(lines) + "\n"
+
+
+def gather_config_legacy_sourcing_show_diagnostics() -> dict[str, Any]:
+    """Gather read-only diagnostics for the Tier 1 legacy-sourcing switch."""
+    resolved = config_path()
+    try:
+        config = read_config(resolved.path)
+        validate_schema_version(config)
+        enabled = configured_legacy_sourcing_enabled(config)
+    except (GlobalConfigError, OSError, tomllib.TOMLDecodeError) as error:
+        return {
+            "ok": False,
+            "config_path": str(resolved.path),
+            "xdg_source": resolved.source,
+            "legacy_sourcing_enabled": False,
+            "error": str(error),
+            "read_only": True,
+            "mutation_performed": False,
+        }
+    return {
+        "ok": True,
+        "config_path": str(resolved.path),
+        "xdg_source": resolved.source,
+        "legacy_sourcing_enabled": enabled,
+        "error": "none",
+        "read_only": True,
+        "mutation_performed": False,
+    }
+
+
+def format_config_legacy_sourcing_show_output(diagnostics: dict[str, Any]) -> str:
+    """Format Tier 1 legacy-sourcing switch diagnostics."""
+    lines = [
+        "Taurworks legacy-sourcing switch",
+        f"- config_path: {diagnostics['config_path']}",
+        f"- legacy_sourcing_enabled: {diagnostics['legacy_sourcing_enabled']}",
+    ]
+    if diagnostics["error"] != "none":
+        lines.append(f"- error: {diagnostics['error']}")
+    lines.extend(
+        [
+            f"- read_only: {diagnostics['read_only']}",
+            f"- mutation_performed: {diagnostics['mutation_performed']}",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def gather_config_legacy_sourcing_set_diagnostics(enabled: bool) -> dict[str, Any]:
+    """Set the Tier 1 legacy-sourcing switch in user-global Taurworks config."""
+    resolved = config_path()
+    try:
+        config = read_config(resolved.path)
+        validate_schema_version(config)
+        activation_table = config.get("activation")
+        if activation_table is not None and not isinstance(activation_table, dict):
+            raise GlobalConfigError("global config [activation] value is not a table")
+        _ensure_global_config_write_is_safe(resolved.path)
+        config_text = _read_config_text_for_preserving_write(
+            resolved.path, config, ensure_schema_version=True
+        )
+        updated_text = _set_activation_legacy_sourcing_in_toml(config_text, enabled)
+        tomllib.loads(updated_text)
+        resolved.path.parent.mkdir(parents=True, exist_ok=True)
+        resolved.path.write_text(updated_text, encoding="utf-8")
+    except (GlobalConfigError, OSError, tomllib.TOMLDecodeError) as error:
+        return {
+            "ok": False,
+            "config_path": str(resolved.path),
+            "legacy_sourcing_enabled": enabled,
+            "error": str(error),
+            "mutation_performed": False,
+        }
+    return {
+        "ok": True,
+        "config_path": str(resolved.path),
+        "xdg_source": resolved.source,
+        "legacy_sourcing_enabled": enabled,
+        "error": "none",
+        "mutation_performed": True,
+    }
+
+
+def format_config_legacy_sourcing_set_output(diagnostics: dict[str, Any]) -> str:
+    """Format Tier 1 legacy-sourcing switch mutation diagnostics."""
+    if not diagnostics["ok"]:
+        return "\n".join(
+            [
+                "Taurworks legacy-sourcing switch update failed",
+                f"- error: {diagnostics['error']}",
+                f"- config_path: {diagnostics['config_path']}",
+                f"- mutation_performed: {diagnostics['mutation_performed']}",
+            ]
+        )
+    return "\n".join(
+        [
+            "Taurworks legacy-sourcing switch update",
+            f"- config_path: {diagnostics['config_path']}",
+            f"- xdg_source: {diagnostics['xdg_source']}",
+            f"- legacy_sourcing_enabled: {diagnostics['legacy_sourcing_enabled']}",
+            f"- mutation_performed: {diagnostics['mutation_performed']}",
+        ]
+    )
+
+
+# --- Tier 2: per-project trust records --------------------------------------
+#
+# Stored in a dedicated [trust.NAME] table, never under [projects.NAME]: the
+# registry requires every [projects.NAME] entry to have a non-empty `root`
+# and iterates all such entries (see project_registry._project_entry_root),
+# so a trust-only entry there would break existing registry handling. Trust
+# records are written only by explicit `taurworks project trust ...`
+# commands, never automatically and never from inside a project directory,
+# so arriving project content can never grant itself trust.
+
+
+def _trust_table_name(project_name: str) -> str:
+    validate_bare_toml_key(project_name)
+    return f"trust.{project_name}"
+
+
+def trust_record_from_config(
+    config: dict[str, Any], project_name: str
+) -> dict[str, str] | None:
+    """Return the validated {'path', 'digest'} trust record, or None if absent."""
+    trust_table = config.get("trust")
+    if trust_table is None:
+        return None
+    if not isinstance(trust_table, dict):
+        raise GlobalConfigError("global config [trust] value is not a table")
+    entry = trust_table.get(project_name)
+    if entry is None:
+        return None
+    if not isinstance(entry, dict):
+        raise GlobalConfigError(
+            f"global config [trust.{project_name}] value is not a table"
+        )
+    path = entry.get("path")
+    digest = entry.get("digest")
+    if not isinstance(path, str) or not path.strip():
+        raise GlobalConfigError(
+            f"global config [trust.{project_name}].path must be a non-empty string"
+        )
+    if not isinstance(digest, str) or not TRUST_DIGEST_VALUE_PATTERN.fullmatch(digest):
+        raise GlobalConfigError(
+            f"global config [trust.{project_name}].digest must be a "
+            "64-character lowercase hex sha256 digest"
+        )
+    return {"path": path, "digest": digest}
+
+
+def _set_trust_record_in_toml(
+    config_text: str,
+    project_name: str,
+    script_path: pathlib.Path,
+    digest: str,
+) -> str:
+    target_table = _trust_table_name(project_name)
+    path_line = f"path = {_toml_quote(str(script_path))}"
+    digest_line = f"digest = {_toml_quote(digest)}"
+    lines = config_text.splitlines()
+    table_start = None
+    table_end = len(lines)
+    for index, line in enumerate(lines):
+        table_name = _toml_table_name(line)
+        if table_name == target_table:
+            table_start = index
+            continue
+        if table_start is not None and table_name is not None:
+            table_end = index
+            break
+
+    if table_start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.extend([f"[{target_table}]", path_line, digest_line])
+        return "\n".join(lines) + "\n"
+
+    path_set = False
+    digest_set = False
+    for index in range(table_start + 1, table_end):
+        path_match = TRUST_PATH_KEY_PATTERN.match(lines[index])
+        if path_match is not None:
+            lines[index] = f"{path_match.group('indent')}{path_line}"
+            path_set = True
+            continue
+        digest_match = TRUST_DIGEST_KEY_PATTERN.match(lines[index])
+        if digest_match is not None:
+            lines[index] = f"{digest_match.group('indent')}{digest_line}"
+            digest_set = True
+
+    insertions = []
+    if not path_set:
+        insertions.append(path_line)
+    if not digest_set:
+        insertions.append(digest_line)
+    if insertions:
+        lines[table_end:table_end] = insertions
+    return "\n".join(lines) + "\n"
+
+
+def _remove_trust_table_from_toml(config_text: str, project_name: str) -> str:
+    target_table = _trust_table_name(project_name)
+    lines = config_text.splitlines()
+    kept_lines: list[str] = []
+    skipping = False
+    for line in lines:
+        table_name = _toml_table_name(line)
+        if table_name is not None:
+            skipping = table_name == target_table or _table_is_child_of(
+                table_name, target_table
+            )
+        if not skipping:
+            kept_lines.append(line)
+    return "\n".join(kept_lines).rstrip() + "\n"
+
+
+def write_trust_record_preserving_config(
+    config_path_to_write: pathlib.Path,
+    config: dict[str, Any],
+    project_name: str,
+    script_path: pathlib.Path,
+    digest: str,
+) -> None:
+    """Set a project's trust record (script path + sha256 digest)."""
+    _ensure_global_config_write_is_safe(config_path_to_write)
+    config_text = _read_config_text_for_preserving_write(
+        config_path_to_write, config, ensure_schema_version=True
+    )
+    updated_text = _set_trust_record_in_toml(
+        config_text, project_name, script_path, digest
+    )
+    tomllib.loads(updated_text)
+    config_path_to_write.parent.mkdir(parents=True, exist_ok=True)
+    config_path_to_write.write_text(updated_text, encoding="utf-8")
+
+
+def remove_trust_record_preserving_config(
+    config_path_to_write: pathlib.Path,
+    config: dict[str, Any],
+    project_name: str,
+) -> None:
+    """Remove a project's trust record."""
+    _ensure_global_config_write_is_safe(config_path_to_write)
+    config_text = _read_config_text_for_preserving_write(
+        config_path_to_write, config, ensure_schema_version=False
+    )
+    updated_text = _remove_trust_table_from_toml(config_text, project_name)
+    tomllib.loads(updated_text)
+    config_path_to_write.parent.mkdir(parents=True, exist_ok=True)
+    config_path_to_write.write_text(updated_text, encoding="utf-8")

@@ -628,6 +628,114 @@ class CliCommandTest(unittest.TestCase):
             )
             self.assertIn("environment_name: RoundTripEnv", show_result.stdout)
 
+    def test_config_legacy_sourcing_show_enable_disable_round_trip(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cwd = pathlib.Path(temp_dir)
+
+            # This switch is a single global boolean (no per-test namespacing
+            # is possible, unlike named projects/trust records), and other
+            # tests sharing this suite's PID-derived isolated global config
+            # may have already flipped it. Seed a known starting state.
+            _run_cli(["config", "legacy-sourcing", "disable"], cwd)
+            initial = _run_cli(["config", "legacy-sourcing", "show"], cwd)
+            self.assertEqual(initial.returncode, 0, msg=_failure_message([], initial))
+            self.assertIn("legacy_sourcing_enabled: False", initial.stdout)
+
+            enabled = _run_cli(["config", "legacy-sourcing", "enable"], cwd)
+            self.assertEqual(enabled.returncode, 0, msg=_failure_message([], enabled))
+            self.assertIn("legacy_sourcing_enabled: True", enabled.stdout)
+
+            shown = _run_cli(["config", "legacy-sourcing", "show"], cwd)
+            self.assertIn("legacy_sourcing_enabled: True", shown.stdout)
+
+            disabled = _run_cli(["config", "legacy-sourcing", "disable"], cwd)
+            self.assertEqual(disabled.returncode, 0, msg=_failure_message([], disabled))
+            self.assertIn("legacy_sourcing_enabled: False", disabled.stdout)
+
+    def test_project_trust_set_list_unset_round_trip(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            project_dir = workspace / "LegacyTrustProject"
+            admin_dir = project_dir / "Admin"
+            admin_dir.mkdir(parents=True)
+            (admin_dir / "project-setup.source").write_text(
+                "#!/bin/bash\necho hi\n", encoding="utf-8"
+            )
+            env_overrides = {"TAURWORKS_WORKSPACE": str(workspace)}
+
+            set_args = ["project", "trust", "set", "LegacyTrustProject"]
+            set_result = _run_cli(set_args, workspace, env_overrides)
+            set_message = _failure_message(set_args, set_result)
+            self.assertEqual(set_result.returncode, 0, msg=set_message)
+            self.assertIn("previous_digest: none", set_result.stdout)
+            self.assertIn("ok: True", set_result.stdout)
+
+            list_result = _run_cli(
+                ["project", "trust", "list"], workspace, env_overrides
+            )
+            self.assertIn("name: LegacyTrustProject", list_result.stdout)
+            self.assertIn("digest_matches: True", list_result.stdout)
+
+            unset_args = ["project", "trust", "unset", "LegacyTrustProject"]
+            unset_result = _run_cli(unset_args, workspace, env_overrides)
+            self.assertEqual(
+                unset_result.returncode,
+                0,
+                msg=_failure_message(unset_args, unset_result),
+            )
+
+            # The trust table is process-shared with other tests in this
+            # suite (same PID-derived isolated global config), so check that
+            # this test's own record is gone rather than asserting the whole
+            # table is empty.
+            list_after = _run_cli(
+                ["project", "trust", "list"], workspace, env_overrides
+            )
+            self.assertNotIn("name: LegacyTrustProject", list_after.stdout)
+
+    def test_project_trust_set_fails_without_legacy_script(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            project_dir = workspace / "NoLegacyProject"
+            project_dir.mkdir(parents=True)
+            env_overrides = {"TAURWORKS_WORKSPACE": str(workspace)}
+
+            set_args = ["project", "trust", "set", "NoLegacyProject"]
+            result = _run_cli(set_args, workspace, env_overrides)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("nothing to trust", result.stdout)
+
+    def test_activate_shell_payload_reports_legacy_trust_fields(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            project_dir = workspace / "LegacyShellProject"
+            admin_dir = project_dir / "Admin"
+            admin_dir.mkdir(parents=True)
+            (admin_dir / "project-setup.source").write_text(
+                "#!/bin/bash\necho hi\n", encoding="utf-8"
+            )
+            env_overrides = {"TAURWORKS_WORKSPACE": str(workspace)}
+
+            _run_cli(["config", "legacy-sourcing", "enable"], workspace, env_overrides)
+            _run_cli(
+                ["project", "trust", "set", "LegacyShellProject"],
+                workspace,
+                env_overrides,
+            )
+
+            shell_args = ["project", "activate", "LegacyShellProject", "--shell"]
+            result = _run_cli(shell_args, workspace, env_overrides)
+            self.assertEqual(
+                result.returncode, 0, msg=_failure_message(shell_args, result)
+            )
+            self.assertIn(
+                "TAURWORKS_ACTIVATION_PROJECT_NAME=LegacyShellProject", result.stdout
+            )
+            self.assertIn(
+                "TAURWORKS_ACTIVATION_LEGACY_SOURCING_ENABLED=True", result.stdout
+            )
+            self.assertIn("TAURWORKS_ACTIVATION_LEGACY_TRUSTED=True", result.stdout)
+
     def test_project_list_succeeds_without_discovered_projects(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             cmd = [sys.executable, "-m", "taurworks.cli", "project", "list"]

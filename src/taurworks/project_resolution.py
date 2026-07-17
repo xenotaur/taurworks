@@ -1,3 +1,4 @@
+import hashlib
 import pathlib
 import shlex
 import tomllib
@@ -1423,6 +1424,241 @@ def format_project_env_set_output(diagnostics: dict[str, str | bool]) -> str:
     return "\n".join(lines)
 
 
+def gather_project_trust_set_diagnostics(
+    path_or_name: str | None = None,
+) -> dict[str, str | bool]:
+    """Trust a resolved project's current legacy setup script content.
+
+    Always overwrites any existing trust record for the project: this is an
+    explicit setter whose purpose is to (re-)approve the script's current
+    content, matching the direnv-allow model. The recorded digest is
+    recomputed from the script on disk at the moment this command runs, so
+    the caller is always trusting exactly what they can inspect right now.
+    """
+    cwd = pathlib.Path.cwd().resolve()
+    resolution, project = resolve_global_activation_project(path_or_name, cwd)
+    project_root = resolution.project_root
+    project_name = str(project["name"])
+    legacy_setup_exists = bool(project["legacy_setup_exists"])
+    legacy_setup_path = pathlib.Path(str(project["legacy_setup_path"]))
+
+    base: dict[str, str | bool] = {
+        "ok": False,
+        "cwd": str(cwd),
+        "input": resolution.input,
+        "project_root": str(project_root),
+        "project_name": project_name,
+        "resolved_by": resolution.resolved_by.value,
+        "legacy_setup_path": str(legacy_setup_path),
+        "previous_digest": "none",
+        "digest": "none",
+        "message": "",
+    }
+
+    if not legacy_setup_exists:
+        base["message"] = (
+            f"No legacy setup script found for project {project_name!r} at "
+            f"{legacy_setup_path}; nothing to trust."
+        )
+        return base
+
+    try:
+        digest = hashlib.sha256(legacy_setup_path.read_bytes()).hexdigest()
+        resolved = global_config.config_path()
+        config = global_config.read_config(resolved.path)
+        global_config.validate_schema_version(config)
+        existing_record = global_config.trust_record_from_config(config, project_name)
+        global_config.write_trust_record_preserving_config(
+            resolved.path,
+            config,
+            project_name,
+            legacy_setup_path.resolve(),
+            digest,
+        )
+    except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError) as error:
+        base["message"] = str(error)
+        return base
+
+    base["ok"] = True
+    base["previous_digest"] = (
+        existing_record["digest"] if existing_record is not None else "none"
+    )
+    base["digest"] = digest
+    base["message"] = f"Trusted {legacy_setup_path} for project {project_name!r}."
+    return base
+
+
+def format_project_trust_set_output(diagnostics: dict[str, str | bool]) -> str:
+    """Format `project trust set` output as stable text."""
+    lines = [
+        "Taurworks project trust set",
+        f"- cwd: {diagnostics['cwd']}",
+        f"- input: {diagnostics['input']}",
+        f"- project_root: {diagnostics['project_root']}",
+        f"- project_name: {diagnostics['project_name']}",
+        f"- resolved_by: {diagnostics['resolved_by']}",
+        f"- legacy_setup_path: {diagnostics['legacy_setup_path']}",
+        f"- previous_digest: {diagnostics['previous_digest']}",
+        f"- digest: {diagnostics['digest']}",
+        f"- ok: {diagnostics['ok']}",
+        f"- message: {diagnostics['message']}",
+    ]
+    return "\n".join(lines)
+
+
+def gather_project_trust_unset_diagnostics(
+    path_or_name: str | None = None,
+) -> dict[str, str | bool]:
+    """Remove a resolved project's trust record, if one exists."""
+    cwd = pathlib.Path.cwd().resolve()
+    resolution, project = resolve_global_activation_project(path_or_name, cwd)
+    project_root = resolution.project_root
+    project_name = str(project["name"])
+
+    base: dict[str, str | bool] = {
+        "ok": False,
+        "cwd": str(cwd),
+        "input": resolution.input,
+        "project_root": str(project_root),
+        "project_name": project_name,
+        "resolved_by": resolution.resolved_by.value,
+        "removed_digest": "none",
+        "message": "",
+    }
+
+    try:
+        resolved = global_config.config_path()
+        config = global_config.read_config(resolved.path)
+        global_config.validate_schema_version(config)
+        existing_record = global_config.trust_record_from_config(config, project_name)
+        if existing_record is None:
+            base["message"] = f"Project {project_name!r} is not trusted; nothing to do."
+            return base
+        global_config.remove_trust_record_preserving_config(
+            resolved.path,
+            config,
+            project_name,
+        )
+    except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError) as error:
+        base["message"] = str(error)
+        return base
+
+    base["ok"] = True
+    base["removed_digest"] = existing_record["digest"]
+    base["message"] = f"Removed trust record for project {project_name!r}."
+    return base
+
+
+def format_project_trust_unset_output(diagnostics: dict[str, str | bool]) -> str:
+    """Format `project trust unset` output as stable text."""
+    lines = [
+        "Taurworks project trust unset",
+        f"- cwd: {diagnostics['cwd']}",
+        f"- input: {diagnostics['input']}",
+        f"- project_root: {diagnostics['project_root']}",
+        f"- project_name: {diagnostics['project_name']}",
+        f"- resolved_by: {diagnostics['resolved_by']}",
+        f"- removed_digest: {diagnostics['removed_digest']}",
+        f"- ok: {diagnostics['ok']}",
+        f"- message: {diagnostics['message']}",
+    ]
+    return "\n".join(lines)
+
+
+def gather_project_trust_list_diagnostics() -> dict[str, str | bool | list[dict]]:
+    """List all trust records in the user-owned global config, read-only."""
+    resolved = global_config.config_path()
+    try:
+        config = global_config.read_config(resolved.path)
+        global_config.validate_schema_version(config)
+        trust_table = config.get("trust")
+        if trust_table is None:
+            trust_table = {}
+        if not isinstance(trust_table, dict):
+            raise global_config.GlobalConfigError(
+                "global config [trust] value is not a table"
+            )
+        records = []
+        for name in sorted(trust_table):
+            record = global_config.trust_record_from_config(config, name)
+            if record is None:
+                continue
+            script_path = pathlib.Path(record["path"])
+            path_exists = script_path.is_file()
+            digest_matches = False
+            if path_exists:
+                try:
+                    current_digest = hashlib.sha256(
+                        script_path.read_bytes()
+                    ).hexdigest()
+                    digest_matches = current_digest == record["digest"]
+                except OSError:
+                    digest_matches = False
+            records.append(
+                {
+                    "name": name,
+                    "path": record["path"],
+                    "digest": record["digest"],
+                    "path_exists": path_exists,
+                    "digest_matches": digest_matches,
+                }
+            )
+    except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError) as error:
+        return {
+            "ok": False,
+            "config_path": str(resolved.path),
+            "error": str(error),
+            "trust_count": 0,
+            "records": [],
+            "read_only": True,
+        }
+
+    return {
+        "ok": True,
+        "config_path": str(resolved.path),
+        "error": "none",
+        "trust_count": len(records),
+        "records": records,
+        "read_only": True,
+    }
+
+
+def format_project_trust_list_output(
+    diagnostics: dict[str, str | bool | list[dict]],
+) -> str:
+    """Format `project trust list` output as stable text."""
+    if not diagnostics["ok"]:
+        return "\n".join(
+            [
+                "Taurworks project trust list failed",
+                f"- error: {diagnostics['error']}",
+                f"- config_path: {diagnostics['config_path']}",
+            ]
+        )
+    lines = [
+        "Taurworks project trust list",
+        f"- config_path: {diagnostics['config_path']}",
+        f"- trust_count: {diagnostics['trust_count']}",
+    ]
+    records = diagnostics["records"]
+    if records:
+        lines.append("- records:")
+        for record in records:
+            lines.extend(
+                [
+                    f"  - name: {record['name']}",
+                    f"    path: {record['path']}",
+                    f"    digest: {record['digest']}",
+                    f"    path_exists: {record['path_exists']}",
+                    f"    digest_matches: {record['digest_matches']}",
+                ]
+            )
+    else:
+        lines.append("- records: none")
+    lines.append(f"- read_only: {diagnostics['read_only']}")
+    return "\n".join(lines)
+
+
 def _resolve_project_path_emitter_target(
     path_or_name: str,
     cwd: pathlib.Path,
@@ -1561,6 +1797,46 @@ def _activation_target_diagnostics(
     return base_diagnostics
 
 
+def _apply_legacy_trust_diagnostics(base_diagnostics: dict[str, str | bool]) -> None:
+    """Populate Tier 1/Tier 2 trust-gated legacy-sourcing fields in place.
+
+    Runs unconditionally for every activation target (legacy-admin or
+    already-initialized-with-a-leftover-script) so `tw activate` can offer
+    trust-gated sourcing after its own config-driven steps, regardless of
+    project status. No-ops safely when there is no legacy script, when Tier 1
+    is off, or when global config cannot be read.
+    """
+    if not base_diagnostics["legacy_setup_exists"]:
+        return
+
+    legacy_setup_path = pathlib.Path(str(base_diagnostics["legacy_setup_path"]))
+    project_name = str(base_diagnostics["project_name"])
+
+    try:
+        config = global_config.read_config()
+        global_config.validate_schema_version(config)
+        base_diagnostics["legacy_sourcing_enabled"] = (
+            global_config.configured_legacy_sourcing_enabled(config)
+        )
+        trust_record = global_config.trust_record_from_config(config, project_name)
+    except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError):
+        return
+
+    if trust_record is None:
+        return
+    try:
+        if pathlib.Path(trust_record["path"]) != legacy_setup_path.resolve():
+            return  # trust recorded a different script path; treat as untrusted
+        current_digest = hashlib.sha256(legacy_setup_path.read_bytes()).hexdigest()
+    except OSError:
+        return
+
+    if current_digest == trust_record["digest"]:
+        base_diagnostics["legacy_trusted"] = True
+    else:
+        base_diagnostics["legacy_trust_stale"] = True
+
+
 def gather_project_activate_print_diagnostics(
     path_or_name: str | None,
 ) -> dict[str, str | bool]:
@@ -1602,9 +1878,13 @@ def gather_project_activate_print_diagnostics(
         "environment_configured": False,
         "environment_type": "none",
         "environment_name": "none",
+        "legacy_sourcing_enabled": False,
+        "legacy_trusted": False,
+        "legacy_trust_stale": False,
         "guidance": "",
         "read_only": True,
     }
+    _apply_legacy_trust_diagnostics(base_diagnostics)
 
     if base_diagnostics["source"] == "unresolved":
         base_diagnostics["ok"] = False
@@ -1790,6 +2070,12 @@ def format_project_activate_shell_output(
         f"TAURWORKS_ACTIVATION_ENVIRONMENT_CONFIGURED={shlex.quote(str(diagnostics['environment_configured']))}",
         f"TAURWORKS_ACTIVATION_ENVIRONMENT_TYPE={shlex.quote(str(diagnostics['environment_type']))}",
         f"TAURWORKS_ACTIVATION_ENVIRONMENT_NAME={shlex.quote(str(diagnostics['environment_name']))}",
+        f"TAURWORKS_ACTIVATION_PROJECT_NAME={shlex.quote(str(diagnostics['project_name']))}",
+        f"TAURWORKS_ACTIVATION_LEGACY_SETUP_EXISTS={shlex.quote(str(diagnostics['legacy_setup_exists']))}",
+        f"TAURWORKS_ACTIVATION_LEGACY_SETUP_PATH={shlex.quote(str(diagnostics['legacy_setup_path']))}",
+        f"TAURWORKS_ACTIVATION_LEGACY_SOURCING_ENABLED={shlex.quote(str(diagnostics['legacy_sourcing_enabled']))}",
+        f"TAURWORKS_ACTIVATION_LEGACY_TRUSTED={shlex.quote(str(diagnostics['legacy_trusted']))}",
+        f"TAURWORKS_ACTIVATION_LEGACY_TRUST_STALE={shlex.quote(str(diagnostics['legacy_trust_stale']))}",
     ]
     return "\n".join(lines)
 

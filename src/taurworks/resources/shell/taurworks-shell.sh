@@ -5,11 +5,81 @@
 #   source ~/.config/taurworks/taurworks-shell.sh
 #   tw activate [PATH_OR_NAME]
 #   tw activate [PATH_OR_NAME] --verbose
+#   tw activate [PATH_OR_NAME] --legacy      # source a legacy setup script once
+#   tw activate [PATH_OR_NAME] --no-legacy   # never source, even if trusted
 #
 # The taurworks executable remains read-only for activation. This sourced
 # function is the explicit layer that may mutate the current shell by exporting
 # validated activation variables and running `cd` to the resolved project working
 # directory.
+#
+# Trust-gated legacy sourcing (`taurworks config legacy-sourcing enable` plus
+# `taurworks project trust set NAME`) is off by default. While the Tier 1
+# switch is off, none of the functions below run and behavior is unchanged.
+
+_tw_legacy_prompt_choice() {
+    # Read one line of a user's response and normalize it to s/t/n/k
+    # (source once / trust / never / skip). Split out from
+    # _tw_offer_legacy_trust so it can be exercised directly with piped
+    # stdin in tests, independent of the real TTY gate in _tw_activate.
+    local raw
+    read -r raw
+    case "$raw" in
+        [sS]*) printf 's\n' ;;
+        [tT]*) printf 't\n' ;;
+        [nN]*) printf 'n\n' ;;
+        *) printf 'k\n' ;;
+    esac
+}
+
+_tw_source_legacy_script() {
+    local script_path
+    script_path=$1
+    if ! source "$script_path"; then
+        printf '%s\n' "tw activate: legacy setup script exited with an error: $script_path" >&2
+        return 1
+    fi
+    return 0
+}
+
+_tw_offer_legacy_trust() {
+    # Interactive consent prompt for sourcing an untrusted (or edited-since-
+    # trusted) legacy setup script. Only called when a real TTY was already
+    # confirmed by the caller.
+    local script_path project_name stale choice
+
+    script_path=$1
+    project_name=$2
+    stale=$3
+
+    if [ "$stale" = "True" ]; then
+        printf '%s\n' "tw activate: the trusted legacy setup script for '$project_name' has changed since it was trusted:" >&2
+    else
+        printf '%s\n' "tw activate: an untrusted legacy setup script exists for '$project_name':" >&2
+    fi
+    command taurworks legacy inspect "$project_name" >&2
+    printf '%s' "tw activate: [s]ource once, [t]rust and source, [n]ever ask again, or [k]ip? " >&2
+    choice=$(_tw_legacy_prompt_choice)
+
+    case "$choice" in
+        s)
+            _tw_source_legacy_script "$script_path"
+            ;;
+        t)
+            if command taurworks project trust set "$project_name" >&2; then
+                _tw_source_legacy_script "$script_path"
+            else
+                printf '%s\n' "tw activate: failed to record trust; not sourcing." >&2
+            fi
+            ;;
+        n)
+            printf '%s\n' "tw activate: not sourcing $script_path; run \`taurworks project trust set $project_name\` later to trust it." >&2
+            ;;
+        *)
+            printf '%s\n' "tw activate: skipped sourcing $script_path for this activation." >&2
+            ;;
+    esac
+}
 
 _tw_activation_field() {
     # Extract the first stable Taurworks diagnostic line matching a key.
@@ -56,17 +126,33 @@ _tw_activate() {
     local environment_configured
     local environment_type
     local environment_name
+    local project_name
+    local legacy_setup_exists
+    local legacy_setup_path
+    local legacy_sourcing_enabled
+    local legacy_trusted
+    local legacy_trust_stale
     local path_or_name
     local verbose
+    local legacy_once
+    local no_legacy
     local target_label
 
     path_or_name=""
     verbose=0
+    legacy_once=0
+    no_legacy=0
 
     while [ "$#" -gt 0 ]; do
         case "$1" in
             --verbose|--debug)
                 verbose=1
+                ;;
+            --legacy)
+                legacy_once=1
+                ;;
+            --no-legacy)
+                no_legacy=1
                 ;;
             --)
                 shift
@@ -134,6 +220,12 @@ _tw_activate() {
     local TAURWORKS_ACTIVATION_ENVIRONMENT_CONFIGURED
     local TAURWORKS_ACTIVATION_ENVIRONMENT_TYPE
     local TAURWORKS_ACTIVATION_ENVIRONMENT_NAME
+    local TAURWORKS_ACTIVATION_PROJECT_NAME
+    local TAURWORKS_ACTIVATION_LEGACY_SETUP_EXISTS
+    local TAURWORKS_ACTIVATION_LEGACY_SETUP_PATH
+    local TAURWORKS_ACTIVATION_LEGACY_SOURCING_ENABLED
+    local TAURWORKS_ACTIVATION_LEGACY_TRUSTED
+    local TAURWORKS_ACTIVATION_LEGACY_TRUST_STALE
 
     if ! eval "$output"; then
         printf '%s\n' "tw activate: failed to read Taurworks activation shell data." >&2
@@ -151,6 +243,12 @@ _tw_activate() {
     environment_configured=$TAURWORKS_ACTIVATION_ENVIRONMENT_CONFIGURED
     environment_type=$TAURWORKS_ACTIVATION_ENVIRONMENT_TYPE
     environment_name=$TAURWORKS_ACTIVATION_ENVIRONMENT_NAME
+    project_name=$TAURWORKS_ACTIVATION_PROJECT_NAME
+    legacy_setup_exists=$TAURWORKS_ACTIVATION_LEGACY_SETUP_EXISTS
+    legacy_setup_path=$TAURWORKS_ACTIVATION_LEGACY_SETUP_PATH
+    legacy_sourcing_enabled=$TAURWORKS_ACTIVATION_LEGACY_SOURCING_ENABLED
+    legacy_trusted=$TAURWORKS_ACTIVATION_LEGACY_TRUSTED
+    legacy_trust_stale=$TAURWORKS_ACTIVATION_LEGACY_TRUST_STALE
 
     if [ "$resolved_working_dir" = "" ] || [ "$resolved_working_dir" = "none" ]; then
         printf '%s\n' "tw activate: Taurworks did not report a resolved working directory." >&2
@@ -202,6 +300,20 @@ _tw_activate() {
     printf '%s\n' "tw activate: changed directory to $resolved_working_dir"
     if [ "$activation_message_configured" = "True" ]; then
         printf '%s\n' "$activation_message"
+    fi
+
+    if [ "$legacy_setup_exists" = "True" ] && [ "$no_legacy" != "1" ]; then
+        if [ "$legacy_sourcing_enabled" = "True" ] && [ "$legacy_trusted" = "True" ]; then
+            _tw_source_legacy_script "$legacy_setup_path"
+        elif [ "$legacy_sourcing_enabled" = "True" ] && [ "$legacy_once" = "1" ]; then
+            _tw_source_legacy_script "$legacy_setup_path"
+        elif [ "$legacy_sourcing_enabled" = "True" ] && [ -t 0 ] && [ -t 1 ]; then
+            _tw_offer_legacy_trust "$legacy_setup_path" "$project_name" "$legacy_trust_stale"
+        elif [ "$legacy_sourcing_enabled" = "True" ]; then
+            printf '%s\n' "tw activate: note: an untrusted legacy setup script exists at $legacy_setup_path; re-run with --legacy to source it once, or run \`taurworks project trust set $project_name\` to trust it." >&2
+        elif [ "$legacy_once" = "1" ]; then
+            printf '%s\n' "tw activate: --legacy requires legacy sourcing to be enabled; run \`taurworks config legacy-sourcing enable\` first." >&2
+        fi
     fi
 }
 

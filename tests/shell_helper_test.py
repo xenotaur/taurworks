@@ -926,5 +926,447 @@ class ShellHelperTest(unittest.TestCase):
         self.assertNotIn("bad", result.stdout)
 
 
+class LegacyTrustSourcingShellTest(unittest.TestCase):
+    """WI-TRUSTED-LEGACY-SOURCING-0001.
+
+    The interactive prompt itself (_tw_offer_legacy_trust reading from a
+    real TTY) cannot be driven from a subprocess test — there is no TTY in
+    this environment. _tw_legacy_prompt_choice and _tw_offer_legacy_trust
+    are tested directly with piped stdin instead, which exercises the full
+    prompt-and-dispatch logic (including the `taurworks legacy inspect` call
+    and the trust/source decision) without needing the outer `[ -t 0 ]`
+    gate in _tw_activate to pass. That outer TTY gate itself, and the live
+    end-to-end conda/cd/export proof, were verified manually in a real
+    shell during this work item's implementation; see the execution record.
+    """
+
+    def _write_legacy_script(self, admin_dir: pathlib.Path, sentinel: pathlib.Path):
+        admin_dir.mkdir(parents=True, exist_ok=True)
+        (admin_dir / "project-setup.source").write_text(
+            f'#!/bin/bash\ntouch "{sentinel}"\n', encoding="utf-8"
+        )
+
+    def test_legacy_prompt_choice_maps_input_to_normalized_letter(self):
+        cases = {
+            "s": "s",
+            "source": "s",
+            "S": "s",
+            "t": "t",
+            "trust": "t",
+            "n": "n",
+            "never": "n",
+            "x": "k",
+            "": "k",
+        }
+        for raw_input, expected in cases.items():
+            cmd = [
+                "bash",
+                "-c",
+                'source "$1" && printf "%s\\n" "$2" | _tw_legacy_prompt_choice',
+                "bash",
+                str(SHELL_HELPER),
+                raw_input,
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10
+            )
+            self.assertEqual(result.returncode, 0, msg=result.stderr)
+            self.assertEqual(
+                result.stdout.strip(), expected, msg=f"input={raw_input!r}"
+            )
+
+    def test_offer_legacy_trust_source_choice_sources_without_writing_trust(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = workspace / "Proj" / "Admin"
+            bin_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            script_path = admin_dir / "project-setup.source"
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "printf 's\\n' | "
+                    '_tw_offer_legacy_trust "$2" "Proj" "False"'
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(script_path),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            sentinel_exists = sentinel.exists()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue(sentinel_exists)
+
+    def test_offer_legacy_trust_trust_choice_writes_record_and_sources(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = workspace / "Proj" / "Admin"
+            bin_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            script_path = admin_dir / "project-setup.source"
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "printf 't\\n' | "
+                    '_tw_offer_legacy_trust "$2" "Proj" "False"'
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(script_path),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            trust_config = (
+                pathlib.Path(env["XDG_CONFIG_HOME"]) / "taurworks" / "config.toml"
+            )
+            trust_text = trust_config.read_text(encoding="utf-8")
+            sentinel_exists = sentinel.exists()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue(sentinel_exists)
+        self.assertIn("[trust.Proj]", trust_text)
+
+    def test_offer_legacy_trust_never_choice_does_not_source_or_trust(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = workspace / "Proj" / "Admin"
+            bin_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            script_path = admin_dir / "project-setup.source"
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "printf 'n\\n' | "
+                    '_tw_offer_legacy_trust "$2" "Proj" "False"'
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(script_path),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            sentinel_exists = sentinel.exists()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertFalse(sentinel_exists)
+
+    def test_tier1_disabled_produces_no_legacy_output(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = workspace / "Proj" / "Admin"
+            bin_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "taurworks config legacy-sourcing disable >/dev/null && "
+                    'cd "$2" && '
+                    "tw activate Proj"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            sentinel_exists = sentinel.exists()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertFalse(sentinel_exists)
+        # The pre-existing legacy-admin cd-only warning is expected and
+        # legitimately mentions "legacy"/"taurworks legacy migrate"; what
+        # must be absent with Tier 1 off is any trace of the new
+        # trust-gating feature itself.
+        self.assertNotIn("untrusted legacy setup script", result.stderr)
+        self.assertNotIn("[s]ource once", result.stderr)
+
+    def test_tier1_enabled_untrusted_noninteractive_fails_open(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = workspace / "Proj" / "Admin"
+            bin_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "taurworks config legacy-sourcing enable >/dev/null && "
+                    'cd "$2" && '
+                    "tw activate Proj </dev/null"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            sentinel_exists = sentinel.exists()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertFalse(sentinel_exists)
+        self.assertIn("untrusted legacy setup script", result.stderr)
+        self.assertIn("--legacy", result.stderr)
+
+    def test_tier1_enabled_trusted_sources_silently(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = workspace / "Proj" / "Admin"
+            bin_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "taurworks config legacy-sourcing enable >/dev/null && "
+                    "taurworks project trust set Proj >/dev/null && "
+                    'cd "$2" && '
+                    "tw activate Proj </dev/null"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            sentinel_exists = sentinel.exists()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue(sentinel_exists)
+        self.assertNotIn("[s]ource once", result.stderr)
+        self.assertNotIn("untrusted", result.stderr)
+
+    def test_legacy_flag_sources_once_despite_untrusted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = workspace / "Proj" / "Admin"
+            bin_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "taurworks config legacy-sourcing enable >/dev/null && "
+                    'cd "$2" && '
+                    "tw activate Proj --legacy </dev/null"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            trust_config = (
+                pathlib.Path(env["XDG_CONFIG_HOME"]) / "taurworks" / "config.toml"
+            )
+            trust_text = (
+                trust_config.read_text(encoding="utf-8")
+                if trust_config.is_file()
+                else ""
+            )
+            sentinel_exists = sentinel.exists()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue(sentinel_exists)
+        self.assertNotIn("[trust.Proj]", trust_text)
+
+    def test_no_legacy_flag_skips_despite_trusted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = workspace / "Proj" / "Admin"
+            bin_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "taurworks config legacy-sourcing enable >/dev/null && "
+                    "taurworks project trust set Proj >/dev/null && "
+                    'cd "$2" && '
+                    "tw activate Proj --no-legacy </dev/null"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            sentinel_exists = sentinel.exists()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertFalse(sentinel_exists)
+
+    def test_legacy_flag_without_tier1_reports_error(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = workspace / "Proj" / "Admin"
+            bin_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "taurworks config legacy-sourcing disable >/dev/null && "
+                    'cd "$2" && '
+                    "tw activate Proj --legacy </dev/null"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            sentinel_exists = sentinel.exists()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertFalse(sentinel_exists)
+        self.assertIn("--legacy requires legacy sourcing to be enabled", result.stderr)
+
+    def test_legacy_sourcing_fires_after_declarative_activation(self):
+        # WI scope extension: trust-gated sourcing must also fire for an
+        # already-initialized project (config.toml present) that still has
+        # a leftover legacy script, running after the config-driven cd —
+        # matching the real 11-project post-migration state.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            project_dir = workspace / "Migrated"
+            repo_dir = project_dir / "repo"
+            admin_dir = project_dir / "Admin"
+            repo_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            (project_dir / ".taurworks").mkdir()
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "Migrated"\n\n'
+                '[paths]\nworking_dir = "repo"\n',
+                encoding="utf-8",
+            )
+            bin_dir.mkdir(parents=True)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "taurworks config legacy-sourcing enable >/dev/null && "
+                    "taurworks project trust set Migrated >/dev/null && "
+                    'cd "$2" && '
+                    "tw activate Migrated </dev/null && pwd"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            sentinel_exists = sentinel.exists()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue(sentinel_exists)
+        assert_same_path(self, result.stdout.strip().splitlines()[-1], repo_dir)
+
+
 if __name__ == "__main__":
     unittest.main()
