@@ -284,5 +284,184 @@ class GlobalConfigTest(unittest.TestCase):
         assert_same_path(self, written["workspace"]["root"], workspace)
 
 
+class LegacySourcingSwitchTest(unittest.TestCase):
+    def _env(self, config_home: pathlib.Path, home: pathlib.Path) -> dict[str, str]:
+        return {"XDG_CONFIG_HOME": str(config_home), "HOME": str(home)}
+
+    def test_default_is_disabled(self):
+        config = {}
+        self.assertFalse(global_config.configured_legacy_sourcing_enabled(config))
+
+    def test_show_and_enable_and_disable_round_trip(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config_home = root / "config-home"
+            with mock.patch.dict(os.environ, self._env(config_home, root), clear=True):
+                initial = global_config.gather_config_legacy_sourcing_show_diagnostics()
+                self.assertTrue(initial["ok"])
+                self.assertFalse(initial["legacy_sourcing_enabled"])
+
+                enabled = global_config.gather_config_legacy_sourcing_set_diagnostics(
+                    True
+                )
+                self.assertTrue(enabled["ok"])
+                self.assertTrue(enabled["legacy_sourcing_enabled"])
+
+                shown = global_config.gather_config_legacy_sourcing_show_diagnostics()
+                self.assertTrue(shown["legacy_sourcing_enabled"])
+
+                disabled = global_config.gather_config_legacy_sourcing_set_diagnostics(
+                    False
+                )
+                self.assertTrue(disabled["ok"])
+                self.assertFalse(disabled["legacy_sourcing_enabled"])
+
+    def test_enable_preserves_unrelated_config(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config_home = root / "config-home"
+            config_path = config_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                'schema_version = 1\n\n[workspace]\nroot = "/x"\n', encoding="utf-8"
+            )
+            with mock.patch.dict(os.environ, self._env(config_home, root), clear=True):
+                global_config.gather_config_legacy_sourcing_set_diagnostics(True)
+            written = tomllib.loads(config_path.read_text(encoding="utf-8"))
+        self.assertEqual("/x", written["workspace"]["root"])
+        self.assertTrue(written["activation"]["legacy_sourcing"])
+
+
+class TrustRecordTest(unittest.TestCase):
+    DIGEST_A = "a" * 64
+    DIGEST_B = "b" * 64
+
+    def _env(self, config_home: pathlib.Path, home: pathlib.Path) -> dict[str, str]:
+        return {"XDG_CONFIG_HOME": str(config_home), "HOME": str(home)}
+
+    def test_trust_record_from_config_returns_none_when_absent(self):
+        self.assertIsNone(global_config.trust_record_from_config({}, "Proj"))
+
+    def test_trust_record_from_config_rejects_bad_digest(self):
+        config = {"trust": {"Proj": {"path": "/x", "digest": "not-hex"}}}
+        with self.assertRaises(global_config.GlobalConfigError):
+            global_config.trust_record_from_config(config, "Proj")
+
+    def test_trust_record_from_config_rejects_missing_path(self):
+        config = {"trust": {"Proj": {"digest": self.DIGEST_A}}}
+        with self.assertRaises(global_config.GlobalConfigError):
+            global_config.trust_record_from_config(config, "Proj")
+
+    def test_write_then_read_trust_record_round_trips(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = pathlib.Path(temp_dir) / "config.toml"
+            global_config.write_trust_record_preserving_config(
+                config_path,
+                {},
+                "Proj",
+                pathlib.Path("/x/Admin/setup.source"),
+                self.DIGEST_A,
+            )
+            config = global_config.read_config(config_path)
+        record = global_config.trust_record_from_config(config, "Proj")
+        self.assertEqual("/x/Admin/setup.source", record["path"])
+        self.assertEqual(self.DIGEST_A, record["digest"])
+
+    def test_write_trust_record_rejects_relative_script_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = pathlib.Path(temp_dir) / "config.toml"
+            with self.assertRaises(global_config.GlobalConfigError) as context:
+                global_config.write_trust_record_preserving_config(
+                    config_path,
+                    {},
+                    "Proj",
+                    pathlib.Path("relative/setup.source"),
+                    self.DIGEST_A,
+                )
+            self.assertIn("must be absolute", str(context.exception))
+            self.assertFalse(config_path.exists())
+
+    def test_write_trust_record_rejects_malformed_digest(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = pathlib.Path(temp_dir) / "config.toml"
+            with self.assertRaises(global_config.GlobalConfigError) as context:
+                global_config.write_trust_record_preserving_config(
+                    config_path, {}, "Proj", pathlib.Path("/x"), "not-a-digest"
+                )
+            self.assertIn("sha256 digest", str(context.exception))
+            self.assertFalse(config_path.exists())
+
+    def test_write_trust_record_overwrites_existing_digest(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = pathlib.Path(temp_dir) / "config.toml"
+            global_config.write_trust_record_preserving_config(
+                config_path, {}, "Proj", pathlib.Path("/x"), self.DIGEST_A
+            )
+            config = global_config.read_config(config_path)
+            global_config.write_trust_record_preserving_config(
+                config_path, config, "Proj", pathlib.Path("/x"), self.DIGEST_B
+            )
+            reread = global_config.read_config(config_path)
+            table_count = config_path.read_text(encoding="utf-8").count("[trust.Proj]")
+        record = global_config.trust_record_from_config(reread, "Proj")
+        self.assertEqual(self.DIGEST_B, record["digest"])
+        # exactly one [trust.Proj] table, not a duplicate
+        self.assertEqual(1, table_count)
+
+    def test_write_trust_record_preserves_unrelated_tables(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = pathlib.Path(temp_dir) / "config.toml"
+            config_path.write_text(
+                'schema_version = 1\n\n[workspace]\nroot = "/w"\n\n'
+                '[trust.Other]\npath = "/y"\ndigest = "' + self.DIGEST_B + '"\n',
+                encoding="utf-8",
+            )
+            config = global_config.read_config(config_path)
+            global_config.write_trust_record_preserving_config(
+                config_path, config, "Proj", pathlib.Path("/x"), self.DIGEST_A
+            )
+            written = global_config.read_config(config_path)
+        self.assertEqual("/w", written["workspace"]["root"])
+        self.assertEqual(
+            self.DIGEST_B,
+            global_config.trust_record_from_config(written, "Other")["digest"],
+        )
+        self.assertEqual(
+            self.DIGEST_A,
+            global_config.trust_record_from_config(written, "Proj")["digest"],
+        )
+
+    def test_remove_trust_record_leaves_sibling_intact(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = pathlib.Path(temp_dir) / "config.toml"
+            global_config.write_trust_record_preserving_config(
+                config_path, {}, "Proj", pathlib.Path("/x"), self.DIGEST_A
+            )
+            config = global_config.read_config(config_path)
+            global_config.write_trust_record_preserving_config(
+                config_path, config, "Other", pathlib.Path("/y"), self.DIGEST_B
+            )
+            config = global_config.read_config(config_path)
+            global_config.remove_trust_record_preserving_config(
+                config_path, config, "Proj"
+            )
+            written = global_config.read_config(config_path)
+        self.assertIsNone(global_config.trust_record_from_config(written, "Proj"))
+        self.assertIsNotNone(global_config.trust_record_from_config(written, "Other"))
+
+    def test_trust_table_never_written_under_projects(self):
+        # Regression guard for the exact bug this design avoids: trust data
+        # must never live under [projects.NAME], which requires a non-empty
+        # `root` and is iterated by the registry.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = pathlib.Path(temp_dir) / "config.toml"
+            global_config.write_trust_record_preserving_config(
+                config_path, {}, "Proj", pathlib.Path("/x"), self.DIGEST_A
+            )
+            text = config_path.read_text(encoding="utf-8")
+        self.assertNotIn("[projects.Proj]", text)
+        self.assertIn("[trust.Proj]", text)
+
+
 if __name__ == "__main__":
     unittest.main()

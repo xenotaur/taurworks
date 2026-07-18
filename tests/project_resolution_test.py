@@ -1,3 +1,4 @@
+import hashlib
 import os
 import pathlib
 import tempfile
@@ -6,6 +7,7 @@ from unittest import mock
 
 from helpers import assert_same_path
 
+from taurworks import global_config
 from taurworks import project_resolution
 
 
@@ -661,6 +663,338 @@ class ProjectEnvDiagnosticsTest(unittest.TestCase):
 
         self.assertFalse(diagnostics["ok"])
         self.assertIn("No Taurworks project metadata found", diagnostics["message"])
+
+
+class ProjectTrustDiagnosticsTest(unittest.TestCase):
+    def _write_legacy_script(
+        self, project_root: pathlib.Path, text: str = "echo hi\n"
+    ) -> pathlib.Path:
+        admin_dir = project_root / "Admin"
+        admin_dir.mkdir(parents=True, exist_ok=True)
+        script = admin_dir / "project-setup.source"
+        script.write_text(text, encoding="utf-8")
+        return script
+
+    def test_trust_set_computes_and_records_digest(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Legacy"
+            script = self._write_legacy_script(project_root)
+            xdg_home = temp_path / "xdg"
+            config_path = xdg_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                f'schema_version = 1\n\n[workspace]\nroot = "{workspace}"\n',
+                encoding="utf-8",
+            )
+
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)},
+            ):
+                diagnostics = project_resolution.gather_project_trust_set_diagnostics(
+                    "Legacy"
+                )
+            expected_digest = hashlib.sha256(script.read_bytes()).hexdigest()
+
+        self.assertTrue(diagnostics["ok"], msg=diagnostics)
+        self.assertEqual("none", diagnostics["previous_digest"])
+        self.assertEqual(expected_digest, diagnostics["digest"])
+
+    def test_trust_set_fails_cleanly_when_no_legacy_script(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir) / "proj"
+            project_dir.mkdir(parents=True)
+
+            diagnostics = project_resolution.gather_project_trust_set_diagnostics(
+                str(project_dir)
+            )
+
+        self.assertFalse(diagnostics["ok"])
+        self.assertIn("nothing to trust", diagnostics["message"])
+
+    def test_trust_set_always_overwrites_previous_digest(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Legacy"
+            script = self._write_legacy_script(project_root, "echo one\n")
+            xdg_home = temp_path / "xdg"
+            config_path = xdg_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                f'schema_version = 1\n\n[workspace]\nroot = "{workspace}"\n',
+                encoding="utf-8",
+            )
+            env = {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)}
+
+            with mock.patch.dict(os.environ, env):
+                first = project_resolution.gather_project_trust_set_diagnostics(
+                    "Legacy"
+                )
+                script.write_text("echo two\n", encoding="utf-8")
+                second = project_resolution.gather_project_trust_set_diagnostics(
+                    "Legacy"
+                )
+
+        self.assertTrue(first["ok"] and second["ok"])
+        self.assertEqual(first["digest"], second["previous_digest"])
+        self.assertNotEqual(first["digest"], second["digest"])
+
+    def test_trust_unset_removes_record_then_reports_nothing_to_do(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Legacy"
+            self._write_legacy_script(project_root)
+            xdg_home = temp_path / "xdg"
+            config_path = xdg_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                f'schema_version = 1\n\n[workspace]\nroot = "{workspace}"\n',
+                encoding="utf-8",
+            )
+            env = {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)}
+
+            with mock.patch.dict(os.environ, env):
+                project_resolution.gather_project_trust_set_diagnostics("Legacy")
+                removed = project_resolution.gather_project_trust_unset_diagnostics(
+                    "Legacy"
+                )
+                again = project_resolution.gather_project_trust_unset_diagnostics(
+                    "Legacy"
+                )
+
+        self.assertTrue(removed["ok"])
+        self.assertNotEqual("none", removed["removed_digest"])
+        self.assertFalse(again["ok"])
+
+    def test_trust_list_reports_stale_when_script_edited(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Legacy"
+            script = self._write_legacy_script(project_root)
+            xdg_home = temp_path / "xdg"
+            config_path = xdg_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                f'schema_version = 1\n\n[workspace]\nroot = "{workspace}"\n',
+                encoding="utf-8",
+            )
+            env = {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)}
+
+            with mock.patch.dict(os.environ, env):
+                project_resolution.gather_project_trust_set_diagnostics("Legacy")
+                script.write_text("echo edited\n", encoding="utf-8")
+                listing = project_resolution.gather_project_trust_list_diagnostics()
+
+        self.assertTrue(listing["ok"])
+        self.assertEqual(1, listing["trust_count"])
+        record = listing["records"][0]
+        self.assertEqual("Legacy", record["name"])
+        self.assertTrue(record["path_exists"])
+        self.assertFalse(record["digest_matches"])
+
+    def test_trust_set_resolves_registered_project_outside_cwd(self):
+        # Regression guard matching the WI's motivating fix: the command
+        # this feature's own prompt suggests must resolve the same way
+        # `tw activate` resolves projects, not just cwd-relative.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            registered_root = temp_path / "Elsewhere" / "RegisteredLegacy"
+            outside_cwd = temp_path / "outside"
+            self._write_legacy_script(registered_root)
+            outside_cwd.mkdir()
+
+            xdg_home = temp_path / "xdg"
+            config_path = xdg_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                "schema_version = 1\n\n"
+                "[projects.RegisteredLegacy]\n"
+                f'root = "{registered_root}"\n',
+                encoding="utf-8",
+            )
+
+            original_cwd = pathlib.Path.cwd()
+            try:
+                with mock.patch.dict(
+                    os.environ,
+                    {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)},
+                ):
+                    os.chdir(outside_cwd)
+                    diagnostics = (
+                        project_resolution.gather_project_trust_set_diagnostics(
+                            "RegisteredLegacy"
+                        )
+                    )
+            finally:
+                os.chdir(original_cwd)
+
+        self.assertTrue(diagnostics["ok"], msg=diagnostics)
+
+
+class LegacyTrustActivationDiagnosticsTest(unittest.TestCase):
+    def _write_legacy_script(
+        self, project_root: pathlib.Path, text: str = "echo hi\n"
+    ) -> pathlib.Path:
+        admin_dir = project_root / "Admin"
+        admin_dir.mkdir(parents=True, exist_ok=True)
+        script = admin_dir / "project-setup.source"
+        script.write_text(text, encoding="utf-8")
+        return script
+
+    def _global_config(self, xdg_home: pathlib.Path, workspace: pathlib.Path) -> None:
+        config_path = xdg_home / "taurworks" / "config.toml"
+        config_path.parent.mkdir(parents=True)
+        config_path.write_text(
+            f'schema_version = 1\n\n[workspace]\nroot = "{workspace}"\n',
+            encoding="utf-8",
+        )
+
+    def test_no_legacy_script_leaves_trust_fields_at_defaults(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Plain"
+            project_root.mkdir(parents=True)
+            xdg_home = temp_path / "xdg"
+            self._global_config(xdg_home, workspace)
+
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)},
+            ):
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Plain"
+                    )
+                )
+
+        self.assertFalse(diagnostics["legacy_sourcing_enabled"])
+        self.assertFalse(diagnostics["legacy_trusted"])
+        self.assertFalse(diagnostics["legacy_trust_stale"])
+
+    def test_untrusted_legacy_script_reports_not_trusted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Legacy"
+            self._write_legacy_script(project_root)
+            xdg_home = temp_path / "xdg"
+            self._global_config(xdg_home, workspace)
+
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)},
+            ):
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Legacy"
+                    )
+                )
+
+        self.assertTrue(diagnostics["legacy_setup_exists"])
+        self.assertFalse(diagnostics["legacy_trusted"])
+        self.assertFalse(diagnostics["legacy_trust_stale"])
+
+    def test_trusted_matching_digest_reports_trusted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Legacy"
+            self._write_legacy_script(project_root)
+            xdg_home = temp_path / "xdg"
+            self._global_config(xdg_home, workspace)
+            env = {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)}
+
+            with mock.patch.dict(os.environ, env):
+                project_resolution.gather_project_trust_set_diagnostics("Legacy")
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Legacy"
+                    )
+                )
+
+        self.assertTrue(diagnostics["legacy_trusted"])
+        self.assertFalse(diagnostics["legacy_trust_stale"])
+
+    def test_edited_script_after_trust_reports_stale_not_trusted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Legacy"
+            script = self._write_legacy_script(project_root)
+            xdg_home = temp_path / "xdg"
+            self._global_config(xdg_home, workspace)
+            env = {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)}
+
+            with mock.patch.dict(os.environ, env):
+                project_resolution.gather_project_trust_set_diagnostics("Legacy")
+                script.write_text("echo edited\n", encoding="utf-8")
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Legacy"
+                    )
+                )
+
+        self.assertFalse(diagnostics["legacy_trusted"])
+        self.assertTrue(diagnostics["legacy_trust_stale"])
+
+    def test_trust_ignored_when_recorded_for_a_different_script_path(self):
+        # A trust record's path must match the resolved project's own legacy
+        # script; a record that points elsewhere must not grant trust here.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Legacy"
+            self._write_legacy_script(project_root, "echo same-content\n")
+            other_root = workspace / "Other"
+            self._write_legacy_script(other_root, "echo same-content\n")
+            xdg_home = temp_path / "xdg"
+            self._global_config(xdg_home, workspace)
+            env = {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)}
+
+            with mock.patch.dict(os.environ, env):
+                # Trust "Other"'s script (identical content/digest, different path).
+                project_resolution.gather_project_trust_set_diagnostics("Other")
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Legacy"
+                    )
+                )
+
+        self.assertFalse(diagnostics["legacy_trusted"])
+
+    def test_shell_payload_includes_legacy_trust_fields(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Legacy"
+            self._write_legacy_script(project_root)
+            xdg_home = temp_path / "xdg"
+            self._global_config(xdg_home, workspace)
+            env = {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)}
+
+            with mock.patch.dict(os.environ, env):
+                global_config.gather_config_legacy_sourcing_set_diagnostics(True)
+                project_resolution.gather_project_trust_set_diagnostics("Legacy")
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Legacy"
+                    )
+                )
+                rendered = project_resolution.format_project_activate_shell_output(
+                    diagnostics
+                )
+
+        self.assertIn("TAURWORKS_ACTIVATION_PROJECT_NAME=Legacy", rendered)
+        self.assertIn("TAURWORKS_ACTIVATION_LEGACY_SETUP_EXISTS=True", rendered)
+        self.assertIn("TAURWORKS_ACTIVATION_LEGACY_SOURCING_ENABLED=True", rendered)
+        self.assertIn("TAURWORKS_ACTIVATION_LEGACY_TRUSTED=True", rendered)
+        self.assertIn("TAURWORKS_ACTIVATION_LEGACY_TRUST_STALE=False", rendered)
 
 
 if __name__ == "__main__":
