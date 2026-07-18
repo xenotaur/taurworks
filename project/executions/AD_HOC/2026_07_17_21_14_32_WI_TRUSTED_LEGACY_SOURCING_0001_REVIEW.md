@@ -2,10 +2,10 @@
 execution_id: 2026_07_17_21_14_32_WI_TRUSTED_LEGACY_SOURCING_0001_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_TRUSTED_LEGACY_SOURCING_0001_REVIEW)[2026-07-17T21:13:59-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_07_17_19_42_37_WI_TRUSTED_LEGACY_SOURCING_0001
 pr: https://github.com/xenotaur/taurworks/pull/70
-commit: 6803058
+commit: 0b38a07
 created_at: 2026-07-17T21:14:32-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/70

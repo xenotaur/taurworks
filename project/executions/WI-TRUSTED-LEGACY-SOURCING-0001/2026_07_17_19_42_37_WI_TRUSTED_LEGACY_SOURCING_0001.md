@@ -2,10 +2,10 @@
 execution_id: 2026_07_17_19_42_37_WI_TRUSTED_LEGACY_SOURCING_0001
 prompt_id: PROMPT(WI-TRUSTED-LEGACY-SOURCING-0001:WI_TRUSTED_LEGACY_SOURCING_0001)[2026-07-16T16:02:20-04:00]
 work_item: WI-TRUSTED-LEGACY-SOURCING-0001
-status: in_progress
+status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/70
-commit: dbf6ae3
+commit: 0b38a07
 created_at: 2026-07-17T19:42:37-04:00
 agent: claude_app
 instruction_source: project/work_items/proposed/WI-TRUSTED-LEGACY-SOURCING-0001.md

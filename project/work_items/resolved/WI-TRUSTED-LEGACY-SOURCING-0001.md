@@ -2,10 +2,10 @@
 id: WI-TRUSTED-LEGACY-SOURCING-0001
 title: Two-tier trust-gated sourcing of legacy setup scripts in tw activate
 type: deliverable
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: "Implemented and merged in PR #70 (commit 0b38a07): two-tier trust-gated legacy sourcing (Tier 1 global switch, Tier 2 per-project sha256 trust records), taurworks project trust set/unset/list, tw activate prompt/source flow with --legacy/--no-legacy flags, extended per WI author's decision to also cover initialized (post-migration) projects. Review caught and fixed 3 real bugs (misleading prompt wording, missing write-side validation, prompt resolution failure for unregistered non-workspace projects)."
 ---
 
 # WI-TRUSTED-LEGACY-SOURCING-0001: Trust-gated legacy script sourcing
