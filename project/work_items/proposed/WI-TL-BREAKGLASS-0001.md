@@ -62,23 +62,36 @@ re-verification pass on 2026-07-18 surfaced four things:
    message and the header comment: drop "temporary"/retirement-criterion
    language, state the permanent break-glass framing instead. Do not change
    the lookup order or sourcing mechanics.
-2. `README.md`: rewrite the `## Interim `tl` helper (temporary,
-   feature-frozen)` section (`README.md:98-119`) into one unified
+2. `README.md`: rewrite the "Interim `tl` helper (temporary,
+   feature-frozen)" section (`README.md:98-119`) into one unified
    explanation covering `taurworks` (read-only Python CLI), `tw` (sourced,
    config-aware activation layer), and `tl` (permanent, dependency-free,
    intentionally dumb break-glass fallback) — what each is for and the
    updated `tl NAME` syntax. Include the stale-shell-helper mitigation
-   ("re-source `~/.config/taurworks/taurworks-shell.sh` after every
-   taurworks update, the same way you'd re-source `.bashrc`") with a
-   one-line forward pointer that a proper fix is being designed separately.
+   ("regenerate `~/.config/taurworks/taurworks-shell.sh` via
+   `taurworks shell print > ~/.config/taurworks/taurworks-shell.sh` and
+   re-source it after every taurworks update — re-sourcing alone does
+   nothing if the file itself was never regenerated, the same way editing
+   `.bashrc` does nothing until you re-source it") with a one-line forward
+   pointer that a proper fix is being designed separately.
 3. `src/taurworks/cli.py`: add an explicit line to `project init`'s
    `description=` (`cli.py:663-671`) stating that `--local`/`--path` are
    `create`-only and do not apply to `init`.
-4. `src/taurworks/project_resolution.py`: make the legacy-admin "was not
-   sourced" guidance (`project_resolution.py:1908-1918`) conditional so it
-   does not claim sourcing didn't happen on an activation where Tier-1
-   trust-gated sourcing is enabled and this activation sources (or sourced)
-   the script. Exact conditional shape is the implementor's call.
+4. `src/taurworks/project_resolution.py`: fix the legacy-admin "was not
+   sourced" guidance (`project_resolution.py:1908-1918`), which prints
+   unconditionally even when Tier-1 trust-gated sourcing is enabled and the
+   script is about to be (or was already) sourced. The true sourcing outcome
+   is shell-only state (`--legacy`/`--no-legacy` flags, TTY availability, the
+   interactive prompt answer) that this diagnostics function cannot see, so a
+   Python-side-only condition keyed on Tier-1/trust status alone will be
+   wrong in real cases (e.g., untrusted + `--legacy` sources regardless of
+   Tier 1; untrusted + non-interactive does not source even with Tier 1 on).
+   The implementor must either (a) thread the actual sourcing outcome from
+   the shell layer back into the diagnostics, the same way
+   `TAURWORKS_ACTIVATION_PROJECT_ROOT` was threaded through in PR #70, or
+   (b) reword the guidance to be accurate regardless of outcome (e.g., note
+   that trust-gated sourcing may also apply, without asserting whether it
+   fired). Exact approach is the implementor's call.
 5. Add tests: `tl` currently has zero automated coverage (its own work item,
    WI-INTERIM-TL-PIPX-0001, validated it manually only) — add shell-level
    tests for the new `tl NAME` syntax, and a test for the corrected
