@@ -367,6 +367,30 @@ class TrustRecordTest(unittest.TestCase):
         self.assertEqual("/x/Admin/setup.source", record["path"])
         self.assertEqual(self.DIGEST_A, record["digest"])
 
+    def test_write_trust_record_rejects_relative_script_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = pathlib.Path(temp_dir) / "config.toml"
+            with self.assertRaises(global_config.GlobalConfigError) as context:
+                global_config.write_trust_record_preserving_config(
+                    config_path,
+                    {},
+                    "Proj",
+                    pathlib.Path("relative/setup.source"),
+                    self.DIGEST_A,
+                )
+            self.assertIn("must be absolute", str(context.exception))
+            self.assertFalse(config_path.exists())
+
+    def test_write_trust_record_rejects_malformed_digest(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = pathlib.Path(temp_dir) / "config.toml"
+            with self.assertRaises(global_config.GlobalConfigError) as context:
+                global_config.write_trust_record_preserving_config(
+                    config_path, {}, "Proj", pathlib.Path("/x"), "not-a-digest"
+                )
+            self.assertIn("sha256 digest", str(context.exception))
+            self.assertFalse(config_path.exists())
+
     def test_write_trust_record_overwrites_existing_digest(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = pathlib.Path(temp_dir) / "config.toml"

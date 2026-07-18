@@ -824,6 +824,15 @@ def write_trust_record_preserving_config(
     digest: str,
 ) -> None:
     """Set a project's trust record (script path + sha256 digest)."""
+    if not script_path.is_absolute():
+        raise GlobalConfigError(
+            f"trust record script path must be absolute: {script_path}"
+        )
+    if not TRUST_DIGEST_VALUE_PATTERN.fullmatch(digest):
+        raise GlobalConfigError(
+            "trust record digest must be a 64-character lowercase hex sha256 "
+            f"digest: {digest!r}"
+        )
     _ensure_global_config_write_is_safe(config_path_to_write)
     config_text = _read_config_text_for_preserving_write(
         config_path_to_write, config, ensure_schema_version=True

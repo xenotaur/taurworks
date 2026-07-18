@@ -2071,6 +2071,7 @@ def format_project_activate_shell_output(
         f"TAURWORKS_ACTIVATION_ENVIRONMENT_TYPE={shlex.quote(str(diagnostics['environment_type']))}",
         f"TAURWORKS_ACTIVATION_ENVIRONMENT_NAME={shlex.quote(str(diagnostics['environment_name']))}",
         f"TAURWORKS_ACTIVATION_PROJECT_NAME={shlex.quote(str(diagnostics['project_name']))}",
+        f"TAURWORKS_ACTIVATION_PROJECT_ROOT={shlex.quote(str(diagnostics['project_root']))}",
         f"TAURWORKS_ACTIVATION_LEGACY_SETUP_EXISTS={shlex.quote(str(diagnostics['legacy_setup_exists']))}",
         f"TAURWORKS_ACTIVATION_LEGACY_SETUP_PATH={shlex.quote(str(diagnostics['legacy_setup_path']))}",
         f"TAURWORKS_ACTIVATION_LEGACY_SOURCING_ENABLED={shlex.quote(str(diagnostics['legacy_sourcing_enabled']))}",

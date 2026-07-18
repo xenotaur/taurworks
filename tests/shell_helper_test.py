@@ -996,11 +996,12 @@ class LegacyTrustSourcingShellTest(unittest.TestCase):
                 (
                     'source "$1" && '
                     "printf 's\\n' | "
-                    '_tw_offer_legacy_trust "$2" "Proj" "False"'
+                    '_tw_offer_legacy_trust "$2" "Proj" "$3" "False"'
                 ),
                 "bash",
                 str(SHELL_HELPER),
                 str(script_path),
+                str(workspace / "Proj"),
             ]
             result = subprocess.run(
                 cmd, capture_output=True, text=True, check=False, timeout=10, env=env
@@ -1031,11 +1032,12 @@ class LegacyTrustSourcingShellTest(unittest.TestCase):
                 (
                     'source "$1" && '
                     "printf 't\\n' | "
-                    '_tw_offer_legacy_trust "$2" "Proj" "False"'
+                    '_tw_offer_legacy_trust "$2" "Proj" "$3" "False"'
                 ),
                 "bash",
                 str(SHELL_HELPER),
                 str(script_path),
+                str(workspace / "Proj"),
             ]
             result = subprocess.run(
                 cmd, capture_output=True, text=True, check=False, timeout=10, env=env
@@ -1050,7 +1052,7 @@ class LegacyTrustSourcingShellTest(unittest.TestCase):
         self.assertTrue(sentinel_exists)
         self.assertIn("[trust.Proj]", trust_text)
 
-    def test_offer_legacy_trust_never_choice_does_not_source_or_trust(self):
+    def test_offer_legacy_trust_skip_choice_does_not_source_or_trust(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)
             workspace = temp_path / "Workspace"
@@ -1071,11 +1073,12 @@ class LegacyTrustSourcingShellTest(unittest.TestCase):
                 (
                     'source "$1" && '
                     "printf 'n\\n' | "
-                    '_tw_offer_legacy_trust "$2" "Proj" "False"'
+                    '_tw_offer_legacy_trust "$2" "Proj" "$3" "False"'
                 ),
                 "bash",
                 str(SHELL_HELPER),
                 str(script_path),
+                str(workspace / "Proj"),
             ]
             result = subprocess.run(
                 cmd, capture_output=True, text=True, check=False, timeout=10, env=env
@@ -1084,6 +1087,103 @@ class LegacyTrustSourcingShellTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertFalse(sentinel_exists)
+
+    def test_offer_legacy_trust_skip_message_does_not_claim_persistence(self):
+        # Regression test: the prompt used to offer "[n]ever ask again" but
+        # the skip branch never persisted anything, so the user would be
+        # prompted again next time despite the wording. The message must not
+        # claim persistence it doesn't provide.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = workspace / "Proj" / "Admin"
+            bin_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            script_path = admin_dir / "project-setup.source"
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "printf 'n\\n' | "
+                    '_tw_offer_legacy_trust "$2" "Proj" "$3" "False"'
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(script_path),
+                str(workspace / "Proj"),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertNotIn("again", result.stderr)
+        self.assertNotIn("never", result.stderr.lower())
+        self.assertIn("skip", result.stderr.lower())
+
+    def test_offer_legacy_trust_resolves_unregistered_nonworkspace_project_by_root(
+        self,
+    ):
+        # Regression test for a resolution bug: the prompt used to pass the
+        # bare project name (not the resolved project root) to
+        # `taurworks legacy inspect`/`taurworks project trust set`. For a
+        # project that is neither registered nor a workspace child, that name
+        # re-resolves from the project's own directory (where _tw_activate
+        # has already cd'd) via find_current_project, which only recognizes
+        # .taurworks-having roots -- not legacy-admin ones -- so it fell
+        # through to treating the name as a child path of cwd, producing a
+        # nonexistent target and silently failing to trust.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            unregistered_root = temp_path / "Elsewhere" / "Legacy"
+            bin_dir = temp_path / "bin"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = unregistered_root / "Admin"
+            bin_dir.mkdir(parents=True)
+            self._write_legacy_script(admin_dir, sentinel)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            script_path = admin_dir / "project-setup.source"
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    'cd "$3" && '
+                    "printf 't\\n' | "
+                    '_tw_offer_legacy_trust "$2" "Legacy" "$3" "False"'
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(script_path),
+                str(unregistered_root),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            trust_config = (
+                pathlib.Path(env["XDG_CONFIG_HOME"]) / "taurworks" / "config.toml"
+            )
+            trust_text = (
+                trust_config.read_text(encoding="utf-8")
+                if trust_config.exists()
+                else ""
+            )
+            sentinel_exists = sentinel.exists()
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertTrue(sentinel_exists, msg=result.stderr)
+        self.assertIn("[trust.Legacy]", trust_text)
 
     def test_tier1_disabled_produces_no_legacy_output(self):
         with tempfile.TemporaryDirectory() as temp_dir:
