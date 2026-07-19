@@ -95,28 +95,61 @@ exports, and Conda environment activation only. Virtualenv activation, Docker
 activation, arbitrary user hooks/scripts, and legacy `Admin/project-setup.source`
 migration remain deferred.
 
-## Interim `tl` helper (temporary, feature-frozen)
+## `taurworks`, `tw`, and `tl`
 
-Until every project activates through `tw`, `sourceme/aliases.source`
-provides `tl` ("Taurworks Legacy"), a pure-shell interim helper:
+Three layers make up the activation stack:
+
+- **`taurworks`** is the Python command-line program. It is read-only with
+  respect to your shell: like any normal child process it cannot mutate the
+  parent shell, so `taurworks project activate --print` reports activation
+  guidance without ever changing directory, exporting variables, or
+  activating an environment.
+- **`tw`** is the sourced, config-aware shell function printed by
+  `taurworks shell print` (see "User install and shell helper setup" above).
+  It is the supported, full-featured way to activate a project: it applies
+  `[activation.exports]`, activates a configured Conda environment, changes
+  directory, and offers trust-gated legacy sourcing.
+- **`tl`** ("Taurworks Legacy") is a permanent, dependency-free break-glass
+  fallback provided by `sourceme/aliases.source`. Reach for it when `tw` is
+  unavailable or unreliable — for example, a Conda environment switch hid
+  the `taurworks` executable, or your sourced `tw` function has gone stale
+  (see below) and you don't want to regenerate it mid-task.
 
 ```bash
 source <path-to-checkout>/sourceme/aliases.source
-tl activate PROJECT_NAME
+tl PROJECT_NAME
 ```
 
-`tl activate NAME` finds `NAME/Admin/project-setup.source` (or, failing
-that, `NAME/.taurworks/project-setup.source`) under the workspace root and
+`tl NAME` finds `NAME/Admin/project-setup.source` (or, failing that,
+`NAME/.taurworks/project-setup.source`) under the workspace root and
 sources it in the current shell — exactly what you would do by hand, with
 the path lookup automated. Because it never invokes the `taurworks`
 executable, it works even in Conda environments where the CLI is not
 installed.
 
-`tl` is feature-frozen by design (`WI-INTERIM-TL-PIPX-0001`): lookup and
-source, nothing else — no completions, no listing, no flags. If `tl` seems
-to need a feature, that is a signal to fix `tw` instead. Retirement
-criterion: `tl` and `sourceme/aliases.source` are deleted once every
-project activated in a normal week works through `tw activate`.
+`tl` is permanent and intentionally dumb by design
+(`WI-INTERIM-TL-PIPX-0001`, `WI-TL-BREAKGLASS-0001`): lookup and source,
+nothing else — no completions, no listing, no flags, and no delegation to
+`tw`. It is not a bridge to be retired: a `tw` function being *defined* in a
+shell does not mean it is *current* (see the stale-helper note below), so
+`tl` deliberately never depends on `tw` or the installed `taurworks`
+package version. If `tl` seems to need a feature, that is a signal to fix
+`tw` instead.
+
+**Stale shell-helper mitigation.** `taurworks shell print > ~/.config/taurworks/taurworks-shell.sh`
+produces a one-time snapshot; sourcing it is a one-time read, the same as
+`.bashrc`. It does **not** auto-update when the `taurworks` package
+changes. After every `taurworks` update, regenerate the file and then
+re-source it — re-sourcing alone does nothing if the file itself was never
+regenerated:
+
+```bash
+taurworks shell print > ~/.config/taurworks/taurworks-shell.sh
+source ~/.config/taurworks/taurworks-shell.sh
+```
+
+A `tw install`/`tw refresh` command to automate this regenerate-and-source
+step is being designed separately.
 
 Configure Conda activation in `.taurworks/config.toml` with:
 

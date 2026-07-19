@@ -1907,11 +1907,32 @@ def gather_project_activate_print_diagnostics(
 
     if project_status == manager.PROJECT_STATUS_LEGACY_ADMIN:
         project_name = str(project["name"])
+        legacy_sourcing_enabled = bool(base_diagnostics["legacy_sourcing_enabled"])
+        # Whether the shell will actually source the script depends on
+        # shell-only state this diagnostics call never sees (--legacy/
+        # --no-legacy flags, TTY availability, an interactive prompt answer).
+        # --no-legacy suppresses sourcing even when the script is trusted
+        # (taurworks-shell.sh's _tw_activate gates the whole legacy block on
+        # it), so trust status alone is never enough to assert an outcome.
+        # Only the Tier-1-disabled case is deterministic regardless of any
+        # shell-only flag; stay neutral whenever Tier 1 is enabled.
+        if not legacy_sourcing_enabled:
+            sourcing_note = (
+                "Legacy Admin/project-setup.source exists but was not "
+                "sourced; activation only changes directory to the project "
+                "root"
+            )
+        else:
+            sourcing_note = (
+                "Legacy Admin/project-setup.source exists; activation "
+                "changes directory to the project root, and whether the "
+                "script is also sourced this activation depends on trust "
+                "status and --legacy/--no-legacy choices made by tw activate"
+            )
         return _activation_target_diagnostics(
             base_diagnostics,
             project_root,
-            "Legacy Admin/project-setup.source exists but was not sourced; "
-            "activation only changes directory to the project root. Run "
+            f"{sourcing_note}. Run "
             f"`taurworks legacy migrate {project_name} --apply` to migrate it "
             "to declarative activation config.",
             ok=project_root.is_dir(),

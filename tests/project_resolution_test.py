@@ -921,6 +921,84 @@ class LegacyTrustActivationDiagnosticsTest(unittest.TestCase):
         self.assertTrue(diagnostics["legacy_trusted"])
         self.assertFalse(diagnostics["legacy_trust_stale"])
 
+    def test_trusted_and_enabled_guidance_is_also_outcome_neutral(self):
+        # Regression test for WI-TL-BREAKGLASS-0001 (PR #73 review fix): even
+        # when Tier 1 is enabled and this script is already trusted, a
+        # `--no-legacy` flag still suppresses sourcing entirely
+        # (taurworks-shell.sh's _tw_activate gates the whole legacy block,
+        # trusted branch included, on `no_legacy != 1`), and that flag is
+        # shell-only state this diagnostics call never sees. So trust status
+        # alone must not make the guidance assert sourcing will happen --
+        # it must stay neutral, same as the untrusted case below.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Legacy"
+            self._write_legacy_script(project_root)
+            xdg_home = temp_path / "xdg"
+            config_path = xdg_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                "schema_version = 1\n\n"
+                f'[workspace]\nroot = "{workspace}"\n\n'
+                "[activation]\nlegacy_sourcing = true\n",
+                encoding="utf-8",
+            )
+            env = {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)}
+
+            with mock.patch.dict(os.environ, env):
+                project_resolution.gather_project_trust_set_diagnostics("Legacy")
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Legacy"
+                    )
+                )
+
+        self.assertTrue(diagnostics["legacy_sourcing_enabled"])
+        self.assertTrue(diagnostics["legacy_trusted"])
+        self.assertNotIn("was not sourced", str(diagnostics["guidance"]))
+        self.assertIn(
+            "depends on trust status and --legacy/--no-legacy choices",
+            str(diagnostics["guidance"]),
+        )
+
+    def test_enabled_but_untrusted_guidance_is_outcome_neutral(self):
+        # Regression test for WI-TL-BREAKGLASS-0001: when Tier 1 is enabled
+        # but this script is not (yet) trusted, whether the shell sources it
+        # depends on shell-only state (--legacy flag, TTY, interactive
+        # choice) this diagnostics call cannot see -- guidance must not
+        # assert either outcome.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            project_root = workspace / "Legacy"
+            self._write_legacy_script(project_root)
+            xdg_home = temp_path / "xdg"
+            config_path = xdg_home / "taurworks" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                "schema_version = 1\n\n"
+                f'[workspace]\nroot = "{workspace}"\n\n'
+                "[activation]\nlegacy_sourcing = true\n",
+                encoding="utf-8",
+            )
+            env = {"XDG_CONFIG_HOME": str(xdg_home), "HOME": str(temp_path)}
+
+            with mock.patch.dict(os.environ, env):
+                diagnostics = (
+                    project_resolution.gather_project_activate_print_diagnostics(
+                        "Legacy"
+                    )
+                )
+
+        self.assertTrue(diagnostics["legacy_sourcing_enabled"])
+        self.assertFalse(diagnostics["legacy_trusted"])
+        self.assertNotIn("was not sourced", str(diagnostics["guidance"]))
+        self.assertIn(
+            "depends on trust status and --legacy/--no-legacy choices",
+            str(diagnostics["guidance"]),
+        )
+
     def test_edited_script_after_trust_reports_stale_not_trusted(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)

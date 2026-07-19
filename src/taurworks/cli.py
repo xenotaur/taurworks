@@ -666,7 +666,8 @@ def main(argv=None):
         description=(
             "Initialize an existing/current directory with safe, idempotent "
             "Taurworks metadata. Missing project roots are not created; use "
-            "project create for new roots."
+            "project create for new roots. --local/--path are create-only "
+            "and do not apply to init."
         ),
     )
     parser_project_init.add_argument(
