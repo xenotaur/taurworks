@@ -34,7 +34,7 @@ acceptance:
   - scripts/build produces a dist/ directory containing a wheel and sdist from a clean checkout
   - scripts/clean removes dist/, build/, *.egg-info, __pycache__, .ruff_cache with no other side effects
   - scripts/publish's "please run build first" message is verified true after scripts/build has run
-  - lrh validate passes with 0 errors
+  - lrh validate introduces no new errors or warnings relative to the pre-change baseline (the 4 existing contributors.md errors are a separate, already-tracked gap and are not in scope here)
 required_evidence:
   - manual_review
   - lrh_validate
@@ -132,7 +132,10 @@ combined into one work item with two independently landable task groups.
   `.ruff_cache` with no other side effects.
 - Running `scripts/build` then `scripts/publish` reaches the twine-upload
   branch instead of the missing-dist branch.
-- `lrh validate` passes with 0 errors.
+- `lrh validate` introduces no new errors or warnings relative to the
+  pre-change baseline. The 4 pre-existing `contributors.md` errors are a
+  separate, already-tracked gap and are out of scope for this item; fixing
+  them is not required for this item to be considered complete.
 - `scripts/test` and `scripts/lint` pass.
 
 ## Validation
