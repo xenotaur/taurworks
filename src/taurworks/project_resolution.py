@@ -1907,11 +1907,36 @@ def gather_project_activate_print_diagnostics(
 
     if project_status == manager.PROJECT_STATUS_LEGACY_ADMIN:
         project_name = str(project["name"])
+        legacy_sourcing_enabled = bool(base_diagnostics["legacy_sourcing_enabled"])
+        legacy_trusted = bool(base_diagnostics["legacy_trusted"])
+        # Whether the shell will actually source the script also depends on
+        # shell-only state this diagnostics call never sees (--legacy/
+        # --no-legacy flags, TTY availability, an interactive prompt answer).
+        # Only assert an outcome in the two cases that are deterministic
+        # regardless of that shell-only state; stay neutral otherwise.
+        if not legacy_sourcing_enabled:
+            sourcing_note = (
+                "Legacy Admin/project-setup.source exists but was not "
+                "sourced; activation only changes directory to the project "
+                "root"
+            )
+        elif legacy_trusted:
+            sourcing_note = (
+                "Legacy Admin/project-setup.source exists and will be "
+                "sourced automatically (trusted), in addition to changing "
+                "directory to the project root"
+            )
+        else:
+            sourcing_note = (
+                "Legacy Admin/project-setup.source exists; activation "
+                "changes directory to the project root, and whether the "
+                "script is also sourced this activation depends on "
+                "--legacy/trust choices made by tw activate"
+            )
         return _activation_target_diagnostics(
             base_diagnostics,
             project_root,
-            "Legacy Admin/project-setup.source exists but was not sourced; "
-            "activation only changes directory to the project root. Run "
+            f"{sourcing_note}. Run "
             f"`taurworks legacy migrate {project_name} --apply` to migrate it "
             "to declarative activation config.",
             ok=project_root.is_dir(),

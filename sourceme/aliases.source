@@ -1,31 +1,32 @@
-# Taurworks Legacy (`tl`) — interim activation helper. Source me from bash.
+# Taurworks Legacy (`tl`) — permanent break-glass activation fallback.
+# Source me from bash.
 #
-# `tl activate NAME` finds a project's setup script under the workspace root
-# and sources it in the current shell:
+# `tl NAME` finds a project's setup script under the workspace root and
+# sources it in the current shell:
 #
 #   1. $TAURWORKS_WORKSPACE/NAME/Admin/project-setup.source   (legacy layout)
 #   2. $TAURWORKS_WORKSPACE/NAME/.taurworks/project-setup.source
 #
-# This helper is FEATURE-FROZEN (WI-INTERIM-TL-PIPX-0001): it does lookup and
-# source, nothing else. If `tl` seems to need a feature, fix `tw` instead —
-# the supported helper printed by `taurworks shell print`.
-#
-# Retirement criterion: this file is deleted once every project activated in
-# a normal week works through `tw activate`.
+# This helper is permanently and intentionally dumb (WI-INTERIM-TL-PIPX-0001,
+# WI-TL-BREAKGLASS-0001): it does lookup and source, nothing else. It is kept
+# on purpose as an emergency break-glass tool for when `tw` is unavailable or
+# unreliable (e.g. a stale sourced `tw` function, or a shell where taurworks
+# is not installed) — if `tl` seems to need a feature, fix `tw` instead, the
+# supported helper printed by `taurworks shell print`.
 #
 # Note: `tl` is pure shell with no dependency on the `taurworks` executable,
 # so it keeps working even when switching Conda environments hides the
 # Python CLI.
 
 function tl() {
-    if [[ "$1" != "activate" || -z "$2" || -n "$3" ]]; then
-        echo "usage: tl activate PROJECT_NAME" >&2
+    if [[ -z "$1" || -n "$2" ]]; then
+        echo "usage: tl PROJECT_NAME" >&2
         return 2
     fi
 
     local project_name workspace legacy_script taurworks_script
 
-    project_name="$2"
+    project_name="$1"
     workspace="${TAURWORKS_WORKSPACE:-$HOME/Workspace}"
     legacy_script="$workspace/$project_name/Admin/project-setup.source"
     taurworks_script="$workspace/$project_name/.taurworks/project-setup.source"
