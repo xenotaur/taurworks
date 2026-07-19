@@ -2,10 +2,10 @@
 id: WI-TL-BREAKGLASS-0001
 title: Simplify tl to a permanent break-glass fallback; document tl/tw/taurworks; fix small dogfood-audit gaps
 type: deliverable
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: "Implemented and merged in PR #73 (commit 46f9d33): `tl` simplified to `tl NAME`, reframed as a permanent break-glass fallback; unified `tl`/`tw`/`taurworks` README docs; `project init` `--local` discoverability fix; legacy-admin guidance corrected to a 2-way outcome-neutral conditional after a review round caught a residual non-determinism in the trusted case."
 ---
 
 # WI-TL-BREAKGLASS-0001: tl break-glass simplification, tl/tw/taurworks docs, small dogfood-audit fixes
