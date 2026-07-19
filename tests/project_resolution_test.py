@@ -921,11 +921,15 @@ class LegacyTrustActivationDiagnosticsTest(unittest.TestCase):
         self.assertTrue(diagnostics["legacy_trusted"])
         self.assertFalse(diagnostics["legacy_trust_stale"])
 
-    def test_trusted_and_enabled_guidance_does_not_claim_not_sourced(self):
-        # Regression test for WI-TL-BREAKGLASS-0001: when Tier 1 is enabled
-        # and this script is already trusted, the shell will silently source
-        # it (taurworks-shell.sh's _tw_activate, trusted branch) -- so the
-        # guidance must not claim it "was not sourced".
+    def test_trusted_and_enabled_guidance_is_also_outcome_neutral(self):
+        # Regression test for WI-TL-BREAKGLASS-0001 (PR #73 review fix): even
+        # when Tier 1 is enabled and this script is already trusted, a
+        # `--no-legacy` flag still suppresses sourcing entirely
+        # (taurworks-shell.sh's _tw_activate gates the whole legacy block,
+        # trusted branch included, on `no_legacy != 1`), and that flag is
+        # shell-only state this diagnostics call never sees. So trust status
+        # alone must not make the guidance assert sourcing will happen --
+        # it must stay neutral, same as the untrusted case below.
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)
             workspace = temp_path / "Workspace"
@@ -953,7 +957,10 @@ class LegacyTrustActivationDiagnosticsTest(unittest.TestCase):
         self.assertTrue(diagnostics["legacy_sourcing_enabled"])
         self.assertTrue(diagnostics["legacy_trusted"])
         self.assertNotIn("was not sourced", str(diagnostics["guidance"]))
-        self.assertIn("will be sourced automatically", str(diagnostics["guidance"]))
+        self.assertIn(
+            "depends on trust status and --legacy/--no-legacy choices",
+            str(diagnostics["guidance"]),
+        )
 
     def test_enabled_but_untrusted_guidance_is_outcome_neutral(self):
         # Regression test for WI-TL-BREAKGLASS-0001: when Tier 1 is enabled
@@ -987,8 +994,10 @@ class LegacyTrustActivationDiagnosticsTest(unittest.TestCase):
         self.assertTrue(diagnostics["legacy_sourcing_enabled"])
         self.assertFalse(diagnostics["legacy_trusted"])
         self.assertNotIn("was not sourced", str(diagnostics["guidance"]))
-        self.assertNotIn("will be sourced automatically", str(diagnostics["guidance"]))
-        self.assertIn("depends on --legacy/trust choices", str(diagnostics["guidance"]))
+        self.assertIn(
+            "depends on trust status and --legacy/--no-legacy choices",
+            str(diagnostics["guidance"]),
+        )
 
     def test_edited_script_after_trust_reports_stale_not_trusted(self):
         with tempfile.TemporaryDirectory() as temp_dir:
