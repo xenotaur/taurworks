@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+echo "Cleaning build artifacts..."
+set -x
+rm -rf dist build src/taurworks.egg-info .ruff_cache
+find . -type d -name "__pycache__" -not -path "./.git/*" -exec rm -rf {} +

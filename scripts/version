@@ -1,0 +1,9 @@
+#!/bin/bash
+set -euo pipefail
+
+echo "Reporting tool versions..."
+set -x
+python --version
+python -m pip --version
+python -m black --version
+python -m ruff --version
