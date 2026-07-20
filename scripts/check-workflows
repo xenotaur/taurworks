@@ -1,0 +1,32 @@
+#!/bin/bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+echo "Checking workflow YAML syntax..."
+set -x
+python - <<'PY'
+import pathlib
+import sys
+
+import yaml
+
+workflows = sorted(pathlib.Path(".github/workflows").glob("*.yml"))
+if not workflows:
+    print("No workflow files found under .github/workflows")
+    sys.exit(0)
+
+ok = True
+for path in workflows:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            yaml.safe_load(handle)
+    except yaml.YAMLError as exc:
+        print(f"{path}: INVALID YAML: {exc}", file=sys.stderr)
+        ok = False
+    else:
+        print(f"{path}: OK")
+
+sys.exit(0 if ok else 1)
+PY

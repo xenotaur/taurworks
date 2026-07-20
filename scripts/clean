@@ -1,0 +1,37 @@
+#!/bin/bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+dry_run=false
+for arg in "$@"; do
+  if [ "$arg" = "--dry-run" ]; then
+    dry_run=true
+  fi
+done
+
+targets=()
+for fixed in dist build .ruff_cache; do
+  if [ -e "$fixed" ]; then
+    targets+=("$fixed")
+  fi
+done
+
+while IFS= read -r -d '' path; do
+  targets+=("$path")
+done < <(find . -depth -type d \( -iname "*.egg-info" -o -name "__pycache__" \) -not -path "./.git/*" -print0)
+
+if [ "${#targets[@]}" -eq 0 ]; then
+  echo "Nothing to clean."
+  exit 0
+fi
+
+if [ "$dry_run" = true ]; then
+  echo "Would remove (dry run, no changes made):"
+  printf '  %s\n' "${targets[@]}"
+else
+  echo "Cleaning build artifacts..."
+  set -x
+  rm -rf -- "${targets[@]}"
+fi

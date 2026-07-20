@@ -28,6 +28,12 @@ jobs:
       - name: Install project and constrained developer tooling
         run: ./scripts/develop
 
+      - name: Check workflows
+        run: ./scripts/check-workflows
+
+      - name: Report tool versions
+        run: ./scripts/version
+
       - name: Lint
         run: ./scripts/lint
 

@@ -11,6 +11,7 @@ setup(
         "dev": [
             "black",
             "ruff",
+            "pyyaml",
         ],
         "test": [],
     },
