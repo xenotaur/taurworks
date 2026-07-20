@@ -2,14 +2,14 @@
 execution_id: 2026_07_20_01_16_23_WI_SCRIPTS_CI_HYGIENE_0001_IMPL_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_SCRIPTS_CI_HYGIENE_0001_IMPL_REVIEW)[2026-07-20T01:13:56-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_07_20_00_57_11_WI_SCRIPTS_CI_HYGIENE_0001
 pr: https://github.com/xenotaur/taurworks/pull/74
-commit: 
+commit: 782d8d2b1957711b64ee64e443f045cc18ee5432
 created_at: 2026-07-20T01:16:23-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/74
-session_transcript: pending
+session_transcript: claude-app:1a6672fa-e651-4d29-a0f6-acd7affb047f
 ---
 
 # Summary

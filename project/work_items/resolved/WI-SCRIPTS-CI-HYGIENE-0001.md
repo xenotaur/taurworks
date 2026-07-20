@@ -1,11 +1,11 @@
 ---
-resolution: null
+resolution: "Implemented and merged in PR #74 (commit 782d8d2). Added scripts/version, scripts/check-workflows (wired into CI ahead of lint), scripts/build, scripts/clean. Review caught 2 real bugs in scripts/clean (--dry-run silently ignored; egg-info path hardcoded instead of globbed) — both fixed and independently verified."
 blocked_reason: null
 blocked: false
 id: WI-SCRIPTS-CI-HYGIENE-0001
 title: Close scripts/ and CI hygiene gaps found in LRH-benchmarked audit
 type: operation
-status: proposed
+status: resolved
 owner: null
 contributors: []
 assigned_agents: []
