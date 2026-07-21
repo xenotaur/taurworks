@@ -731,13 +731,21 @@ on-disk file, and re-sources it into the *current* shell, all in one step:
 tw shell refresh
 ```
 
-By default it targets `~/.config/taurworks/taurworks-shell.sh`; set
-`TAURWORKS_SHELL_HELPER_PATH` before sourcing if you installed the helper
-somewhere else:
+By default it targets `~/.config/taurworks/taurworks-shell.sh`. If you
+installed the helper somewhere else, `export TAURWORKS_SHELL_HELPER_PATH` —
+for example alongside the `source` line in your shell startup file — so
+every future `tw shell refresh` call targets that location, not just a
+single invocation:
 
 ```bash
-TAURWORKS_SHELL_HELPER_PATH=~/dotfiles/taurworks-shell.sh tw shell refresh
+export TAURWORKS_SHELL_HELPER_PATH=~/dotfiles/taurworks-shell.sh
+tw shell refresh
 ```
+
+If `TAURWORKS_SHELL_HELPER_PATH` (or the default path) names a symlink —
+for example into a dotfiles checkout — `tw shell refresh` writes through to
+the link's target and leaves the symlink itself in place, rather than
+replacing it with a plain file.
 
 `tw shell refresh` only updates the shell it is run in — it cannot reach any
 other already-open shell, since a subprocess can never mutate a different

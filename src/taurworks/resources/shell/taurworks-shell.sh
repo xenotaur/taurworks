@@ -339,7 +339,7 @@ _tw_shell_refresh() {
     local target_path
     local parent_dir
     local tmp_path
-    local new_content
+    local link_target
 
     if [ "$#" -gt 0 ]; then
         printf '%s\n' "tw shell refresh: unexpected argument: $1" >&2
@@ -347,12 +347,21 @@ _tw_shell_refresh() {
     fi
 
     target_path="${TAURWORKS_SHELL_HELPER_PATH:-$HOME/.config/taurworks/taurworks-shell.sh}"
-    parent_dir=$(dirname -- "$target_path")
 
-    if ! new_content=$(command taurworks shell print); then
-        printf '%s\n' "tw shell refresh: \`taurworks shell print\` failed; left $target_path unchanged." >&2
-        return 1
+    # If the configured path is a symlink (e.g. into a dotfiles checkout),
+    # write through to its target instead of replacing the link itself --
+    # `mv` onto an existing symlink replaces the link, not what it points
+    # to. Only one hop is resolved; that covers the common case and avoids
+    # depending on non-portable `readlink -f`/`realpath` flags.
+    if [ -L "$target_path" ]; then
+        link_target=$(readlink -- "$target_path")
+        case "$link_target" in
+            /*) target_path="$link_target" ;;
+            *) target_path="$(dirname -- "$target_path")/$link_target" ;;
+        esac
     fi
+
+    parent_dir=$(dirname -- "$target_path")
 
     if ! mkdir -p -- "$parent_dir"; then
         printf '%s\n' "tw shell refresh: failed to create directory: $parent_dir" >&2
@@ -360,8 +369,8 @@ _tw_shell_refresh() {
     fi
 
     tmp_path="$target_path.tmp.$$"
-    if ! printf '%s\n' "$new_content" > "$tmp_path"; then
-        printf '%s\n' "tw shell refresh: failed to write: $tmp_path" >&2
+    if ! command taurworks shell print > "$tmp_path"; then
+        printf '%s\n' "tw shell refresh: \`taurworks shell print\` failed; left $target_path unchanged." >&2
         rm -f -- "$tmp_path"
         return 1
     fi
@@ -387,7 +396,7 @@ tw() {
         return $?
     fi
 
-    if [ "$1" = "shell" ] && [ "$2" = "refresh" ]; then
+    if [ "$1" = "shell" ] && [ "${2-}" = "refresh" ]; then
         shift 2
         _tw_shell_refresh "$@"
         return $?
