@@ -139,17 +139,21 @@ package version. If `tl` seems to need a feature, that is a signal to fix
 **Stale shell-helper mitigation.** `taurworks shell print > ~/.config/taurworks/taurworks-shell.sh`
 produces a one-time snapshot; sourcing it is a one-time read, the same as
 `.bashrc`. It does **not** auto-update when the `taurworks` package
-changes. After every `taurworks` update, regenerate the file and then
-re-source it — re-sourcing alone does nothing if the file itself was never
-regenerated:
+changes. After every `taurworks` update, run `tw shell refresh` (see the
+[`tw shell refresh`](#tw-shell-refresh) section below) to regenerate the
+file and re-source it in one step:
+
+```bash
+tw shell refresh
+```
+
+If your currently-sourced `tw` predates `tw shell refresh` itself, do the
+manual regenerate-and-source sequence once to pick it up for the first time:
 
 ```bash
 taurworks shell print > ~/.config/taurworks/taurworks-shell.sh
 source ~/.config/taurworks/taurworks-shell.sh
 ```
-
-A `tw install`/`tw refresh` command to automate this regenerate-and-source
-step is being designed separately.
 
 Configure Conda activation in `.taurworks/config.toml` with:
 
@@ -712,6 +716,38 @@ After it is sourced, `tw` behaves as follows:
 - `taurworks project activate [PATH_OR_NAME] --print` remains read-only human guidance. It reports whether an activation message and exports are configured, including export names and counts, but hides export values.
 - `tw project where`, `tw project list`, `tw project create ...`, and other non-activation invocations delegate directly to `taurworks ...`.
 - failures print Taurworks diagnostics and do not change directory or apply partial exports when export-name validation fails.
+
+### `tw shell refresh`
+
+`taurworks shell print > ~/.config/taurworks/taurworks-shell.sh` followed by
+`source` is a one-time snapshot, exactly like `.bashrc`. It does not
+auto-update when the `taurworks` package changes, and an already-sourced
+shell keeps running whatever it last sourced, silently, with no error. `tw
+shell refresh` fixes the on-demand half of that problem: it re-prints the
+packaged helper from the currently installed `taurworks`, overwrites the
+on-disk file, and re-sources it into the *current* shell, all in one step:
+
+```bash
+tw shell refresh
+```
+
+By default it targets `~/.config/taurworks/taurworks-shell.sh`; set
+`TAURWORKS_SHELL_HELPER_PATH` before sourcing if you installed the helper
+somewhere else:
+
+```bash
+TAURWORKS_SHELL_HELPER_PATH=~/dotfiles/taurworks-shell.sh tw shell refresh
+```
+
+`tw shell refresh` only updates the shell it is run in — it cannot reach any
+other already-open shell, since a subprocess can never mutate a different
+shell's process. A shell that predates `tw shell refresh` itself (i.e. one
+that sourced an older helper that doesn't define it yet) has no way to
+detect its own staleness or reach this command; that shell needs one manual
+re-source (the `mkdir -p`/`taurworks shell print`/`source` sequence above)
+to pick up `tw shell refresh` for the first time. See
+`project/design/shell_helper_refresh.md` for the full design, including why
+that one-time bootstrap step is unavoidable.
 
 Project-local `.taurworks/config.toml` may include this safe declarative activation slice:
 

@@ -28,6 +28,7 @@ def _subprocess_env() -> dict[str, str]:
     env["HOME"] = str(isolated_root / "home")
     env["XDG_CONFIG_HOME"] = str(isolated_root / "xdg")
     env.pop("TAURWORKS_WORKSPACE", None)
+    env.pop("TAURWORKS_SHELL_HELPER_PATH", None)
     return env
 
 
@@ -924,6 +925,190 @@ class ShellHelperTest(unittest.TestCase):
         self.assertIn("invalid activation export name", result.stdout)
         self.assertNotIn("after", result.stdout)
         self.assertNotIn("bad", result.stdout)
+
+
+class ShellRefreshTest(unittest.TestCase):
+    """WI-SHELL-HELPER-REFRESH-0001.
+
+    `tw shell refresh` fixes the on-demand half of the stale-shell-helper
+    problem: it re-prints the packaged helper from the currently installed
+    `taurworks`, overwrites the on-disk file, and re-sources it into the
+    current shell. These tests shim `taurworks shell print` with a minimal
+    marker script rather than the real packaged helper, so a successful
+    re-source is provable by checking whether the marker variable becomes
+    visible in the same shell -- proof that genuine re-sourcing happened,
+    not just a file write.
+    """
+
+    def _write_marker_shim(self, bin_dir: pathlib.Path, marker_line: str) -> None:
+        taurworks = bin_dir / "taurworks"
+        taurworks.write_text(
+            (
+                "#!/bin/sh\n"
+                'if [ "$1" = "shell" ] && [ "$2" = "print" ]; then\n'
+                f"  printf '%s\\n' '{marker_line}'\n"
+                "  exit 0\n"
+                "fi\n"
+                "exit 1\n"
+            ),
+            encoding="utf-8",
+        )
+        taurworks.chmod(taurworks.stat().st_mode | stat.S_IXUSR)
+
+    def test_tw_shell_refresh_writes_and_resources_new_content(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            target_path = temp_path / "config" / "taurworks-shell.sh"
+            bin_dir.mkdir()
+            self._write_marker_shim(bin_dir, "TW_SHELL_REFRESH_TEST_MARKER=refreshed")
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_SHELL_HELPER_PATH"] = str(target_path)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "tw shell refresh && "
+                    "printf '%s\\n' \"$TW_SHELL_REFRESH_TEST_MARKER\""
+                ),
+                "bash",
+                str(SHELL_HELPER),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+            written_content = target_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(written_content, "TW_SHELL_REFRESH_TEST_MARKER=refreshed\n")
+        stdout_lines = result.stdout.splitlines()
+        self.assertIn(
+            f"tw shell refresh: refreshed and re-sourced {target_path}",
+            stdout_lines,
+        )
+        self.assertEqual(stdout_lines[-1], "refreshed")
+
+    def test_tw_shell_refresh_failure_leaves_existing_file_untouched(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            target_path = temp_path / "config" / "taurworks-shell.sh"
+            target_path.parent.mkdir(parents=True)
+            target_path.write_text("original content\n", encoding="utf-8")
+            bin_dir.mkdir()
+            taurworks = bin_dir / "taurworks"
+            taurworks.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+            taurworks.chmod(taurworks.stat().st_mode | stat.S_IXUSR)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_SHELL_HELPER_PATH"] = str(target_path)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "if tw shell refresh >/tmp/tw-shell-refresh.out "
+                    "2>/tmp/tw-shell-refresh.err; "
+                    "then exit 20; fi && "
+                    "cat /tmp/tw-shell-refresh.err"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+            content_after = target_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(content_after, "original content\n")
+        self.assertIn("taurworks shell print` failed", result.stdout)
+        self.assertIn(str(target_path), result.stdout)
+
+    def test_tw_shell_refresh_uses_default_path_when_no_override(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            home_dir = temp_path / "home"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            self._write_marker_shim(bin_dir, "TW_SHELL_REFRESH_DEFAULT_MARKER=1")
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["HOME"] = str(home_dir)
+            cmd = [
+                "bash",
+                "-c",
+                'source "$1" && tw shell refresh',
+                "bash",
+                str(SHELL_HELPER),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+            default_path = home_dir / ".config" / "taurworks" / "taurworks-shell.sh"
+            written = default_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(written, "TW_SHELL_REFRESH_DEFAULT_MARKER=1\n")
+
+    def test_tw_shell_refresh_rejects_unexpected_argument(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            target_path = temp_path / "config" / "taurworks-shell.sh"
+            bin_dir.mkdir()
+            self._write_marker_shim(bin_dir, "SHOULD_NOT_APPEAR=1")
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_SHELL_HELPER_PATH"] = str(target_path)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "if tw shell refresh extra-arg "
+                    ">/tmp/tw-shell-refresh-arg.out "
+                    "2>/tmp/tw-shell-refresh-arg.err; "
+                    "then exit 20; fi && "
+                    "cat /tmp/tw-shell-refresh-arg.err"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("unexpected argument: extra-arg", result.stdout)
+        self.assertFalse(target_path.exists())
 
 
 class LegacyTrustSourcingShellTest(unittest.TestCase):
