@@ -30,7 +30,7 @@ acceptance:
   - "tw shell refresh regenerates the on-disk helper file from the currently installed package and re-sources it into the invoking shell, verified by a real dogfood shell test"
   - "tw shell refresh fails clearly and leaves the on-disk file unmodified when taurworks shell print fails"
   - "TAURWORKS_SHELL_HELPER_PATH override is respected when set; the documented default (~/.config/taurworks/taurworks-shell.sh) is used otherwise"
-  - "README.md documents tw shell refresh next to the existing tw activate shell-helper section"
+  - "README.md documents tw shell refresh next to the existing tw activate shell-helper section, and the pre-existing Stale shell-helper mitigation note no longer references the tw install/tw refresh placeholder"
   - "scripts/test passes; lrh validate introduces no new errors"
 required_evidence:
   - manual_review
@@ -68,7 +68,10 @@ Option A has been dogfooded). This work item implements Option A only.
   `src/taurworks/resources/shell/taurworks-shell.sh`, dispatched by `tw()`
   alongside `activate`/`help`.
 - Document the command and the `TAURWORKS_SHELL_HELPER_PATH` override in
-  `README.md` next to the existing `tw activate` shell-helper section.
+  `README.md` next to the existing `tw activate` shell-helper section, and
+  update the existing "Stale shell-helper mitigation" note (currently
+  around `README.md:139-152`) to name the real command instead of its
+  current placeholder text.
 - No changes to `taurworks shell print`, `project_resolution.py`, or
   activation semantics.
 
@@ -79,7 +82,7 @@ Option A has been dogfooded). This work item implements Option A only.
      `${TAURWORKS_SHELL_HELPER_PATH:-$HOME/.config/taurworks/taurworks-shell.sh}`;
    - runs `command taurworks shell print` and, on success, writes the result
      to the resolved path (creating the parent directory if needed), then
-     `source`s it;
+     `source` it;
    - reports a clear error and returns non-zero without touching the file if
      `taurworks shell print` fails;
    - prints a one-line confirmation naming the refreshed path.
@@ -87,10 +90,16 @@ Option A has been dogfooded). This work item implements Option A only.
    existing `activate`/`help` special-case pattern (`tw shell refresh`
    intercepted before falling through to plain `command taurworks "$@"`
    delegation).
-3. Update `README.md`'s `tw activate` shell helper section (around
-   `README.md:666-731`) to document `tw shell refresh` and the
-   `TAURWORKS_SHELL_HELPER_PATH` override.
-4. Add shell-integration tests exercising `tw shell refresh`, mirroring
+3. Update `README.md`'s "`tw activate` shell helper" section (currently
+   starting around `README.md:699` — confirm the current line at
+   implementation time, since this repo's README has shifted before) to
+   document `tw shell refresh` and the `TAURWORKS_SHELL_HELPER_PATH`
+   override.
+4. Update the existing "Stale shell-helper mitigation" note in `README.md`
+   (currently around `README.md:139-152`, added by `WI-TL-BREAKGLASS-0001`)
+   to name `tw shell refresh` as the actual implemented command, replacing
+   the current `tw install`/`tw refresh` placeholder text.
+5. Add shell-integration tests exercising `tw shell refresh`, mirroring
    however existing `_tw_activate` shell-function tests are structured,
    covering: successful refresh, `taurworks shell print` failure leaves the
    existing file untouched, and the `TAURWORKS_SHELL_HELPER_PATH` override.
@@ -126,7 +135,9 @@ Option A has been dogfooded). This work item implements Option A only.
   documented default (`~/.config/taurworks/taurworks-shell.sh`) is used
   otherwise.
 - `README.md` documents `tw shell refresh` next to the existing
-  `tw activate` helper section.
+  `tw activate` helper section, and the pre-existing "Stale shell-helper
+  mitigation" note no longer references the `tw install`/`tw refresh`
+  placeholder.
 - `scripts/test` passes; `lrh validate` introduces no new errors.
 
 ## Validation

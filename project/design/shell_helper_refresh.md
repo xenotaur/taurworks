@@ -50,16 +50,27 @@ an already-sourced `tw` for most of a session.
   helpers. None of that code is version-stamped today; there is no marker
   that lets a sourced instance of `_tw_activate` learn that a newer instance
   exists.
-- There is no package version string anywhere in this repo
-  (`src/taurworks/__init__.py` is empty, no `__version__`, no version file),
-  so "compare versions" cannot mean semver comparison without first
-  introducing a versioning discipline that does not exist yet.
+- This repo does have a package version (`setup.py:5`, `version="0.1"`), but
+  it is a static string that has never been bumped and is not read anywhere
+  at runtime — nothing in `src/taurworks/` calls
+  `importlib.metadata.version("taurworks")` or otherwise surfaces it, and
+  `src/taurworks/__init__.py` is empty. So it cannot serve as a meaningful
+  staleness signal today without first introducing real bump discipline
+  (a separate decision from this one, see Option E below).
 - `tw refresh` is **not available as a new name** — `taurworks refresh
   PROJECT_NAME` already exists as a top-level legacy compat command (Conda
   env refresh for a named project, `src/taurworks/cli.py:351`), and the `tw`
   dispatcher's fallthrough (`command taurworks "$@"`) already routes bare
   `tw refresh ...` to it. Any new shell-refresh verb needs a name that does
   not collide with that.
+- `README.md` already carries a "Stale shell-helper mitigation" note
+  (currently around `README.md:139-152`, added by `WI-TL-BREAKGLASS-0001`)
+  that describes this exact problem and its manual workaround, and names the
+  future fix as "a `tw install`/`tw refresh` command... being designed
+  separately." That placeholder name is superseded by this design's
+  `tw shell refresh` (see the naming-collision point above); the
+  implementing work item must update that note to name the actual command
+  rather than leaving the placeholder in place.
 
 ## Safety boundary to preserve
 
@@ -156,8 +167,8 @@ Pros:
 - No CLI/payload schema changes required; reuses `taurworks shell print`
   as-is.
 - Fully explicit and reversible — consistent with this repo's stated
-  guardrail to make state-changing operations explicit
-  (`README.md:733-740`).
+  guardrail to make state-changing operations explicit (`README.md`'s
+  "Safety and shell-integration guardrails" section).
 - Needs no versioning scheme at all; unconditionally fetches whatever is
   currently packaged.
 
@@ -192,8 +203,8 @@ same as other advisory warnings in this function today) pointing at
 
 Because this rides the subprocess call `_tw_activate` already makes, it adds
 no new process spawn. Because it's an *additive* assignment line, an old
-(pre-this-feature) sourced shell simply `eval`s it into an unused shell
-global and ignores it — harmless, and exactly why this has to be a shell
+(pre-this-feature) sourced shell simply `eval`s the line into an unused
+shell global and ignores it — harmless, and exactly why this has to be a shell
 comparison rather than a Python-originated warning, per the bootstrapping
 section above.
 
@@ -243,8 +254,9 @@ Cons:
 - Still cannot reach other open shells — the fundamental limit is unaffected
   by how eagerly the *current* shell tries to refresh.
 - Directly at odds with this repo's stated conservative-mutation stance
-  (`README.md:733-740`, "avoid implying hidden side effects") and with why
-  `tw activate` itself is opt-in rather than automatic.
+  (`README.md`'s "Safety and shell-integration guardrails" section, "avoid
+  implying hidden side effects") and with why `tw activate` itself is
+  opt-in rather than automatic.
 
 Recommendation: reject as a default. Option A already offers "get current"
 as an explicit, cheap, one-word action; there is no reason to make it
@@ -290,14 +302,18 @@ Compare a semantic version string instead of a content hash.
 Pros: human-readable ("you're on 0.4.0, latest installed is 0.5.0") instead
 of an opaque hex digest.
 
-Cons: this repo has no package version today (`src/taurworks/__init__.py` is
-empty, no `__version__`, no version file) — adopting one is a separate,
-larger decision (bump discipline, where it's read from, whether it lines up
-with any future PyPI release) that this design shouldn't force as a
-side effect of fixing shell staleness. A content hash needs none of that: it
-answers exactly the question that matters ("did the shell helper's actual
-behavior change since I sourced it?") without requiring anyone to remember
-to bump anything.
+Cons: `setup.py:5` does declare `version="0.1"`, but it is a static string
+that has never been bumped and is not read anywhere at runtime — no code in
+`src/taurworks/` calls `importlib.metadata.version("taurworks")` or
+otherwise surfaces it, and `src/taurworks/__init__.py` is empty. Making that
+string meaningful for staleness detection is a separate, larger decision
+(establishing real bump discipline, deciding where it's read from, whether
+it lines up with any future PyPI release) that this design shouldn't force
+as a side effect of fixing shell staleness. A content hash needs none of
+that: it answers exactly the question that matters ("did the shell helper's
+actual behavior change since I sourced it?") without requiring anyone to
+remember to bump anything, and works correctly even while the existing
+version string stays frozen at `0.1`.
 
 Recommendation: use a content hash for now (Option B). Revisit a
 human-readable version string only if/when the project adopts real package
@@ -340,8 +356,8 @@ because nothing running as a subprocess of that shell ever can.
 ## Non-goals for this design
 
 - Automatically editing `.bashrc`, `.zshrc`, `.profile`, or any shell
-  startup file — unchanged from the existing guardrail
-  (`README.md:53-56`, `README.md:733-740`).
+  startup file — unchanged from the existing guardrail (`README.md:53-56`
+  and `README.md`'s "Safety and shell-integration guardrails" section).
 - Reaching or refreshing any shell other than the one in which
   `tw shell refresh` is actually invoked.
 - Introducing a package-wide semantic version (Option E); a content hash is
