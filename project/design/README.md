@@ -19,3 +19,4 @@ Key documents:
 - `unified_command_model.md` for command namespace intent;
 - `config_model.md` for configuration, global workspace/registry plans, and path semantics;
 - `activation_extension.md` for the Phase 2 declarative activation config design, Conda-only initial environment plan, export safety rules, legacy migration path, and deferred explicit trusted-hook design topics.
+- `shell_helper_refresh.md` for the proposed `tw shell refresh` command and passive staleness-detection design that fixes the stale-shell-helper problem (sourced `tw` silently running behavior from before the last package upgrade).
