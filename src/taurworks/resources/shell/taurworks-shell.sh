@@ -7,6 +7,7 @@
 #   tw activate [PATH_OR_NAME] --verbose
 #   tw activate [PATH_OR_NAME] --legacy      # source a legacy setup script once
 #   tw activate [PATH_OR_NAME] --no-legacy   # never source, even if trusted
+#   tw shell refresh                         # regenerate + re-source this file
 #
 # The taurworks executable remains read-only for activation. This sourced
 # function is the explicit layer that may mutate the current shell by exporting
@@ -16,6 +17,16 @@
 # Trust-gated legacy sourcing (`taurworks config legacy-sourcing enable` plus
 # `taurworks project trust set NAME`) is off by default. While the Tier 1
 # switch is off, none of the functions below run and behavior is unchanged.
+#
+# `tw shell refresh` fixes the "stale shell helper" problem: this file is a
+# one-time snapshot from `taurworks shell print`, and sourcing it only reads
+# it once, like `.bashrc`. It never auto-updates when the taurworks package
+# changes, and an already-sourced shell keeps running whatever it last
+# sourced, silently. `tw shell refresh` regenerates the file at
+# `${TAURWORKS_SHELL_HELPER_PATH:-$HOME/.config/taurworks/taurworks-shell.sh}`
+# from the currently installed package and re-sources it into the current
+# shell -- it cannot reach any other already-open shell (see
+# project/design/shell_helper_refresh.md).
 
 _tw_legacy_prompt_choice() {
     # Read one line of a user's response and normalize it to s/t/n/k
@@ -324,10 +335,70 @@ _tw_activate() {
     fi
 }
 
+_tw_shell_refresh() {
+    local target_path
+    local parent_dir
+    local tmp_path
+    local link_target
+
+    if [ "$#" -gt 0 ]; then
+        printf '%s\n' "tw shell refresh: unexpected argument: $1" >&2
+        return 2
+    fi
+
+    target_path="${TAURWORKS_SHELL_HELPER_PATH:-$HOME/.config/taurworks/taurworks-shell.sh}"
+
+    # If the configured path is a symlink (e.g. into a dotfiles checkout),
+    # write through to its target instead of replacing the link itself --
+    # `mv` onto an existing symlink replaces the link, not what it points
+    # to. Only one hop is resolved; that covers the common case and avoids
+    # depending on non-portable `readlink -f`/`realpath` flags.
+    if [ -L "$target_path" ]; then
+        link_target=$(readlink -- "$target_path")
+        case "$link_target" in
+            /*) target_path="$link_target" ;;
+            *) target_path="$(dirname -- "$target_path")/$link_target" ;;
+        esac
+    fi
+
+    parent_dir=$(dirname -- "$target_path")
+
+    if ! mkdir -p -- "$parent_dir"; then
+        printf '%s\n' "tw shell refresh: failed to create directory: $parent_dir" >&2
+        return 1
+    fi
+
+    tmp_path="$target_path.tmp.$$"
+    if ! command taurworks shell print > "$tmp_path"; then
+        printf '%s\n' "tw shell refresh: \`taurworks shell print\` failed; left $target_path unchanged." >&2
+        rm -f -- "$tmp_path"
+        return 1
+    fi
+
+    if ! mv -f -- "$tmp_path" "$target_path"; then
+        printf '%s\n' "tw shell refresh: failed to install refreshed helper at: $target_path" >&2
+        rm -f -- "$tmp_path"
+        return 1
+    fi
+
+    if ! source "$target_path"; then
+        printf '%s\n' "tw shell refresh: wrote $target_path but failed to source it." >&2
+        return 1
+    fi
+
+    printf '%s\n' "tw shell refresh: refreshed and re-sourced $target_path"
+}
+
 tw() {
     if [ "$1" = "activate" ]; then
         shift
         _tw_activate "$@"
+        return $?
+    fi
+
+    if [ "$1" = "shell" ] && [ "${2-}" = "refresh" ]; then
+        shift 2
+        _tw_shell_refresh "$@"
         return $?
     fi
 
