@@ -136,6 +136,31 @@ shell does not mean it is *current* (see the stale-helper note below), so
 package version. If `tl` seems to need a feature, that is a signal to fix
 `tw` instead.
 
+**Retiring a migrated `Admin/project-setup.source`.** Once a project's
+`.taurworks/config.toml` fully reproduces what `Admin/project-setup.source`
+does, the legacy script becomes redundant: `tw activate` still detects it
+and offers trust-gated sourcing, which is useful mid-migration but risks
+duplicated or diverging behavior once `config.toml` already covers
+everything the script does (for example, sourcing both a configured Conda
+environment activation and a legacy script that activates the same
+environment again). Retire the script by moving — not copying — it to
+`tl`'s second lookup location:
+
+```bash
+mv Admin/project-setup.source .taurworks/project-setup.source
+```
+
+`tw activate`'s legacy detection only ever checks the literal
+`Admin/project-setup.source` path, so this silences it completely; `tl`
+keeps working unchanged, since `.taurworks/project-setup.source` is already
+its documented fallback location above. Moving (rather than copying and
+leaving the original behind) avoids the two ever silently diverging. Verify
+`config.toml` truly covers the script's behavior before retiring it — a
+partial migration (for example, a legacy `export` computed via command
+substitution, which declarative `[activation.exports]` values cannot
+represent) should stay as-is until the gap is filled, not be retired with
+behavior quietly lost.
+
 **Stale shell-helper mitigation.** `taurworks shell print > ~/.config/taurworks/taurworks-shell.sh`
 produces a one-time snapshot; sourcing it is a one-time read, the same as
 `.bashrc`. It does **not** auto-update when the `taurworks` package
