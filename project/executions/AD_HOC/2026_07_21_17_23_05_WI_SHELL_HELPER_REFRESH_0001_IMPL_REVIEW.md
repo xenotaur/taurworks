@@ -2,14 +2,14 @@
 execution_id: 2026_07_21_17_23_05_WI_SHELL_HELPER_REFRESH_0001_IMPL_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_SHELL_HELPER_REFRESH_0001_IMPL_REVIEW)[2026-07-21T17:17:43-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_07_21_14_01_15_WI_SHELL_HELPER_REFRESH_0001
 pr: https://github.com/xenotaur/taurworks/pull/76
-commit: c94401ae2ce004e19d8bbdbfe103adb9553badbc
+commit: 155551fdf2cf1e7eaaac3a71721e1d423fe37598
 created_at: 2026-07-21T17:23:05-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/76
-session_transcript: pending
+session_transcript: claude-app:146d1a52-87d7-4028-97f7-b7118179f5d8
 ---
 
 # Summary

@@ -1,11 +1,11 @@
 ---
-resolution: null
+resolution: "Implemented and merged in PR #76 (commit 155551f)."
 blocked_reason: null
 blocked: false
 id: WI-SHELL-HELPER-REFRESH-0001
 title: Add `tw shell refresh` to fix on-demand shell-helper staleness
 type: deliverable
-status: proposed
+status: resolved
 owner: null
 contributors: []
 assigned_agents: []
