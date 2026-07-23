@@ -14,22 +14,25 @@ gated behind a flag instead of always-on.
 
 taurworks today only reliably works on its original author's own machine,
 because the install path assumes hand-editing `.bashrc` around undocumented
-steps. Four concrete gaps, all confirmed by reading the current repo:
+steps. Four concrete gaps:
 
 1. **No install script.** `README.md` documents `pipx install --editable
    <path>` for `taurworks`/`tw`, but `tl` is installed by a different,
-   separately-undocumented method. Live setup sources
-   `~/.config/taurworks/taurworks-shell.sh` (matches the README) *and* a
-   separately-placed `~/bin/tl.source` (does not match the README, which
-   documents sourcing `sourceme/aliases.source` from a repo checkout path).
-   `tw` and `tl` are installed by different methods today, and one of those
-   methods isn't even the one written down.
-2. **The repo mixes two concerns.** `bin/` (30 files: `dot.bashrc`, byobu
-   configs, `screen` wrappers, `migrate_legacy_projects.py`, etc.) is
+   separately-undocumented method. The README documents sourcing
+   `sourceme/aliases.source` from a repo checkout path, but the user's own
+   live setup instead sources a separately-placed `~/bin/tl.source` — a
+   detail from the user's own description of their setup, not something
+   version-controlled state can confirm on its own. Either way, `tw` and
+   `tl` are installed by different methods today, and the README's
+   documented `tl` method isn't the only one actually in use.
+2. **The repo mixes two concerns.** `bin/` (27 files: `dot.bashrc`, byobu
+   configs, `screen` wrappers, `migrate_legacy_projects.py`, etc.) is mostly
    pre-taurworks personal dotfile material with no dependency on the
-   `taurworks` package. `sourceme/` (`aliases.source` for `tl`,
-   `completions.source`, `man.source`) is taurworks' own shell-integration
-   surface, parallel to `taurworks-shell.sh`.
+   `taurworks` package — except `migrate_legacy_projects.py`, which does
+   import `taurworks` internals (see Decisions #2 below). `sourceme/`
+   (`aliases.source` for `tl`, `completions.source`, `man.source`) is
+   taurworks' own shell-integration surface, parallel to
+   `taurworks-shell.sh`.
 3. **No PATH-loss diagnostic.** Switching into a Conda environment that
    lacks `taurworks` currently fails as a bare shell `command not found`
    with no indication of why or what to do.
@@ -53,17 +56,37 @@ alternatives that were weighed and why they lost.
    not a standalone script, is the primary mechanism — it's usable
    regardless of whether taurworks was installed via `pipx`, `pip`, or (once
    supported) a future PyPI release, without a separate script to keep in
-   sync with the package. `scripts/install` becomes a thin shim: `pipx
-   install --editable . --force && taurworks setup`, kept only for the
+   sync with the package. A new `scripts/install` shim is to be added as a
+   thin wrapper: `pipx install . --force && taurworks setup`, for the
    source-checkout entry point where a user hasn't run any taurworks command
-   yet.
-2. **Repo split:** split `bin/` out; keep `sourceme/` in `taurworks`.
+   yet. Deliberately **not** `--editable`: `--editable` ties the installed
+   command to the checkout it was installed from, so moving or deleting the
+   clone afterward breaks the install. That trade-off is fine for
+   `./scripts/develop`'s existing dev-install use case (see
+   `README.md`'s "Developer setup" section), where the checkout is expected
+   to persist and be edited in place, but wrong for a public end-user
+   install, which should be a self-contained `pipx` install independent of
+   the checkout's later fate. `--editable` stays documented as the
+   development-install option; the new public shim uses a plain install.
+2. **Repo split:** split `bin/` out (except `migrate_legacy_projects.py`,
+   which stays with `taurworks`); keep `sourceme/` in `taurworks`. Most of
    `bin/`'s contents are unrelated personal dotfile material, not part of
    the `taurworks` package's public surface — they belong in a separate
    `taurscripts` package (or deletion, see open question below), not
-   bundled with a public-release CLI tool. `sourceme/` is `tl`'s actual
-   delivery mechanism and stays packaged with `taurworks` since `taurworks
-   setup` needs to place it.
+   bundled with a public-release CLI tool. `bin/migrate_legacy_projects.py`
+   is the one exception: it imports `taurworks.legacy`, `taurworks.manager`,
+   and `taurworks.project_internals`, and `tests/migrate_legacy_projects_test.py`
+   imports it directly by that file path — it is Taurworks-specific tool
+   code, not unrelated material, and must be retained and relocated under
+   the `taurworks` boundary (exact destination is an implementation
+   decision, not this design) rather than moved to `taurscripts` or deleted
+   along with the rest of `bin/`. `sourceme/` is `tl`'s actual delivery
+   mechanism and is intended to stay packaged with `taurworks` since
+   `taurworks setup` needs to place it — note `setup.py`'s `package_data`
+   currently only declares `resources/shell/taurworks-shell.sh`, so wiring
+   `sourceme/`'s content into packaging (whether by adding it to
+   `package_data` or another mechanism) is implementation work this design
+   assumes but does not yet specify.
 3. **PyPI:** stays out of scope for this design. The public-release bar is
    "installable cleanly from a git checkout," not "on PyPI." This avoids
    forcing real semver discipline (`setup.py`'s `version = "0.1"` is
@@ -119,11 +142,29 @@ to stderr identifying the likely cause (an active Conda environment that
 doesn't have `taurworks` installed) and the fix (switch back, or `pipx
 install` isn't Conda-env-scoped so this shouldn't normally happen — check
 `which taurworks` / `pipx list`), then return non-zero instead of letting
-the shell's own bare `command not found` be the only signal. This is
-read-only diagnostic logic living in the already-sourced shell function —
-no new subprocess, no change to `taurworks`'s Python side, consistent with
-the same "only the shell side can compare live state" reasoning
-`shell_helper_refresh.md` used for its hash-mismatch warning.
+the shell's own bare `command not found` be the only signal.
+
+A single check at initial delegation is not sufficient by itself: `tw
+activate` itself runs `conda activate <name>` mid-function and can make
+further internal `command taurworks ...` calls afterward (for example
+`legacy inspect` or `project trust set` during interactive untrusted-legacy
+handling) — if the newly-activated environment hides `taurworks`, the
+entry check already passed before `conda activate` ran, and those
+later internal calls would still hit a bare `command not found` with no
+diagnostic. The check therefore needs to guard every internal
+`command taurworks ...` call site within `tw`, not only the outermost
+entry point — either by re-checking resolvability at each call site, or by
+resolving and caching the executable path once before any Conda activation
+happens in a given invocation and using that resolved path for every
+subsequent internal call in the same invocation. Exact mechanism is
+implementation detail for the work item; the requirement is that no
+internal call path can silently regress to a bare shell error post-Conda-
+activation.
+
+This is read-only diagnostic logic living in the already-sourced shell
+function — no new subprocess, no change to `taurworks`'s Python side,
+consistent with the same "only the shell side can compare live state"
+reasoning `shell_helper_refresh.md` used for its hash-mismatch warning.
 
 `tl` gets no equivalent change: it never depends on `taurworks` being
 resolvable in the first place (that's the entire point of it being a
@@ -134,11 +175,14 @@ it to detect.
 
 Add a global `--debug` flag on the top-level `argparse` parser
 (`src/taurworks/cli.py:299`) and an equivalent `TAURWORKS_DEBUG` environment
-variable (flag wins if both are set), consistent with the CLI-flag-plus-env-
-var pattern `TAURWORKS_SHELL_HELPER_PATH` already established for shell-side
-configuration. Threaded through as a single boolean available to command
-handlers, not per-command flags — there's one coherent "give me more detail"
-axis here, not several independent ones per subcommand.
+variable (flag wins if both are set). `TAURWORKS_SHELL_HELPER_PATH` is an
+existing precedent for env-var-based configuration in the shell-helper
+layer, though it is env-var-only today with no corresponding CLI flag;
+`--debug`/`TAURWORKS_DEBUG` adds the flag-plus-env-var pairing as a new,
+slightly richer pattern rather than reusing an existing one. Threaded
+through as a single boolean available to command handlers, not per-command
+flags — there's one coherent "give me more detail" axis here, not several
+independent ones per subcommand.
 
 Audit scope (broad, per decision above):
 
@@ -182,9 +226,10 @@ per-line classification happens in the work item, not this doc.
   relies on a user copy-pasting multiple commands correctly, which is
   exactly the failure mode that produced today's undocumented `~/bin/tl.source`.
 - **Decision: hybrid.** `taurworks setup` is the real mechanism, callable
-  after any install method. `scripts/install` is kept only as a
-  documented, one-line shim for the from-git-checkout path (`pipx install
-  --editable . --force && taurworks setup`), not a second implementation.
+  after any install method. A new `scripts/install` is to be added only as
+  a documented, one-line shim for the from-git-checkout path (`pipx
+  install . --force && taurworks setup`, non-editable — see Decisions #1),
+  not a second implementation.
 
 ### Repo split granularity (decided: split `bin/`, keep `sourceme/`)
 
@@ -197,9 +242,13 @@ per-line classification happens in the work item, not this doc.
 - **Split neither; just note the split as a documentation note.** Doesn't
   address the user's stated pain point that the repo is "trying to do two
   things at once."
-- **Decision:** `bin/`'s contents share no dependency relationship with the
-  `taurworks` Python package and aren't part of any documented public
-  surface — they're pure historical personal dotfile material. `sourceme/`
+- **Decision:** with one exception, `bin/`'s contents share no dependency
+  relationship with the `taurworks` Python package and aren't part of any
+  documented public surface — they're pure historical personal dotfile
+  material. The exception is `migrate_legacy_projects.py`, which imports
+  `taurworks` internals and is imported by a test under that exact path
+  (see Decisions #2); it stays under the `taurworks` boundary rather than
+  moving with the rest of `bin/`. `sourceme/`
   is taurworks' own delivery mechanism for `tl` and stays.
 
 ## Open questions for the follow-up work item(s)
@@ -218,11 +267,13 @@ rather than pre-decided, since they don't change this design's shape:
   dependency-free — placing it under the same config directory as `tw`
   doesn't create a code dependency, only a shared install location, so it
   should be compatible; confirm during implementation.
-- **`bin/` disposition: `taurscripts` package or deletion?** Depends on
-  whether anything outside this repo (or outside the original author's own
-  machine) actually uses `bin/`'s contents today. If nothing does, deletion
-  is simpler than migrating dead weight into a new package. Audit actual
-  usage before deciding; do not assume.
+- **`bin/` disposition: `taurscripts` package or deletion?** Applies to
+  `bin/`'s contents other than `migrate_legacy_projects.py`, which is
+  already decided to stay under the `taurworks` boundary (Decisions #2).
+  For the rest, depends on whether anything outside this repo (or outside
+  the original author's own machine) actually uses `bin/`'s contents today.
+  If nothing does, deletion is simpler than migrating dead weight into a
+  new package. Audit actual usage before deciding; do not assume.
 - **Exact `--debug` line-by-line classification in `manager.py`/`cli.py`.**
   Listed by module above; the specific keep/gate decision per print
   statement belongs in the implementing work item, not this design.
