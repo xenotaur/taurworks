@@ -21,7 +21,8 @@ project/executions/<WORK_ITEM_ID>/<execution_id>.md
 
 `<execution_id>` is minted by `lrh prompt label` as
 `<YYYY_MM_DD_HH_MM_SS>_<SLUG_UPPER_UNDERSCORE>`, for example
-`2026_07_08_13_37_09_WI_LEGACY_CONDA_GATING.md`.
+`2026_07_08_13_37_09_WI_LEGACY_CONDA_GATING` — the `.md` extension belongs
+to the filename, not the ID itself.
 
 ## Creating and closing out a record
 
