@@ -20,13 +20,15 @@ forbidden_actions:
   - edit_shell_startup_files
 acceptance:
   - "`taurworks setup` subcommand exists, is idempotent, and writes the shell helper to `$XDG_CONFIG_HOME/taurworks/taurworks-shell.sh` when `XDG_CONFIG_HOME` is a valid absolute path, falling back to `~/.config/taurworks/taurworks-shell.sh` otherwise, honoring `$TAURWORKS_SHELL_HELPER_PATH` as the highest-precedence override"
-  - "`taurworks setup` places the packaged `tl` source file at a documented, stable location and prints the exact `source` lines for both files to add to the shell startup file, without editing any startup file itself"
-  - "new `scripts/install` shim runs `pipx install . --force && taurworks setup` (non-editable) and is documented in README.md as the from-git-checkout entry point"
-  - "tests cover `taurworks setup`'s idempotent re-run behavior and its XDG_CONFIG_HOME/TAURWORKS_SHELL_HELPER_PATH resolution logic"
+  - "`taurworks setup` places the packaged `tl` source file at a documented, stable location and prints the exact `source` lines for both files to add to the shell startup file, without editing any startup file itself; this is validated against an installed wheel/pipx environment, not only with `PYTHONPATH=src`, confirming `sourceme/`'s packaging (delivered by `WI-BIN-REPO-SPLIT-0001`) actually makes the file available post-install"
+  - "`tw shell refresh` (`src/taurworks/resources/shell/taurworks-shell.sh`) resolves its target path with the same `TAURWORKS_SHELL_HELPER_PATH` → `XDG_CONFIG_HOME` → `~/.config` precedence `taurworks setup` uses, so a refresh after an XDG-based setup updates and re-sources the same file every new shell loads — not a stale `$HOME/.config` copy"
+  - "new `scripts/install` shim derives the repository root (matching the pattern in `scripts/build`/`scripts/check-workflows`) and runs `pipx install . --force && taurworks setup` from that root, so invoking the shim by absolute path or from another working directory still installs the correct checkout; documented in README.md as the from-git-checkout entry point"
+  - "tests cover `taurworks setup`'s idempotent re-run behavior, its XDG_CONFIG_HOME/TAURWORKS_SHELL_HELPER_PATH resolution logic, and an integration sequence of setup (XDG path) followed by `tw shell refresh`, confirming both target the same file"
   - "README.md's install section documents the new one-step flow, superseding the old multi-step manual `pipx install` + `taurworks shell print` + ad-hoc `tl` copy sequence"
 artifacts_expected:
   - src/taurworks/cli.py
   - src/taurworks/setup.py (or equivalent new module)
+  - src/taurworks/resources/shell/taurworks-shell.sh
   - scripts/install
   - README.md
   - tests/
@@ -68,10 +70,40 @@ This is one of four work items drafted from
 and the `--debug`/`TAURWORKS_DEBUG` flag audit. This work item is scoped to
 the setup/install command only.
 
+Review found two real cross-WI/existing-code gaps that this work item must
+account for, not defer past:
+
+- **Refresh/setup path drift.** `tw shell refresh` (existing code,
+  `src/taurworks/resources/shell/taurworks-shell.sh:349`) always targets
+  `${TAURWORKS_SHELL_HELPER_PATH:-$HOME/.config/taurworks/taurworks-shell.sh}`
+  — no `XDG_CONFIG_HOME` awareness. If `taurworks setup` installs to an
+  XDG-resolved path while `refresh` keeps targeting the plain `~/.config`
+  path, a refresh after setup would update and re-source a *different*
+  file than every new shell loads. This work item therefore includes a
+  matching XDG-aware path-resolution fix in `tw shell refresh` itself — a
+  narrow, path-resolution-only exception to the broader Non-Goal below of
+  not touching `tw shell refresh`'s regenerate/re-source behavior.
+- **`tl` packaging dependency.** This work item's `taurworks setup` needs
+  to place a packaged `tl` source file, but `setup.py`'s `package_data`
+  currently only lists `resources/shell/taurworks-shell.sh` — wiring
+  `sourceme/`'s files into `package_data` is `WI-BIN-REPO-SPLIT-0001`'s
+  acceptance criteria, not this one's. In practice, implement and merge
+  that packaging change first (or add the same minimal `package_data`
+  entry here as a prerequisite step if this work item is picked up before
+  `WI-BIN-REPO-SPLIT-0001` lands), then validate `taurworks setup`'s `tl`
+  placement against an actual installed wheel/pipx environment, not only
+  `PYTHONPATH=src`, which would not catch a missing `package_data` entry.
+  (Not recorded as a formal `depends_on` in this WI's frontmatter:
+  `WI-BIN-REPO-SPLIT-0001` isn't merged yet, and `lrh validate`'s
+  `UNKNOWN_DEPENDENCY` check rejects a `depends_on` reference to a WI ID
+  not yet present in the tree — the sequencing note here is the operative
+  guidance until both land.)
+
 ## Scope
 
 - New `taurworks setup` subcommand, modeled on the existing `tw shell
   refresh` regenerate-and-report shape.
+- Matching XDG-aware path resolution in `tw shell refresh`.
 - New `scripts/install` shim for the from-checkout entry point.
 - README.md updates documenting the new one-step install flow.
 
@@ -82,21 +114,38 @@ the setup/install command only.
 2. Implement XDG-aware shell-helper path resolution: prefer
    `$TAURWORKS_SHELL_HELPER_PATH`, then `$XDG_CONFIG_HOME/taurworks/taurworks-shell.sh`
    when valid, then `~/.config/taurworks/taurworks-shell.sh`.
-3. Place the packaged `tl` source file at a documented, stable location
-   under the same config directory.
-4. Print the exact `source` lines for both files; never write to
+3. Apply the same resolution precedence to `_tw_shell_refresh`'s
+   `target_path` computation in
+   `src/taurworks/resources/shell/taurworks-shell.sh`, so `tw shell
+   refresh` updates and re-sources the same file `taurworks setup` wrote.
+4. Place the packaged `tl` source file at a documented, stable location
+   under the same config directory. Depends on `WI-BIN-REPO-SPLIT-0001`
+   wiring `sourceme/` into `setup.py`'s `package_data` first (or as a
+   prerequisite step here); validate placement from an installed
+   wheel/pipx environment, not only `PYTHONPATH=src`.
+5. Print the exact `source` lines for both files; never write to
    `.bashrc`/`.zshrc`/`.profile` directly.
-5. Report a truth-first summary of what was created/updated/unchanged,
+6. Report a truth-first summary of what was created/updated/unchanged,
    matching the convention `project refresh`/`project init` already use.
-6. Add `scripts/install`: `pipx install . --force && taurworks setup`.
-7. Update README.md's install section.
+7. Add `scripts/install`: derive the repository root the same way
+   `scripts/build`/`scripts/check-workflows` do
+   (`repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)`, then `cd
+   "$repo_root"`) before running `pipx install . --force && taurworks
+   setup`, so invoking the shim by absolute path or from another working
+   directory still installs the correct checkout.
+8. Update README.md's install section.
 
 ## Non-Goals
 
-- The `bin/`/`taurscripts` repo split (separate WI).
+- The `bin/`/`taurscripts` repo split itself (separate WI,
+  `WI-BIN-REPO-SPLIT-0001`) — this WI only depends on its `sourceme/`
+  packaging output, it does not redo that work.
 - The Conda PATH-loss diagnostic in `tw` (separate WI).
 - The `--debug`/`TAURWORKS_DEBUG` flag and narration audit (separate WI).
-- Any change to `tw activate`/`tw shell refresh` semantics.
+- Any change to `tw activate`/`tw shell refresh`'s activation or
+  regenerate/re-source *behavior* — the only in-scope change to `tw shell
+  refresh` is matching its target-path *resolution* to `taurworks setup`'s,
+  per the gap noted above.
 - PyPI publication.
 - Automatically editing shell startup files.
 
@@ -109,12 +158,22 @@ the setup/install command only.
   `$TAURWORKS_SHELL_HELPER_PATH` as the highest-precedence override.
 - `taurworks setup` places the packaged `tl` source file at a documented,
   stable location and prints the exact `source` lines for both files to
-  add to the shell startup file, without editing any startup file itself.
-- New `scripts/install` shim runs `pipx install . --force && taurworks
-  setup` (non-editable) and is documented in README.md as the
-  from-git-checkout entry point.
-- Tests cover `taurworks setup`'s idempotent re-run behavior and its
-  `XDG_CONFIG_HOME`/`TAURWORKS_SHELL_HELPER_PATH` resolution logic.
+  add to the shell startup file, without editing any startup file itself;
+  this is validated against an installed wheel/pipx environment, not only
+  with `PYTHONPATH=src`, confirming `sourceme/`'s packaging (delivered by
+  `WI-BIN-REPO-SPLIT-0001`) actually makes the file available post-install.
+- `tw shell refresh` resolves its target path with the same
+  `TAURWORKS_SHELL_HELPER_PATH` → `XDG_CONFIG_HOME` → `~/.config`
+  precedence `taurworks setup` uses, so a refresh after an XDG-based setup
+  updates and re-sources the same file every new shell loads.
+- New `scripts/install` shim derives the repository root (matching
+  `scripts/build`/`scripts/check-workflows`'s pattern) and runs `pipx
+  install . --force && taurworks setup` from that root, and is documented
+  in README.md as the from-git-checkout entry point.
+- Tests cover `taurworks setup`'s idempotent re-run behavior, its
+  `XDG_CONFIG_HOME`/`TAURWORKS_SHELL_HELPER_PATH` resolution logic, and an
+  integration sequence of setup (XDG path) followed by `tw shell refresh`,
+  confirming both target the same file.
 - README.md's install section documents the new one-step flow, superseding
   the old multi-step manual `pipx install` + `taurworks shell print` +
   ad-hoc `tl` copy sequence.
@@ -124,5 +183,8 @@ the setup/install command only.
 - ./scripts/format --check --diff
 - ./scripts/lint
 - ./scripts/test
-- taurworks setup (manual dogfood check against a scratch `$HOME`)
+- taurworks setup (manual dogfood check against a scratch `$HOME`, including with `$XDG_CONFIG_HOME` set)
+- tw shell refresh after an XDG-based setup, confirming it targets the same file
+- scripts/install from an absolute path and from a directory other than the repo root
+- pip/pipx install of the built package, confirming the tl source file is present and placeable
 - lrh validate
