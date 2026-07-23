@@ -2,14 +2,14 @@
 execution_id: 2026_07_22_22_00_47_TAURWORKS_PACKAGING_DESIGN_66BBE8_CONFIRM
 prompt_id: PROMPT(AD_HOC:TAURWORKS_PACKAGING_DESIGN_66BBE8_CONFIRM)[2026-07-22T21:59:56-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/77
-commit:
+commit: b6687a31d66aec3ec92b9fed06460c85af9f0f8b
 created_at: 2026-07-22T22:00:47-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/77
-session_transcript: pending
+session_transcript: claude-app:43689ae3-1b8e-45ff-b3b8-75e8997239fb
 ---
 
 # Summary
