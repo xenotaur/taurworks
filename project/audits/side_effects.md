@@ -62,8 +62,13 @@ gate.
 1. The legacy top-level commands `taurworks create NAME`, `taurworks refresh NAME`,
    and shell-helper delegation such as `tw refresh NAME` still call the legacy
    `manager.refresh_project` path, which creates project directories, creates a
-   Conda environment by default, creates a repository directory, and writes a
-   `.taurworks/project-setup.source` file.
+   Conda environment by default, creates a repository directory, and (as of
+   this audit's original 2026-05-17 writing) wrote a
+   `.taurworks/project-setup.source` file. **Corrected 2026-07-23:**
+   `WI-ACTIVATION-PRODUCERS-0001` (commit `7d8e777`, 2026-07-15) replaced that
+   write with the declarative `config.toml` writer
+   (`_write_initial_project_config`); these commands no longer write
+   `.taurworks/project-setup.source`.
 2. The newer `taurworks project refresh [PATH_OR_NAME]` path is metadata-only
    scaffolding/repair and does not call Conda.
 3. Conda activation is implemented only in the sourced `tw activate` helper.
@@ -440,8 +445,10 @@ Assessment:
 
 - Delegates to `manager.create_project`. It can create a Conda environment with
   `conda create --name NAME python=3.11 -y` by default, or `conda env create
-  --name NAME --file FILE` when `--file` is supplied. It also writes
-  `.taurworks/project-setup.source`.
+  --name NAME --file FILE` when `--file` is supplied. As of this audit's
+  original 2026-05-17 writing it also wrote `.taurworks/project-setup.source`;
+  **corrected 2026-07-23:** it now writes declarative `config.toml` via
+  `_write_initial_project_config` instead (`WI-ACTIVATION-PRODUCERS-0001`).
 
 Recommendation:
 
@@ -485,9 +492,12 @@ Side effects observed:
 
 Assessment:
 
-- Prints `source .../.taurworks/project-setup.source` guidance when the legacy
-  setup script exists. It does not source the script and cannot mutate the parent
-  shell.
+- As of this audit's original 2026-05-17 writing, printed `source
+  .../.taurworks/project-setup.source` guidance when the legacy setup script
+  existed. **Corrected 2026-07-23:** `activate_project` no longer does this;
+  it now tells the user to run `tw activate` (initialized projects), or to
+  run `taurworks project init`/migrate the legacy setup (legacy-admin
+  projects). It does not source anything and cannot mutate the parent shell.
 
 Recommendation:
 
@@ -558,8 +568,12 @@ Recommendation:
 1. Commands that can call `conda activate`:
    - `tw activate [PATH_OR_NAME]` through the sourced shell helper when the
      activation config has `[activation.environment] type = "conda"`.
-   - Generated legacy `.taurworks/project-setup.source` files contain
-     `conda activate NAME`, but Taurworks does not source them itself.
+   - As of this audit's original 2026-05-17 writing, generated legacy
+     `.taurworks/project-setup.source` files contained `conda activate NAME`.
+     **Corrected 2026-07-23:** legacy create/refresh no longer generate this
+     file (see the "Filesystem and config mutation" answers below); any
+     copies on disk predate `WI-ACTIVATION-PRODUCERS-0001`. Taurworks never
+     sourced them itself in any case.
 2. Conda activation in current Taurworks execution is limited to the sourced
    `tw activate` helper.
 3. `taurworks project activate --print` remains read-only and prints
@@ -590,8 +604,10 @@ Recommendation:
 2. No current code was found that sources `.taurworks/activate.source` or another
    user script by default.
 3. Current Taurworks code does not run arbitrary user shell scripts by default.
-   Legacy refresh writes a `.taurworks/project-setup.source` file, and legacy
-   activate prints a command for the user to source it manually.
+   As of this audit's original 2026-05-17 writing, legacy refresh wrote a
+   `.taurworks/project-setup.source` file; **corrected 2026-07-23:** it now
+   writes declarative `config.toml` instead (`WI-ACTIVATION-PRODUCERS-0001`).
+   Legacy activate prints a command for the user to source it manually.
 4. Python subprocess calls are narrow and explicit: `conda env list`,
    `conda create`, and `conda env create` in legacy manager code. Legacy
    `taurworks projects --details` also uses `conda env list` as a read-only
@@ -611,9 +627,14 @@ Recommendation:
    - `taurworks project init [PATH] ...`
    - `taurworks project create NAME ...`
    - `taurworks project working-dir set DIR`
-   - Legacy top-level create/refresh write legacy `.taurworks/project-setup.source`
-     and create `.taurworks/`; they do not use the current TOML metadata writer
-     for `.taurworks/config.toml`.
+   - As of this audit's original 2026-05-17 writing, legacy top-level
+     create/refresh wrote legacy `.taurworks/project-setup.source` instead of
+     using the TOML metadata writer. **Corrected 2026-07-23:**
+     `WI-ACTIVATION-PRODUCERS-0001` (commit `7d8e777`, 2026-07-15) moved
+     legacy create/refresh onto the same declarative `config.toml` writer
+     (`_write_initial_project_config`) as the namespaced commands above; they
+     still create `.taurworks/` unconditionally, but no longer write the
+     legacy setup script.
 3. Commands that create directories:
    - `taurworks workspace set PATH`, `project register`, and `project unregister`
      may create the XDG config parent directory while writing global config.

@@ -22,14 +22,16 @@ new match appears against a committed baseline/allowlist, forcing an
 explicit acknowledgment commit for any new side-effect-sensitive code.
 
 **Status:** Deferred — the scanner's patterns match routinely-legitimate
-code throughout this codebase (existing `eval`/`export` calls in
-`taurworks-shell.sh`, existing gated `conda create` in `manager.py`, plain
-`.mkdir(`/`write_text(` calls that are unrelated to safety). A broad
-diff-against-baseline gate would mostly manufacture friction on ordinary
-feature PRs rather than catch a recurring class of real bugs: the one
-actual incident this audit ever found (legacy `refresh`'s default Conda
-creation, `project/audits/side_effects.md:449`) was already fixed by a
-targeted, specific mechanism (`--create-env`, `WI-LEGACY-CONDA-GATING-0001`)
+code throughout this codebase (existing `eval` usage, including `eval`'d
+generated export commands, in `taurworks-shell.sh`; existing gated
+`conda create` in `manager.py`; plain `.mkdir(`/`write_text(` calls that are
+unrelated to safety). A broad diff-against-baseline gate would mostly
+manufacture friction on ordinary feature PRs rather than catch a recurring
+class of real bugs: the one actual incident this audit ever found (legacy
+`refresh`'s default Conda creation — see `project/audits/side_effects.md`'s
+"Legacy top-level `taurworks refresh NAME`" command inventory entry,
+Assessment) was already fixed by a targeted, specific mechanism
+(`--create-env`, `WI-LEGACY-CONDA-GATING-0001`)
 rather than a generic scanner, and no other pattern match in this codebase
 has ever corresponded to a real bug. Every PR here already goes through a
 diff-reading human/AI review protocol (`/lrh-review-response`,
@@ -66,8 +68,8 @@ asked.
 **Status:** Deferred — this is a real, not hypothetical, compatibility
 risk: as of 2026-07-23 the maintainer confirmed they haven't yet needed to
 exercise plain `taurworks create`/`refresh` for from-scratch project
-scaffolding, but expects to occasionally (roughly once a month at most)
-going forward, and flipping the default without a flag would silently
+scaffolding, but expects to need it occasionally (roughly once a month at
+most) going forward, and flipping the default without a flag would silently
 break that low-frequency but real usage. Not worth an active work item
 while usage is this infrequent and the actually-dangerous side effect
 (Conda creation) is already gated. Revisit if: (a) from-scratch
