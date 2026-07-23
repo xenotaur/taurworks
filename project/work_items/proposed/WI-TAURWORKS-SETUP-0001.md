@@ -20,7 +20,7 @@ forbidden_actions:
   - edit_shell_startup_files
 acceptance:
   - "`taurworks setup` subcommand exists, is idempotent, and writes the shell helper to `$XDG_CONFIG_HOME/taurworks/taurworks-shell.sh` when `XDG_CONFIG_HOME` is a valid absolute path, falling back to `~/.config/taurworks/taurworks-shell.sh` otherwise, honoring `$TAURWORKS_SHELL_HELPER_PATH` as the highest-precedence override"
-  - "`taurworks setup` places the packaged `tl` source file at a documented, stable location and prints the exact `source` lines for both files to add to the shell startup file, without editing any startup file itself; this is validated against an installed wheel/pipx environment, not only with `PYTHONPATH=src`, confirming `sourceme/`'s packaging (delivered by `WI-BIN-REPO-SPLIT-0001`) actually makes the file available post-install"
+  - "`taurworks setup` places the packaged `tl` source file at a documented, stable location and prints the exact `source` lines for both files to add to the shell startup file, without editing any startup file itself; `sourceme/`'s file(s) are added to `setup.py`'s `package_data` as part of this work item (idempotent no-op if `WI-BIN-REPO-SPLIT-0001` already added the same entry), and placement is validated against an installed wheel/pipx environment, not only with `PYTHONPATH=src`"
   - "`tw shell refresh` (`src/taurworks/resources/shell/taurworks-shell.sh`) resolves its target path with the same `TAURWORKS_SHELL_HELPER_PATH` → `XDG_CONFIG_HOME` → `~/.config` precedence `taurworks setup` uses, so a refresh after an XDG-based setup updates and re-sources the same file every new shell loads — not a stale `$HOME/.config` copy"
   - "new `scripts/install` shim derives the repository root (matching the pattern in `scripts/build`/`scripts/check-workflows`) and runs `pipx install . --force && taurworks setup` from that root, so invoking the shim by absolute path or from another working directory still installs the correct checkout; documented in README.md as the from-git-checkout entry point"
   - "tests cover `taurworks setup`'s idempotent re-run behavior, its XDG_CONFIG_HOME/TAURWORKS_SHELL_HELPER_PATH resolution logic, and an integration sequence of setup (XDG path) followed by `tw shell refresh`, confirming both target the same file"
@@ -29,6 +29,8 @@ artifacts_expected:
   - src/taurworks/cli.py
   - src/taurworks/setup.py (or equivalent new module)
   - src/taurworks/resources/shell/taurworks-shell.sh
+  - setup.py
+  - sourceme/
   - scripts/install
   - README.md
   - tests/
@@ -85,19 +87,24 @@ account for, not defer past:
   not touching `tw shell refresh`'s regenerate/re-source behavior.
 - **`tl` packaging dependency.** This work item's `taurworks setup` needs
   to place a packaged `tl` source file, but `setup.py`'s `package_data`
-  currently only lists `resources/shell/taurworks-shell.sh` — wiring
-  `sourceme/`'s files into `package_data` is `WI-BIN-REPO-SPLIT-0001`'s
-  acceptance criteria, not this one's. In practice, implement and merge
-  that packaging change first (or add the same minimal `package_data`
-  entry here as a prerequisite step if this work item is picked up before
-  `WI-BIN-REPO-SPLIT-0001` lands), then validate `taurworks setup`'s `tl`
-  placement against an actual installed wheel/pipx environment, not only
+  currently only lists `resources/shell/taurworks-shell.sh`.
+  `WI-BIN-REPO-SPLIT-0001` also lists wiring `sourceme/` into
+  `package_data` among its own acceptance criteria, but this work item does
+  not treat that as a soft prerequisite it can leave undone — this work
+  item's Required Changes and `artifacts_expected` (below) include adding
+  `sourceme/`'s file(s) to `setup.py`'s `package_data` directly, so
+  `taurworks setup`'s `tl`-placement acceptance criterion is met
+  regardless of merge order relative to `WI-BIN-REPO-SPLIT-0001`. If that
+  work item's change has already landed by the time this one is
+  implemented, adding the same `package_data` entry here is an idempotent
+  no-op, not a conflict. `taurworks setup`'s `tl` placement must be
+  validated against an actual installed wheel/pipx environment, not only
   `PYTHONPATH=src`, which would not catch a missing `package_data` entry.
   (Not recorded as a formal `depends_on` in this WI's frontmatter:
   `WI-BIN-REPO-SPLIT-0001` isn't merged yet, and `lrh validate`'s
   `UNKNOWN_DEPENDENCY` check rejects a `depends_on` reference to a WI ID
-  not yet present in the tree — the sequencing note here is the operative
-  guidance until both land.)
+  not yet present in the tree — this work item owning the change directly
+  makes that sequencing question moot rather than needing to be tracked.)
 
 ## Scope
 
@@ -118,10 +125,10 @@ account for, not defer past:
    `target_path` computation in
    `src/taurworks/resources/shell/taurworks-shell.sh`, so `tw shell
    refresh` updates and re-sources the same file `taurworks setup` wrote.
-4. Place the packaged `tl` source file at a documented, stable location
-   under the same config directory. Depends on `WI-BIN-REPO-SPLIT-0001`
-   wiring `sourceme/` into `setup.py`'s `package_data` first (or as a
-   prerequisite step here); validate placement from an installed
+4. Add `sourceme/`'s file(s) to `setup.py`'s `package_data` (idempotent
+   no-op if `WI-BIN-REPO-SPLIT-0001` already added the same entry), then
+   place the packaged `tl` source file at a documented, stable location
+   under the same config directory. Validate placement from an installed
    wheel/pipx environment, not only `PYTHONPATH=src`.
 5. Print the exact `source` lines for both files; never write to
    `.bashrc`/`.zshrc`/`.profile` directly.
@@ -159,9 +166,10 @@ account for, not defer past:
 - `taurworks setup` places the packaged `tl` source file at a documented,
   stable location and prints the exact `source` lines for both files to
   add to the shell startup file, without editing any startup file itself;
-  this is validated against an installed wheel/pipx environment, not only
-  with `PYTHONPATH=src`, confirming `sourceme/`'s packaging (delivered by
-  `WI-BIN-REPO-SPLIT-0001`) actually makes the file available post-install.
+  `sourceme/`'s file(s) are added to `setup.py`'s `package_data` as part
+  of this work item (idempotent no-op if `WI-BIN-REPO-SPLIT-0001` already
+  added the same entry), and placement is validated against an installed
+  wheel/pipx environment, not only with `PYTHONPATH=src`.
 - `tw shell refresh` resolves its target path with the same
   `TAURWORKS_SHELL_HELPER_PATH` → `XDG_CONFIG_HOME` → `~/.config`
   precedence `taurworks setup` uses, so a refresh after an XDG-based setup
