@@ -2,14 +2,14 @@
 execution_id: 2026_07_23_01_29_50_WI_LEGACY_MIGRATE_TL_FALLBACK_0001_CONFIRM
 prompt_id: PROMPT(AD_HOC:WI_LEGACY_MIGRATE_TL_FALLBACK_0001_CONFIRM)[2026-07-22T22:27:47-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: null
 pr: https://github.com/xenotaur/taurworks/pull/79
-commit: 80094306e17120cd9e682c4a7ca9cd350283593d
+commit: 67b4e485e9246a5486a09254698b7d8e0cffc14e
 created_at: 2026-07-23T01:29:50-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/79
-session_transcript: pending
+session_transcript: claude-app:146d1a52-87d7-4028-97f7-b7118179f5d8
 ---
 
 # Summary
