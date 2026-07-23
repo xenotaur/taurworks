@@ -2,7 +2,7 @@
 prompt_id: "PROMPT(AD_HOC:FIX_TOP_LEVEL_TEST_LAYOUT)[2026-04-30T03:05:00-04:00]"
 work_item: "AD_HOC"
 slug: "fix-top-level-test-layout"
-status: "in_progress"
+status: "landed"
 date: "2026-04-30"
 ---
 
@@ -23,3 +23,9 @@ Restructured test files to mirror current top-level modules under `src/taurworks
 
 # Follow-up
 If prompt execution records must always be script-generated, add `scripts/prompts/record-execution` in a separate change.
+
+**Closed out retroactively on 2026-07-23:** the layout described above is
+confirmed unchanged and present in the current codebase. This record
+predates the `lrh` CLI closeout tooling; see `project/executions/README.md`
+for the current process. `scripts/prompts/record-execution` was superseded
+by `lrh prompt record-execution` and was never separately added.

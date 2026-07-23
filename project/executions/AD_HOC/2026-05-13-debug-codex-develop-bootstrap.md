@@ -2,7 +2,7 @@
 prompt_id: "PROMPT(AD_HOC:DEBUG_CODEX_DEVELOP_BOOTSTRAP)[2026-05-13T16:05:00-04:00]"
 work_item: "AD_HOC"
 slug: "debug-codex-develop-bootstrap"
-status: "in_progress"
+status: "landed"
 date: "2026-05-13"
 ---
 
@@ -57,3 +57,11 @@ Debugged the Codex Cloud bootstrap failure when the environment setup command wa
 - If Codex Cloud starts from a Python environment that has pip but lacks `setuptools>=64` and `wheel`, the new script will try to install those minimum backend prerequisites first. That still requires either package-index access or a preinstalled/cacheable copy of the backend packages; the current session's proxy returned 403 for fresh downloads. Environments that already provide sufficient backend versions are no longer forced to replace them.
 - Keep using `./scripts/develop`, `./scripts/lint`, and `./scripts/test` in CI/local/Codex setup rather than ad-hoc pinned Black/Ruff installs.
 - Add or restore `scripts/prompts/check-execution`, `scripts/prompts/record-execution`, and `project/executions/README.md` if the prompt workflow is expected to be fully tool-driven in this repository state.
+
+**Closed out retroactively on 2026-07-23:** the `setuptools.build_meta`
+bootstrap check described above is confirmed unchanged and present in
+`scripts/develop` today. This record predates the `lrh` CLI closeout
+tooling; see `project/executions/README.md` for the current process.
+`scripts/prompts/record-execution`/`check-execution` were superseded by
+`lrh prompt record-execution`/`check-execution` and were never separately
+added.
