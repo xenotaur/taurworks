@@ -2,14 +2,14 @@
 execution_id: 2026_07_23_03_34_42_CLOSE_OUT_LEGACY_EXECUTION_RECORDS
 prompt_id: PROMPT(AD_HOC:CLOSE_OUT_LEGACY_EXECUTION_RECORDS)[2026-07-23T03:34:21-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/82
-commit: 
+commit: 3e998b2a5478a59b100ba204885b215bca48f167
 created_at: 2026-07-23T03:34:42-04:00
 agent: claude_app
 instruction_source: ad_hoc conversation — user asked to close out the April/May execution-record backlog identified while auditing session status ("option 2": mark records landed and fix the stale README causing the drift)
-session_transcript: pending
+session_transcript: claude-app:8d50d14e-57c6-4894-b351-2d95ae102df3
 ---
 
 # Summary
