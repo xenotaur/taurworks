@@ -136,6 +136,52 @@ shell does not mean it is *current* (see the stale-helper note below), so
 package version. If `tl` seems to need a feature, that is a signal to fix
 `tw` instead.
 
+**Retiring a migrated `Admin/project-setup.source`.** Once a project's
+`.taurworks/config.toml` fully reproduces what `Admin/project-setup.source`
+does, the legacy script becomes redundant: `tw activate` still detects it
+and offers trust-gated sourcing, which is useful mid-migration but risks
+duplicated or diverging behavior once `config.toml` already covers
+everything the script does (for example, sourcing both a configured Conda
+environment activation and a legacy script that activates the same
+environment again). Before moving it, check two things:
+
+- **Verify full coverage.** A partial migration (for example, a legacy
+  `export` computed via command substitution, which declarative
+  `[activation.exports]` values cannot represent) should stay as-is until
+  the gap is filled, not be retired with behavior quietly lost.
+- **Check for location-dependent references.** A script that resolves its
+  own directory (`${BASH_SOURCE[0]}`, `$0`, `dirname "$0"`, and similar) to
+  source an adjacent file or compute a relative path will resolve
+  differently once it lives under `.taurworks/` instead of `Admin/`. Update
+  any such references before moving the script, or it can fail silently
+  under `tl` even though `tw activate` works fine from the migrated config.
+
+Then retire the script by moving — not copying — it to `tl`'s second lookup
+location, and revoke any recorded trust for it:
+
+```bash
+mv Admin/project-setup.source .taurworks/project-setup.source
+taurworks project trust unset NAME
+```
+
+`tw activate`'s legacy detection only ever checks the literal
+`Admin/project-setup.source` path, so moving the file silences it
+completely; `tl` keeps working unchanged, since `.taurworks/project-setup.source`
+is already its documented fallback location above. Moving (rather than
+copying and leaving the original behind) avoids the two ever silently
+diverging. The `trust unset` step matters even though the file is gone:
+`taurworks project trust set`'s digest is keyed on content, not path, and
+the trust record itself lives in user-global config
+(`~/.config/taurworks/config.toml`), untouched by moving the project file.
+If `Admin/project-setup.source` is ever restored with identical
+content — a `git checkout` or `reset` in the project, for instance — a
+lingering trust record matches it again and `tw activate` silently sources
+it, recreating the exact duplication this recipe exists to prevent.
+If the project was never trusted, `trust unset` reports
+`not trusted; nothing to do` and exits non-zero — harmless as a habitual
+step run on its own line, but worth knowing if it's ever wired into a
+script that checks exit codes.
+
 **Stale shell-helper mitigation.** `taurworks shell print > ~/.config/taurworks/taurworks-shell.sh`
 produces a one-time snapshot; sourcing it is a one-time read, the same as
 `.bashrc`. It does **not** auto-update when the `taurworks` package
