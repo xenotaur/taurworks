@@ -2,14 +2,14 @@
 execution_id: 2026_07_23_04_17_47_SIDE_EFFECT_AUDIT_BACKLOG_DECISION_CONFIRM
 prompt_id: PROMPT(AD_HOC:SIDE_EFFECT_AUDIT_BACKLOG_DECISION_CONFIRM)[2026-07-23T04:09:21-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/81
-commit: 58984843de545e5f729b939bdbfc6b9a35754799
+commit: 76d9e1cd341fa564e71dcefbfe971fd670aa6eb9
 created_at: 2026-07-23T04:17:47-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/81
-session_transcript: pending
+session_transcript: claude-app:146d1a52-87d7-4028-97f7-b7118179f5d8
 ---
 
 # Summary
