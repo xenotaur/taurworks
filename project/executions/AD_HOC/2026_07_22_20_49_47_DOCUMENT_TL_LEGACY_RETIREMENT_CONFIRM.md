@@ -2,14 +2,14 @@
 execution_id: 2026_07_22_20_49_47_DOCUMENT_TL_LEGACY_RETIREMENT_CONFIRM
 prompt_id: PROMPT(AD_HOC:DOCUMENT_TL_LEGACY_RETIREMENT_CONFIRM)[2026-07-22T20:23:25-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: null
 pr: https://github.com/xenotaur/taurworks/pull/78
-commit: b5b688d9028dbabf4ed709d7b1c93ce1e2338536
+commit: 2567cf58c82ca3574919138de748a01848f815ba
 created_at: 2026-07-22T20:49:47-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/78
-session_transcript: pending
+session_transcript: claude-app:146d1a52-87d7-4028-97f7-b7118179f5d8
 ---
 
 # Summary
