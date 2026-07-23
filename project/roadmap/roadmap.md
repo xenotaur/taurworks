@@ -35,8 +35,12 @@ below that were never captured as work items.
 - `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`: teach `taurworks legacy migrate --apply`
   an opt-in `--keep-tl-fallback` flag that moves a fully-covered
   `Admin/project-setup.source` to `.taurworks/project-setup.source` (`tl`'s
-  existing fallback location), gated on the migration being fully literal
-  (`unsupported_count == 0`) so a partial migration is never silently
+  existing fallback location), gated on the migration being verified fully
+  complete — `unsupported_count == 0` alone is insufficient, since
+  merge-time duplicates/conflicts can leave real behavior unrepresented in
+  `config.toml` without incrementing that count; the gate also requires
+  `manual_review` empty and every `skipped` entry verified equal to what the
+  legacy line would have set — so a partial migration is never silently
   retired with behavior lost.
 - Deciding whether to formalize two still-open side-effect audit
   recommendations (`project/audits/side_effects.md`) as work items: wiring
