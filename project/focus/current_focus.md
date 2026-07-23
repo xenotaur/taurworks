@@ -1,55 +1,61 @@
 ---
 id: FOCUS-CURRENT
-title: Legacy migration tooling and side-effect audit follow-ups
+title: Side-effect audit follow-ups and tl-compatible legacy retirement automation
 status: active
-updated: 2026-07-06
-basis: activation_config_slices_1_3_complete
+updated: 2026-07-22
+basis: legacy_migration_and_trust_gating_complete
 confidence: high
 ---
 
 # Current Focus
 
-Taurworks has completed global resolution (XDG-style global config, explicit
-workspace root, global project registry, and workspace/registry-aware `tw
-projects`/`tw activate` resolution) and the first three declarative-activation
-slices (`[activation].message`, `[activation.exports]`, and Conda environment
-activation). Focus now shifts to the remaining `WI-ACTIVATION-CONFIG-0001`
-slices, the still-untracked side-effect audit follow-ups, and deciding how far
-to take `taurworks dev ...` beyond read-only diagnostics.
+Legacy `Admin/project-setup.source` inspect/migrate tooling, trust-gated
+legacy sourcing, the `tl` break-glass helper, and the stale-shell-helper fix
+(`tw shell refresh`) are all implemented and merged. Real-workspace
+dogfooding (2026-07-11 through 2026-07-22) found and fixed a further class
+of bug: a project can be fully migrated to declarative `config.toml` while
+its now-redundant `Admin/project-setup.source` lingers, which risks silently
+duplicating declarative activation behavior if the script is ever trusted.
+Focus now shifts to `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`, which automates
+the by-hand retirement recipe found during that dogfooding, and to deciding
+whether to formalize the two side-effect audit recommendations that were
+never captured as work items.
 
 ## Active direction
 
-1. Design and implement `taurworks legacy inspect PROJECT` as conservative,
-   read-only extraction of `Admin/project-setup.source` patterns.
-2. Design and implement `taurworks legacy migrate PROJECT --apply` for simple
-   detected patterns, preserving existing config and requiring manual review
-   for unsupported shell constructs.
-3. Address the side-effect audit's outstanding recommendations
-   (`project/audits/side_effects.md`), most notably that legacy top-level
-   `taurworks refresh`/`taurworks create` (and therefore `tw refresh`/`tw
-   create`) still create a Conda environment by default despite sounding like
-   safe metadata operations.
-4. Defer trusted user-script hooks until legacy inspect/migrate has been
-   dogfooded; require explicit opt-in, warnings, inspection/dry-run modes, and
-   per-project trust when that design work starts.
-5. Keep `taurworks project activate --print` read-only and `tw activate` as the
-   only shell-mutating layer.
+1. `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` (in progress): teach
+   `taurworks legacy migrate --apply` an opt-in `--keep-tl-fallback` flag
+   that moves a fully-covered `Admin/project-setup.source` to
+   `.taurworks/project-setup.source` (`tl`'s existing fallback location),
+   gated on the migration being verified fully complete —
+   `unsupported_count == 0` alone is insufficient, since merge-time
+   duplicates/conflicts can leave real behavior unrepresented in
+   `config.toml` without incrementing that count; the gate also requires
+   `manual_review` empty and every `skipped` entry verified equal to what
+   the legacy line would have set — so a partial migration is never
+   silently retired with behavior lost.
+2. Decide whether to formalize two still-open side-effect audit
+   recommendations (`project/audits/side_effects.md`) as work items: wiring
+   `scripts/audit-side-effects` into CI as an enforced gate (recommendation
+   #7), and whether to pursue making legacy `taurworks refresh`/`create`
+   fully metadata-only (recommendation #1 in full; open question tracked in
+   `WI-LEGACY-CONDA-GATING-0001`'s Open Questions).
+3. Keep `taurworks project activate --print` read-only and `tw activate`/
+   `tw shell refresh` as the only shell-mutating layers.
 
 ## In scope now
 
-- Legacy `Admin/project-setup.source` inspect/migrate tooling design and
-  implementation.
-- Side-effect audit follow-ups: gating legacy Conda environment creation
-  behind an explicit command/flag, reducing `tw activate`'s `eval` surface,
-  and treating `taurworks project activate --shell` output as sensitive.
+- Landing `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`.
+- Deciding whether/how to formalize the two remaining side-effect audit
+  follow-ups above as work items.
 - Deciding scope for `taurworks dev ...` workflow automation beyond `dev
   where`/`dev status`.
 
 ## Out of scope now
 
-- Implementing trusted user-script hooks before legacy inspect/migrate is
-  dogfooded.
-- Automatic legacy `Admin/project-setup.source` fallback sourcing.
+- Upgrading the `legacy migrate` matcher to handle variable indirection
+  (explicitly not planned per `project/roadmap/roadmap.md`; zero external
+  users; superseded by the one-time real-corpus batch migration).
 - Broad repo workflow automation under `taurworks dev ...` without further
   design.
 - Shell startup-file edits.
@@ -66,6 +72,19 @@ to take `taurworks dev ...` beyond read-only diagnostics.
   `tw activate NAME` resolution, per the canonical priority list in
   `project/design/config_model.md`.
 - Declarative activation message, exports, and Conda environment activation.
+- `taurworks legacy inspect`/`taurworks legacy migrate --apply`
+  (`WI-ACTIVATION-CONFIG-0001`), plus the one-time human-reviewed batch
+  migration of the real legacy corpus (`WI-LEGACY-BATCH-MIGRATION-0001`).
+- Trust-gated legacy script sourcing, two-tier consent model
+  (`WI-TRUSTED-LEGACY-SOURCING-0001`).
+- `tl` simplified and reframed as a permanent, dependency-free break-glass
+  fallback (`WI-INTERIM-TL-PIPX-0001`, `WI-TL-BREAKGLASS-0001`).
+- `tw shell refresh`, fixing the stale-shell-helper problem
+  (`WI-SHELL-HELPER-REFRESH-0001`).
+- Conda environment creation gated behind explicit `--create-env`
+  (`WI-LEGACY-CONDA-GATING-0001`); most other side-effect audit
+  recommendations resolved or reviewed-and-accepted (see
+  `project/audits/side_effects.md` for full per-recommendation status).
 - Minimal read-only `taurworks dev where`/`dev status`.
 
 ## Safety stance
@@ -76,17 +95,25 @@ taurworks project activate --print
 
 tw activate
   explicit shell-mutating function from sourced taurworks-shell.sh
-  (cd, configured exports, configured Conda activation)
+  (cd, configured exports, configured Conda activation, trust-gated
+  legacy sourcing)
+
+tw shell refresh
+  explicit shell-mutating function that regenerates and re-sources the
+  helper itself
+
+tl
+  permanent, dependency-free break-glass fallback; never depends on tw
+  or the installed taurworks package version
 
 workspace-only / legacy-admin fallback
   cd only, with warning
 
 legacy Admin/project-setup.source
-  recognized for migration/design, not automatic sourcing
-
-user scripts/hooks
-  future explicit opt-in only
+  sourced only behind explicit two-tier trust consent, never by default
 ```
 
-Automatic sourcing of legacy project setup scripts is intentionally deferred
-because it crosses a stronger trust boundary than `cd`-only activation.
+Automatic (unconsented) sourcing of legacy project setup scripts remains
+out of scope; the implemented model requires an explicit user-global
+enable switch plus per-project content-digest trust, both recorded outside
+the project itself.
