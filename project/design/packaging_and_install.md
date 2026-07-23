@@ -107,10 +107,18 @@ alternatives that were weighed and why they lost.
 Idempotent, safe to re-run, modeled on the existing `tw shell refresh`
 precedent (`shell_helper_refresh.md`) for the "regenerate + report" shape:
 
-1. Print the packaged shell helper to the standard location
-   (`~/.config/taurworks/taurworks-shell.sh`, or
-   `$TAURWORKS_SHELL_HELPER_PATH` if already set) — reuses
+1. Print the packaged shell helper to the standard location — reuses
    `taurworks shell print`'s existing packaged-resource logic, unchanged.
+   `$TAURWORKS_SHELL_HELPER_PATH`, if already set, takes precedence over
+   both defaults below. Otherwise, default to
+   `$XDG_CONFIG_HOME/taurworks/taurworks-shell.sh` when `XDG_CONFIG_HOME`
+   is set to a valid absolute path — matching the resolution
+   `global_config.py` already uses for Taurworks' own config file — and
+   fall back to `~/.config/taurworks/taurworks-shell.sh` only when
+   `XDG_CONFIG_HOME` is unset or invalid. Writing the shell helper under a
+   plain `~/.config` regardless of a configured `XDG_CONFIG_HOME` would
+   split Taurworks' user state across two roots and print a startup-file
+   `source` line pointing at the wrong location for that user.
 2. Place the packaged `tl` source file at a documented, stable location
    (see open question below on exactly where) instead of the current
    ad-hoc "copy `sourceme/aliases.source` somewhere and remember where you
@@ -257,12 +265,13 @@ These are implementation-level questions, deliberately left open here
 rather than pre-decided, since they don't change this design's shape:
 
 - **Where does `taurworks setup` place the `tl` source file?** Candidates:
-  `~/.config/taurworks/tl.source` (parallel to the existing
-  `taurworks-shell.sh` location, one config directory for both halves of
+  `tl.source` alongside `taurworks-shell.sh` under the same
+  `$XDG_CONFIG_HOME`-aware `taurworks` config directory (see "What
+  `taurworks setup` does" above; one config directory for both halves of
   the activation stack) vs. keeping it path-relative to a checkout (current
   README behavior, but breaks for anyone who deletes the checkout after
-  install). Recommend the former for symmetry with the existing
-  `~/.config/taurworks/taurworks-shell.sh` convention, but this needs a
+  install). Recommend the former for symmetry with the shell helper's own
+  location, but this needs a
   quick check against `WI-TL-BREAKGLASS-0001`'s framing of `tl` as
   dependency-free — placing it under the same config directory as `tw`
   doesn't create a code dependency, only a shared install location, so it
