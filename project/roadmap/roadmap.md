@@ -32,8 +32,8 @@ below that were never captured as work items.
 
 ### In scope now
 
-- `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`: teach `taurworks legacy migrate
-  --apply` an opt-in `--keep-tl-fallback` flag that moves a fully-covered
+- `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`: teach `taurworks legacy migrate --apply`
+  an opt-in `--keep-tl-fallback` flag that moves a fully-covered
   `Admin/project-setup.source` to `.taurworks/project-setup.source` (`tl`'s
   existing fallback location), gated on the migration being fully literal
   (`unsupported_count == 0`) so a partial migration is never silently
