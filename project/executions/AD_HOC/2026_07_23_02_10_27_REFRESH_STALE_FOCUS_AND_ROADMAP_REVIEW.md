@@ -2,14 +2,14 @@
 execution_id: 2026_07_23_02_10_27_REFRESH_STALE_FOCUS_AND_ROADMAP_REVIEW
 prompt_id: PROMPT(AD_HOC:REFRESH_STALE_FOCUS_AND_ROADMAP_REVIEW)[2026-07-23T01:49:07-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/80
-commit: c7ae32c2152a3a74ee5c8ac7750196f4406482c9
+commit: 4ff1b2251228f0cc2314e09e95552b3d7d669a7b
 created_at: 2026-07-23T02:10:27-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/80
-session_transcript: pending
+session_transcript: claude-app:146d1a52-87d7-4028-97f7-b7118179f5d8
 ---
 
 # Summary
