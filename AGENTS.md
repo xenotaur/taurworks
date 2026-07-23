@@ -47,6 +47,11 @@ Taurworks does not need to manage this state; it is run by the LRH command or th
 - Prefer modular organization by concern.
 - Avoid hidden magic in repo discovery.
 - Keep formats stable and documented.
+- A command name is a promise about risk: a safe/idempotent-sounding
+  command (`refresh`, `create`, `init`) must not silently perform a
+  dangerous or mutating operation without an explicit flag or opt-in — see
+  `project/audits/side_effects.md`'s Safety baseline and
+  `project/design/backlog.md`.
 
 ## Immediate task guidance
 

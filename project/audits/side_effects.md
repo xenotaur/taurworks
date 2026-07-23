@@ -24,6 +24,23 @@ The intended policy for follow-up work is:
 - User/project script sourcing should require explicit opt-in/trust
   configuration and should not happen by default.
 
+**General principle (added 2026-07-23):** a command name is a promise about
+risk. A command that reads as safe/idempotent (`refresh`, `create`, `init`)
+must not silently perform a dangerous or mutating operation — Conda
+environment creation, arbitrary script execution, filesystem deletion —
+without an explicit flag or opt-in. This generalizes the single concrete
+finding below (legacy `refresh`'s default Conda creation, flagged as "the
+most surprising finding" and since fixed by `WI-LEGACY-CONDA-GATING-0001`)
+into a standing rule for any future command surface. It follows the
+fail-safe-defaults and psychological-acceptability principles from Saltzer
+& Schroeder, "The Protection of Information in Computer Systems" (1975):
+absent explicit permission, default to no side effect, and a command's
+apparent risk should match its actual risk so people don't have to
+second-guess it. `scripts/audit-side-effects` is the suggested manual check
+for this pattern during implementation or review — see
+`project/design/backlog.md` for why it isn't wired into CI as an automatic
+gate.
+
 ## Side-effect taxonomy
 
 | Category | Meaning |
@@ -45,8 +62,13 @@ The intended policy for follow-up work is:
 1. The legacy top-level commands `taurworks create NAME`, `taurworks refresh NAME`,
    and shell-helper delegation such as `tw refresh NAME` still call the legacy
    `manager.refresh_project` path, which creates project directories, creates a
-   Conda environment by default, creates a repository directory, and writes a
-   `.taurworks/project-setup.source` file.
+   Conda environment by default, creates a repository directory, and (as of
+   this audit's original 2026-05-17 writing) wrote a
+   `.taurworks/project-setup.source` file. **Corrected 2026-07-23:**
+   `WI-ACTIVATION-PRODUCERS-0001` (commit `7d8e777`, 2026-07-15) replaced that
+   write with the declarative `config.toml` writer
+   (`_write_initial_project_config`); these commands no longer write
+   `.taurworks/project-setup.source`.
 2. The newer `taurworks project refresh [PATH_OR_NAME]` path is metadata-only
    scaffolding/repair and does not call Conda.
 3. Conda activation is implemented only in the sourced `tw activate` helper.
@@ -423,8 +445,10 @@ Assessment:
 
 - Delegates to `manager.create_project`. It can create a Conda environment with
   `conda create --name NAME python=3.11 -y` by default, or `conda env create
-  --name NAME --file FILE` when `--file` is supplied. It also writes
-  `.taurworks/project-setup.source`.
+  --name NAME --file FILE` when `--file` is supplied. As of this audit's
+  original 2026-05-17 writing it also wrote `.taurworks/project-setup.source`;
+  **corrected 2026-07-23:** it now writes declarative `config.toml` via
+  `_write_initial_project_config` instead (`WI-ACTIVATION-PRODUCERS-0001`).
 
 Recommendation:
 
@@ -468,9 +492,12 @@ Side effects observed:
 
 Assessment:
 
-- Prints `source .../.taurworks/project-setup.source` guidance when the legacy
-  setup script exists. It does not source the script and cannot mutate the parent
-  shell.
+- As of this audit's original 2026-05-17 writing, printed `source
+  .../.taurworks/project-setup.source` guidance when the legacy setup script
+  existed. **Corrected 2026-07-23:** `activate_project` no longer does this;
+  it now tells the user to run `tw activate` (initialized projects), or to
+  run `taurworks project init`/migrate the legacy setup (legacy-admin
+  projects). It does not source anything and cannot mutate the parent shell.
 
 Recommendation:
 
@@ -541,8 +568,12 @@ Recommendation:
 1. Commands that can call `conda activate`:
    - `tw activate [PATH_OR_NAME]` through the sourced shell helper when the
      activation config has `[activation.environment] type = "conda"`.
-   - Generated legacy `.taurworks/project-setup.source` files contain
-     `conda activate NAME`, but Taurworks does not source them itself.
+   - As of this audit's original 2026-05-17 writing, generated legacy
+     `.taurworks/project-setup.source` files contained `conda activate NAME`.
+     **Corrected 2026-07-23:** legacy create/refresh no longer generate this
+     file (see the "Filesystem and config mutation" answers below); any
+     copies on disk predate `WI-ACTIVATION-PRODUCERS-0001`. Taurworks never
+     sourced them itself in any case.
 2. Conda activation in current Taurworks execution is limited to the sourced
    `tw activate` helper.
 3. `taurworks project activate --print` remains read-only and prints
@@ -573,8 +604,10 @@ Recommendation:
 2. No current code was found that sources `.taurworks/activate.source` or another
    user script by default.
 3. Current Taurworks code does not run arbitrary user shell scripts by default.
-   Legacy refresh writes a `.taurworks/project-setup.source` file, and legacy
-   activate prints a command for the user to source it manually.
+   As of this audit's original 2026-05-17 writing, legacy refresh wrote a
+   `.taurworks/project-setup.source` file; **corrected 2026-07-23:** it now
+   writes declarative `config.toml` instead (`WI-ACTIVATION-PRODUCERS-0001`).
+   Legacy activate prints a command for the user to source it manually.
 4. Python subprocess calls are narrow and explicit: `conda env list`,
    `conda create`, and `conda env create` in legacy manager code. Legacy
    `taurworks projects --details` also uses `conda env list` as a read-only
@@ -594,9 +627,14 @@ Recommendation:
    - `taurworks project init [PATH] ...`
    - `taurworks project create NAME ...`
    - `taurworks project working-dir set DIR`
-   - Legacy top-level create/refresh write legacy `.taurworks/project-setup.source`
-     and create `.taurworks/`; they do not use the current TOML metadata writer
-     for `.taurworks/config.toml`.
+   - As of this audit's original 2026-05-17 writing, legacy top-level
+     create/refresh wrote legacy `.taurworks/project-setup.source` instead of
+     using the TOML metadata writer. **Corrected 2026-07-23:**
+     `WI-ACTIVATION-PRODUCERS-0001` (commit `7d8e777`, 2026-07-15) moved
+     legacy create/refresh onto the same declarative `config.toml` writer
+     (`_write_initial_project_config`) as the namespaced commands above; they
+     still create `.taurworks/` unconditionally, but no longer write the
+     legacy setup script.
 3. Commands that create directories:
    - `taurworks workspace set PATH`, `project register`, and `project unregister`
      may create the XDG config parent directory while writing global config.
@@ -618,14 +656,17 @@ Recommendation:
 
 1. Migrate or deprecate legacy top-level `taurworks refresh` so refresh is
    metadata-only by default.
-   **Status: partially addressed by `WI-LEGACY-CONDA-GATING-0001`.** Conda
-   environment creation is now gated behind an explicit `--create-env` flag
-   (see recommendation #2), but legacy `refresh`/`create` still create the
-   workspace/project/repository directories and write
-   `.taurworks/project-setup.source` unchanged. Making legacy `refresh`/`create`
+   **Status: partially addressed by `WI-LEGACY-CONDA-GATING-0001`; remainder
+   deferred to `project/design/backlog.md`.** Conda environment creation is
+   now gated behind an explicit `--create-env` flag (see recommendation #2).
+   Legacy `refresh`/`create` still unconditionally create the
+   workspace/project/`.taurworks`/repository directories (they no longer
+   write `.taurworks/project-setup.source` — that was superseded by the
+   declarative `config.toml` writer added by `WI-ACTIVATION-CONFIG-0001`,
+   this line is corrected accordingly). Making legacy `refresh`/`create`
    fully metadata-only (this recommendation in full) is a larger,
-   compatibility-sensitive change left as potential future work — see that work
-   item's Open Questions.
+   compatibility-sensitive change; see `project/design/backlog.md` for why
+   it's deferred rather than filed as a work item.
 2. Move Conda creation behind an explicit command such as `taurworks env create`
    or an explicit flag such as `--create-env`; do not create environments from a
    read-only-looking or repair-looking command.
@@ -667,9 +708,17 @@ Recommendation:
    attempted here.
 7. Add CI or developer checks around side-effect-sensitive patterns if command
    behavior expands.
-   **Status: partially satisfied.** `scripts/audit-side-effects` (see "Audit
-   helper" below) already exists as a best-effort, non-destructive scanner;
-   wiring it into CI as an enforced gate remains open.
+   **Status: partially satisfied; CI-gating deferred to
+   `project/design/backlog.md`.** `scripts/audit-side-effects` (see "Audit
+   helper" below) already exists as a best-effort, non-destructive scanner
+   and is the suggested manual check per the General Principle above.
+   Wiring it into CI as an enforced gate was considered and deferred: the
+   scanner's 13 broad patterns match routinely-legitimate code throughout
+   this codebase, so a diff-against-baseline gate would mostly add
+   friction rather than catch a recurring class of real bugs — the one
+   actual incident this audit found (Conda-by-default) was already fixed by
+   a targeted, specific flag, not by a generic scanner. See
+   `project/design/backlog.md` for the full rationale and revisit trigger.
 
 ## Audit helper
 

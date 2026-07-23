@@ -11,7 +11,7 @@ confidence: medium
 
 This roadmap is phased and conservative. It prioritizes command-model alignment, safe incremental delivery, and explicit trust boundaries.
 
-## Current phase snapshot (2026-07-22)
+## Current phase snapshot (2026-07-23)
 
 Phases 1 through 5A below, and the entire dogfood recovery plan
 (`WI-INTERIM-TL-PIPX-0001`, `WI-LEGACY-BATCH-MIGRATION-0001`,
@@ -26,9 +26,10 @@ now-redundant `Admin/project-setup.source` lingers, which risks silently
 duplicating activation behavior if the script is ever trusted. The active
 phase is `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`, which automates the
 by-hand retirement recipe found during that dogfooding
-(`README.md`, "Retiring a migrated `Admin/project-setup.source`"), plus
-deciding whether to formalize the two side-effect audit recommendations
-below that were never captured as work items.
+(`README.md`, "Retiring a migrated `Admin/project-setup.source`"). The two
+side-effect audit recommendations that were never captured as work items
+have since been assessed and deferred to `project/design/backlog.md` (see
+below).
 
 ### In scope now
 
@@ -42,14 +43,11 @@ below that were never captured as work items.
   `manual_review` empty and every `skipped` entry verified equal to what the
   legacy line would have set — so a partial migration is never silently
   retired with behavior lost.
-- Deciding whether to formalize two still-open side-effect audit
-  recommendations (`project/audits/side_effects.md`) as work items: wiring
-  `scripts/audit-side-effects` into CI as an enforced gate (recommendation
-  #7), and whether to pursue making legacy `taurworks refresh`/`create`
-  fully metadata-only (recommendation #1 in full; open question tracked in
-  `WI-LEGACY-CONDA-GATING-0001`'s Open Questions) — most other audit
-  recommendations are resolved or reviewed-and-accepted, see that file for
-  full per-recommendation status.
+- Side-effect audit recommendations #1 (metadata-only legacy
+  `refresh`/`create`) and #7 (CI-gating `scripts/audit-side-effects`) were
+  assessed and deferred to `project/design/backlog.md` rather than
+  formalized as work items — see that file for rationale and revisit
+  triggers.
 - Deciding scope for `taurworks dev ...` workflow automation beyond read-only diagnostics.
 
 ### Out of scope now
@@ -179,18 +177,15 @@ below that were never captured as work items.
 
 - After compatibility is preserved and namespaced commands are stable, define deprecation/migration for legacy top-level commands.
 
-## Untracked follow-up: side-effect audit recommendations
+## Design backlog
 
 The 2026-05-17 post-merge side-effect audit (`project/audits/side_effects.md`)
-produced seven follow-up recommendations. Five are now resolved or
-reviewed-and-accepted (including the Conda-environment-creation gating this
-section originally called out as most notable, resolved by
-`WI-LEGACY-CONDA-GATING-0001`). Two remain genuinely open and are not yet
-captured as a tracked phase or work item: wiring `scripts/audit-side-effects`
-into CI as an enforced gate (recommendation #7), and whether to pursue making
-legacy `taurworks refresh`/`taurworks create` fully metadata-only
-(recommendation #1 in full — currently only Conda *creation* is gated, not
-the workspace/project/repository directory creation or
-`.taurworks/project-setup.source` write; open question tracked in
-`WI-LEGACY-CONDA-GATING-0001`'s Open Questions). See
-`project/audits/side_effects.md` for the full per-recommendation status.
+produced seven follow-up recommendations; five are resolved or
+reviewed-and-accepted (including the Conda-environment-creation gating
+originally called out as most notable, resolved by
+`WI-LEGACY-CONDA-GATING-0001`). The remaining two were assessed on
+2026-07-23 and deliberately deferred rather than formalized as work
+items — see `project/design/backlog.md` for the full rationale and revisit
+triggers, and `project/audits/side_effects.md` for full per-recommendation
+status. Deferred ideas not yet ready for a work item generally live in
+`project/design/backlog.md`; check it before proposing new work.
