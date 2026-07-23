@@ -596,7 +596,7 @@ CI should enforce:
 
 Tracking work in prompt-heavy workflows can become confusing, so Taurworks provides lightweight guidance and tooling to label meaningful prompts with unique IDs and record executions.
 
-Use `scripts/prompts/label-prompt` to generate a prompt ID, and use `scripts/prompts/record-execution` to create an execution-record Markdown file.
+Use `lrh prompt label` to generate a prompt ID, and use `lrh prompt record-execution` to create an execution-record Markdown file.
 
 Prompt IDs and execution records are encouraged for meaningful prompt-driven changes, especially for updates touching design, roadmap, work items, implementation, tests, or project-control artifacts.
 

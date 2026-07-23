@@ -2,7 +2,7 @@
 prompt_id: "PROMPT(AD_HOC:TAURWORKS_GLOBAL_CONFIG_ACTIVATION_DESIGN)[2026-05-15T00:00:00+00:00]"
 work_item: "AD_HOC"
 slug: "taurworks-global-config-activation-design"
-status: "in_progress"
+status: "landed"
 date: "2026-05-15"
 ---
 
@@ -31,3 +31,13 @@ Updated Taurworks control-plane design documentation for the next global-resolut
 - Implement Phase 1b registry commands in a separate PR.
 - Implement Phase 1c workspace/registry-aware listing and activation resolution in a separate PR.
 - Keep declarative activation and user-script support as separate future design/implementation slices.
+
+**Closed out retroactively on 2026-07-23:** the design documentation
+described above was written and landed as planned; all four follow-up
+items above have since shipped via separately tracked, resolved work items
+(global config/registry/workspace-aware resolution via
+`WI-UNIFIED-COMMAND-MODEL-0001`; declarative activation via
+`WI-ACTIVATION-CONFIG-0001`; trusted user-script sourcing via
+`WI-TRUSTED-LEGACY-SOURCING-0001`). This record predates the `lrh` CLI
+closeout tooling; see `project/executions/README.md` for the current
+process.

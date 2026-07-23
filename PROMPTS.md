@@ -109,11 +109,12 @@ lrh request codex-prompt-from-work-item \
 
 # Submit /tmp/codex_prompt.md to Codex Cloud and open a PR.
 
-scripts/prompts/record-execution \
+lrh prompt record-execution \
   --prompt-id "PROMPT(WI-EXAMPLE:IMPLEMENT_WI_EXAMPLE)[2026-04-24T20:15:00-04:00]" \
   --work-item WI-EXAMPLE \
   --slug implement-wi-example \
-  --status in_progress
+  --status in_progress \
+  --project-root .
 ```
 
 Notes:
@@ -125,15 +126,15 @@ Notes:
 - Record execution after generating the PR so the record can include final PR/commit references.
 - Keep this workflow lightweight: skip extra ceremony for tiny exploratory edits.
 
-## Helper scripts
+## Helper commands
 
-### `scripts/prompts/label-prompt`
+### `lrh prompt label`
 
 Generates a prompt ID and suggested execution record path.
 
 ```bash
-scripts/prompts/label-prompt --work-item WI-META-CLI-MVP --slug register-implementation
-scripts/prompts/label-prompt --slug register-audit
+lrh prompt label --work-item WI-META-CLI-MVP --slug register-implementation
+lrh prompt label --slug register-audit
 ```
 
 Outputs include:
@@ -142,18 +143,42 @@ Outputs include:
 - `execution_dir`
 - `suggested_execution_file`
 
-`--work-item` must be a safe ID (letters/numbers plus `_` or `-`) so paths stay scoped to execution-record directories.
+`--work-item` must be a safe ID (letters/numbers plus `_` or `-`) so paths stay scoped to execution-record directories. Note that `suggested_execution_file` is only a preview: the real `execution_id` and filename are generated fresh by `lrh prompt record-execution` when the record is actually created, and may carry a later timestamp if time passes between the two commands.
 
-### `scripts/prompts/record-execution`
+### `lrh prompt check-execution`
 
-Generates an execution-record Markdown file.
+Checks whether a prompt ID already has an execution record, for the soft-idempotence check above.
 
 ```bash
-scripts/prompts/record-execution \
+lrh prompt check-execution --prompt-id "PROMPT(WI-META-CLI-MVP:REGISTER_IMPLEMENTATION)[2026-04-24T16:24:13-04:00]" --project-root .
+```
+
+### `lrh prompt record-execution`
+
+Generates an execution-record Markdown file and mints its `execution_id`.
+
+```bash
+lrh prompt record-execution \
   --prompt-id "PROMPT(WI-META-CLI-MVP:REGISTER_IMPLEMENTATION)[2026-04-24T16:24:13-04:00]" \
   --work-item WI-META-CLI-MVP \
   --slug register-implementation \
-  --status planned
+  --status planned \
+  --project-root .
 ```
 
 Use `--dry-run` to preview output without writing files.
+
+### `lrh prompt update-execution`
+
+Flips an existing record from `in_progress` to `landed` once its PR merges.
+
+```bash
+lrh prompt update-execution \
+  --execution-id <execution_id> \
+  --status landed \
+  --pr <pr-url> \
+  --commit <merge-commit-sha> \
+  --project-root .
+```
+
+See `project/executions/README.md` for the full front-matter schema and status values.

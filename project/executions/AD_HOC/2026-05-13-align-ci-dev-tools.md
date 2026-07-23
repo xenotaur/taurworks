@@ -2,7 +2,7 @@
 prompt_id: "PROMPT(AD_HOC:ALIGN_CI_DEV_TOOLS)[2026-05-13T13:15:00-04:00]"
 work_item: "AD_HOC"
 slug: "align-ci-dev-tools"
-status: "in_progress"
+status: "landed"
 date: "2026-05-13"
 ---
 
@@ -40,3 +40,11 @@ Aligned Taurworks CI with the repository-local constrained developer setup path.
 - Codex Cloud agents should run `./scripts/develop`, then `./scripts/lint` and `./scripts/test`; they should not install Black/Ruff with ad-hoc pinned commands because `constraints-dev.txt` is the repository source of truth.
 - If Codex Cloud package-index proxy restrictions persist, preinstall/cache the versions in `constraints-dev.txt` or configure package-index access before relying on `./scripts/develop` in a fresh environment.
 - Add or restore `scripts/prompts/check-execution`, `scripts/prompts/record-execution`, and `project/executions/README.md` if the prompt workflow is expected to be mandatory in this repository state.
+
+**Closed out retroactively on 2026-07-23:** `constraints-dev.txt` and
+`./scripts/develop` remain the canonical setup path and are confirmed
+unchanged in the current codebase. This record predates the `lrh` CLI
+closeout tooling; see `project/executions/README.md` for the current
+process. `scripts/prompts/record-execution`/`check-execution` were
+superseded by `lrh prompt record-execution`/`check-execution` and were
+never separately added.
