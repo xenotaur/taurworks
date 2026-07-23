@@ -24,6 +24,23 @@ The intended policy for follow-up work is:
 - User/project script sourcing should require explicit opt-in/trust
   configuration and should not happen by default.
 
+**General principle (added 2026-07-23):** a command name is a promise about
+risk. A command that reads as safe/idempotent (`refresh`, `create`, `init`)
+must not silently perform a dangerous or mutating operation — Conda
+environment creation, arbitrary script execution, filesystem deletion —
+without an explicit flag or opt-in. This generalizes the single concrete
+finding below (legacy `refresh`'s default Conda creation, flagged as "the
+most surprising finding" and since fixed by `WI-LEGACY-CONDA-GATING-0001`)
+into a standing rule for any future command surface. It follows the
+fail-safe-defaults and psychological-acceptability principles from Saltzer
+& Schroeder, "The Protection of Information in Computer Systems" (1975):
+absent explicit permission, default to no side effect, and a command's
+apparent risk should match its actual risk so people don't have to
+second-guess it. `scripts/audit-side-effects` is the suggested manual check
+for this pattern during implementation or review — see
+`project/design/backlog.md` for why it isn't wired into CI as an automatic
+gate.
+
 ## Side-effect taxonomy
 
 | Category | Meaning |
@@ -618,14 +635,17 @@ Recommendation:
 
 1. Migrate or deprecate legacy top-level `taurworks refresh` so refresh is
    metadata-only by default.
-   **Status: partially addressed by `WI-LEGACY-CONDA-GATING-0001`.** Conda
-   environment creation is now gated behind an explicit `--create-env` flag
-   (see recommendation #2), but legacy `refresh`/`create` still create the
-   workspace/project/repository directories and write
-   `.taurworks/project-setup.source` unchanged. Making legacy `refresh`/`create`
+   **Status: partially addressed by `WI-LEGACY-CONDA-GATING-0001`; remainder
+   deferred to `project/design/backlog.md`.** Conda environment creation is
+   now gated behind an explicit `--create-env` flag (see recommendation #2).
+   Legacy `refresh`/`create` still unconditionally create the
+   workspace/project/`.taurworks`/repository directories (they no longer
+   write `.taurworks/project-setup.source` — that was superseded by the
+   declarative `config.toml` writer added by `WI-ACTIVATION-CONFIG-0001`,
+   this line is corrected accordingly). Making legacy `refresh`/`create`
    fully metadata-only (this recommendation in full) is a larger,
-   compatibility-sensitive change left as potential future work — see that work
-   item's Open Questions.
+   compatibility-sensitive change; see `project/design/backlog.md` for why
+   it's deferred rather than filed as a work item.
 2. Move Conda creation behind an explicit command such as `taurworks env create`
    or an explicit flag such as `--create-env`; do not create environments from a
    read-only-looking or repair-looking command.
@@ -667,9 +687,17 @@ Recommendation:
    attempted here.
 7. Add CI or developer checks around side-effect-sensitive patterns if command
    behavior expands.
-   **Status: partially satisfied.** `scripts/audit-side-effects` (see "Audit
-   helper" below) already exists as a best-effort, non-destructive scanner;
-   wiring it into CI as an enforced gate remains open.
+   **Status: partially satisfied; CI-gating deferred to
+   `project/design/backlog.md`.** `scripts/audit-side-effects` (see "Audit
+   helper" below) already exists as a best-effort, non-destructive scanner
+   and is the suggested manual check per the General Principle above.
+   Wiring it into CI as an enforced gate was considered and deferred: the
+   scanner's 13 broad patterns match routinely-legitimate code throughout
+   this codebase, so a diff-against-baseline gate would mostly add
+   friction rather than catch a recurring class of real bugs — the one
+   actual incident this audit found (Conda-by-default) was already fixed by
+   a targeted, specific flag, not by a generic scanner. See
+   `project/design/backlog.md` for the full rationale and revisit trigger.
 
 ## Audit helper
 

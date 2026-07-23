@@ -2,7 +2,7 @@
 id: FOCUS-CURRENT
 title: Side-effect audit follow-ups and tl-compatible legacy retirement automation
 status: active
-updated: 2026-07-22
+updated: 2026-07-23
 basis: legacy_migration_and_trust_gating_complete
 confidence: high
 ---
@@ -17,9 +17,10 @@ of bug: a project can be fully migrated to declarative `config.toml` while
 its now-redundant `Admin/project-setup.source` lingers, which risks silently
 duplicating declarative activation behavior if the script is ever trusted.
 Focus now shifts to `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`, which automates
-the by-hand retirement recipe found during that dogfooding, and to deciding
-whether to formalize the two side-effect audit recommendations that were
-never captured as work items.
+the by-hand retirement recipe found during that dogfooding. The two
+side-effect audit recommendations that were never captured as work items
+have since been assessed (2026-07-23) and deferred to
+`project/design/backlog.md` rather than formalized as work items.
 
 ## Active direction
 
@@ -34,20 +35,16 @@ never captured as work items.
    `manual_review` empty and every `skipped` entry verified equal to what
    the legacy line would have set — so a partial migration is never
    silently retired with behavior lost.
-2. Decide whether to formalize two still-open side-effect audit
-   recommendations (`project/audits/side_effects.md`) as work items: wiring
-   `scripts/audit-side-effects` into CI as an enforced gate (recommendation
-   #7), and whether to pursue making legacy `taurworks refresh`/`create`
-   fully metadata-only (recommendation #1 in full; open question tracked in
-   `WI-LEGACY-CONDA-GATING-0001`'s Open Questions).
+2. Side-effect audit recommendations #1 (metadata-only legacy
+   `refresh`/`create`) and #7 (CI-gating `scripts/audit-side-effects`) are
+   deferred to `project/design/backlog.md` rather than formalized as work
+   items — see that file for rationale and revisit triggers.
 3. Keep `taurworks project activate --print` read-only and `tw activate`/
    `tw shell refresh` as the only shell-mutating layers.
 
 ## In scope now
 
 - Landing `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`.
-- Deciding whether/how to formalize the two remaining side-effect audit
-  follow-ups above as work items.
 - Deciding scope for `taurworks dev ...` workflow automation beyond `dev
   where`/`dev status`.
 
