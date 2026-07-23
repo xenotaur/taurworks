@@ -11,44 +11,49 @@ confidence: medium
 
 This roadmap is phased and conservative. It prioritizes command-model alignment, safe incremental delivery, and explicit trust boundaries.
 
-## Current phase snapshot (2026-07-11)
+## Current phase snapshot (2026-07-22)
 
-Phases 1 through 2D below are implemented and merged, as is Phase 5's legacy
-inspect/migrate tooling. The 2026-07-11 dogfood session (the dogfooding that
-Phase 5A was waiting on) found that the activation consumer chain works
-end-to-end but no shipped command writes `[activation.environment]`, and
-that `legacy migrate` matches 0 of the 12 real legacy scripts because they
-use variable indirection. The active phase is the dogfood recovery plan:
-WI-INTERIM-TL-PIPX-0001, WI-LEGACY-BATCH-MIGRATION-0001,
-WI-ACTIVATION-PRODUCERS-0001, and WI-TRUSTED-LEGACY-SOURCING-0001.
+Phases 1 through 5A below, and the entire dogfood recovery plan
+(`WI-INTERIM-TL-PIPX-0001`, `WI-LEGACY-BATCH-MIGRATION-0001`,
+`WI-ACTIVATION-PRODUCERS-0001`, `WI-TRUSTED-LEGACY-SOURCING-0001`), are
+implemented and merged. So is the follow-up simplification of `tl` into a
+permanent break-glass fallback (`WI-TL-BREAKGLASS-0001`) and the fix for a
+separate stale-shell-helper problem, `tw shell refresh`
+(`WI-SHELL-HELPER-REFRESH-0001`). Real-workspace dogfooding of the fully
+migrated corpus (2026-07-22) found and fixed a further class of bug: a
+project can be fully migrated to declarative `config.toml` while its
+now-redundant `Admin/project-setup.source` lingers, which risks silently
+duplicating activation behavior if the script is ever trusted. The active
+phase is `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`, which automates the
+by-hand retirement recipe found during that dogfooding
+(`README.md`, "Retiring a migrated `Admin/project-setup.source`"), plus
+deciding whether to formalize the two side-effect audit recommendations
+below that were never captured as work items.
 
 ### In scope now
 
-- Interim bridge: a feature-frozen `tl` helper and a pipx-based install so
-  daily activation works while the plan lands; both carry a written
-  retirement criterion (WI-INTERIM-TL-PIPX-0001).
-- One-time, human-reviewed batch migration of the 12 real
-  `Admin/project-setup.source` projects to declarative config
-  (WI-LEGACY-BATCH-MIGRATION-0001). This supersedes any general-purpose
-  upgrade of the `legacy migrate` matcher, which is not planned (zero
-  external users).
-- Producer-side activation authoring: `project env set`, `--env` on
-  create/init, legacy create/refresh convergence onto `config.toml`, and
-  next-step guidance strings (WI-ACTIVATION-PRODUCERS-0001). Every
-  activation work item now carries the end-to-end acceptance criterion: a
-  fresh user can reach Conda-switching activation using only shipped
-  commands.
-- Phase 5A, re-scoped: trust-gated sourcing of legacy setup scripts behind a
-  two-tier consent model (user-global switch plus per-project content-digest
-  trust records in user-owned config), sized by the batch migration's
-  findings (WI-TRUSTED-LEGACY-SOURCING-0001).
+- `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`: teach `taurworks legacy migrate
+  --apply` an opt-in `--keep-tl-fallback` flag that moves a fully-covered
+  `Admin/project-setup.source` to `.taurworks/project-setup.source` (`tl`'s
+  existing fallback location), gated on the migration being fully literal
+  (`unsupported_count == 0`) so a partial migration is never silently
+  retired with behavior lost.
+- Deciding whether to formalize two still-open side-effect audit
+  recommendations (`project/audits/side_effects.md`) as work items: wiring
+  `scripts/audit-side-effects` into CI as an enforced gate (recommendation
+  #7), and whether to pursue making legacy `taurworks refresh`/`create`
+  fully metadata-only (recommendation #1 in full; open question tracked in
+  `WI-LEGACY-CONDA-GATING-0001`'s Open Questions) — most other audit
+  recommendations are resolved or reviewed-and-accepted, see that file for
+  full per-recommendation status.
 - Deciding scope for `taurworks dev ...` workflow automation beyond read-only diagnostics.
 
 ### Out of scope now
 
 - Automatic (unconsented) fallback sourcing of `Admin/project-setup.source`.
-- General-purpose `legacy migrate` matcher upgrades (superseded by the
-  one-time batch migration).
+- General-purpose `legacy migrate` matcher upgrades to handle variable
+  indirection (superseded by the one-time batch migration; still not
+  planned, zero external users).
 - venv/Docker/devcontainer environment activation strategies.
 - Broad `taurworks dev ...` workflow automation without further design.
 - Shell startup-file edits and automatic `conda init`.
@@ -144,7 +149,7 @@ WI-ACTIVATION-PRODUCERS-0001, and WI-TRUSTED-LEGACY-SOURCING-0001.
 - `taurworks legacy inspect PROJECT` and `taurworks legacy migrate PROJECT --apply` are implemented (`WI-ACTIVATION-CONFIG-0001`, PR #65). Dogfooding found the migrate matcher handles none of the 12 real legacy scripts (variable indirection); rather than generalizing the matcher, the real corpus is being migrated once via `WI-LEGACY-BATCH-MIGRATION-0001`, and the missing producer commands are tracked in `WI-ACTIVATION-PRODUCERS-0001`.
 - Arbitrary user-script sourcing remains out of scope for this phase.
 
-## Phase 5A — Trust-gated legacy script sourcing (re-scoped 2026-07-11, active)
+## Phase 5A — Trust-gated legacy script sourcing (re-scoped 2026-07-11, done)
 
 - Re-scoped after dogfooding: instead of a new hook-file schema, the first
   trusted "hook" is the existing legacy `Admin/project-setup.source`,
@@ -173,9 +178,15 @@ WI-ACTIVATION-PRODUCERS-0001, and WI-TRUSTED-LEGACY-SOURCING-0001.
 ## Untracked follow-up: side-effect audit recommendations
 
 The 2026-05-17 post-merge side-effect audit (`project/audits/side_effects.md`)
-produced seven follow-up recommendations that are not yet captured as a
-tracked phase or work item, most notably that legacy top-level `taurworks
-refresh`/`taurworks create` (and therefore `tw refresh`/`tw create`) still
-create a Conda environment by default despite sounding like safe metadata
-operations. See the proposed work item created alongside this roadmap update
-for the full list.
+produced seven follow-up recommendations. Five are now resolved or
+reviewed-and-accepted (including the Conda-environment-creation gating this
+section originally called out as most notable, resolved by
+`WI-LEGACY-CONDA-GATING-0001`). Two remain genuinely open and are not yet
+captured as a tracked phase or work item: wiring `scripts/audit-side-effects`
+into CI as an enforced gate (recommendation #7), and whether to pursue making
+legacy `taurworks refresh`/`taurworks create` fully metadata-only
+(recommendation #1 in full — currently only Conda *creation* is gated, not
+the workspace/project/repository directory creation or
+`.taurworks/project-setup.source` write; open question tracked in
+`WI-LEGACY-CONDA-GATING-0001`'s Open Questions). See
+`project/audits/side_effects.md` for the full per-recommendation status.
