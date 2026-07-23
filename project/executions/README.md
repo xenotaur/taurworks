@@ -19,10 +19,14 @@ Use the work-item ID when a prompt is tied to a work item:
 project/executions/<WORK_ITEM_ID>/<execution_id>.md
 ```
 
-`<execution_id>` is minted by `lrh prompt label` as
+`<execution_id>` has the shape
 `<YYYY_MM_DD_HH_MM_SS>_<SLUG_UPPER_UNDERSCORE>`, for example
 `2026_07_08_13_37_09_WI_LEGACY_CONDA_GATING` — the `.md` extension belongs
-to the filename, not the ID itself.
+to the filename, not the ID itself. It is minted by `lrh prompt
+record-execution` when the record is actually created, not by `lrh prompt
+label`: `label`'s own timestamp only seeds a *suggested* filename, which
+may carry an earlier timestamp than the real `execution_id` if time passes
+before `record-execution` runs.
 
 ## Creating and closing out a record
 
