@@ -2,14 +2,14 @@
 execution_id: 2026_07_23_16_43_34_WI_TAURWORKS_SETUP_0001_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_TAURWORKS_SETUP_0001_REVIEW)[2026-07-23T16:41:56-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/84
-commit: 6686a46
+commit: bcb45cd9c9d82f27e861bbebe8e77f2703a56efc
 created_at: 2026-07-23T16:43:34-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/84
-session_transcript: pending
+session_transcript: claude-app:43689ae3-1b8e-45ff-b3b8-75e8997239fb
 ---
 
 # Summary
