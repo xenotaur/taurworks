@@ -20,7 +20,7 @@ forbidden_actions:
   - remove_final_result_lines
 acceptance:
   - "a global --debug flag exists on the top-level argparse parser (src/taurworks/cli.py), and an equivalent TAURWORKS_DEBUG environment variable is honored, with the flag taking precedence when both are set"
-  - "all ~56 unconditional print() calls in src/taurworks/manager.py's create/refresh/activate/projects commands move behind the debug flag, except each command's final actionable result line (e.g. \"To activate, run: tw activate {project_name}\", \"✔ Project '{project_name}' created successfully.\"), which stays unconditional"
+  - "all ~56 unconditional print() calls in src/taurworks/manager.py's create/refresh/activate commands move behind the debug flag, except each command's final actionable result line (e.g. \"To activate, run: tw activate {project_name}\", \"✔ Project '{project_name}' created successfully.\"), which stays unconditional; list_projects (the projects command) is treated differently: its listing output (the header/rows in the non-debug branch, and the \"No projects found\" line) is the command's actual result, not narration, and stays unconditional in its entirety — it has no single final result line to carve out, since the listing itself is the result"
   - "cli.py's formatter modules (global_config.py, project_resolution.py, project_registry.py, dev.py, legacy.py) are audited for output that is actually a debug trace versus the command's documented result; any genuinely debug-shaped output found is gated behind the same flag, and the audit's findings (including \"none found\" if that's the outcome) are recorded in this WI's resolution"
   - "tests cover both --debug/TAURWORKS_DEBUG on and off for at least one manager.py command, confirming narration is suppressed by default and shown when the flag/env var is set"
   - "README.md documents the new flag and env var"
@@ -56,6 +56,20 @@ config already up to date"`) with no flag to suppress them.
 formatter functions, which is the right shape, but nothing currently
 distinguishes "normal result" from "debug trace" for either code path.
 
+Review caught a real gap in the original "gate everything except the final
+result line" framing: `list_projects` (backing the `projects` command,
+`manager.py:467-517`) has no single final result line at all — its "No
+projects found" line (line 471) and its entire "Available projects" header
+plus per-project rows (lines 478-517) *are* the command's result, listed
+incrementally rather than summarized in one closing line. Gating all of
+`list_projects`'s prints as if they were narration would make `taurworks
+projects` produce no output whatsoever by default, a real regression, not
+a debug-noise cleanup. `projects` is therefore treated as a special case:
+its listing output stays unconditional in its entirety, while `create`,
+`refresh`, and `activate` keep the original narration-except-final-line
+treatment, since each of those does have a distinct closing result line
+separate from its step-by-step progress prints.
+
 Prior art check: no existing `--debug`/`TAURWORKS_DEBUG` effort found
 in-repo (`grep -rl "TAURWORKS_DEBUG\|--debug flag\|debug flag"` across work
 items/roadmap/focus returns nothing). No `FOCUS-*`/`ROADMAP-*` phase covers
@@ -71,7 +85,9 @@ debug-flag mechanism and the `manager.py`/`cli.py` output audit only.
 
 - Add the global `--debug` flag and `TAURWORKS_DEBUG` env var.
 - Gate `manager.py`'s narration prints behind it, keeping final result
-  lines unconditional.
+  lines unconditional for `create`/`refresh`/`activate`, and keeping
+  `projects`'s entire listing output unconditional (it has no separate
+  narration to gate — the listing is the result).
 - Audit `cli.py`'s formatter modules; gate anything genuinely debug-shaped.
 - Document the flag/env var in README.md.
 
@@ -80,9 +96,13 @@ debug-flag mechanism and the `manager.py`/`cli.py` output audit only.
 1. Add `--debug` to the top-level `argparse` parser in `src/taurworks/cli.py`.
 2. Read `TAURWORKS_DEBUG` as a fallback when `--debug` is not passed; thread
    a single boolean through to command handlers.
-3. In `src/taurworks/manager.py`, gate all unconditional narration prints
-   behind the debug flag, except each command's final actionable
-   success/failure line.
+3. In `src/taurworks/manager.py`, gate `create`/`refresh`/`activate`'s
+   unconditional narration prints behind the debug flag, except each
+   command's final actionable success/failure line. Treat `projects`
+   (`list_projects`) differently: leave its entire listing output
+   (the "No projects found" line and the "Available projects" header/rows)
+   unconditional — it is the command's result, not narration, and has no
+   separate final line to carve out from the rest.
 4. Audit `global_config.py`, `project_resolution.py`, `project_registry.py`,
    `dev.py`, and `legacy.py` for debug-shaped output (internal resolution
    traces, intermediate diagnostic fields not needed for the command's
@@ -104,10 +124,14 @@ debug-flag mechanism and the `manager.py`/`cli.py` output audit only.
   (`src/taurworks/cli.py`), and an equivalent `TAURWORKS_DEBUG` environment
   variable is honored, with the flag taking precedence when both are set.
 - All ~56 unconditional `print()` calls in `src/taurworks/manager.py`'s
-  `create`/`refresh`/`activate`/`projects` commands move behind the debug
-  flag, except each command's final actionable result line (e.g. `"To
+  `create`/`refresh`/`activate` commands move behind the debug flag,
+  except each command's final actionable result line (e.g. `"To
   activate, run: tw activate {project_name}"`, `"✔ Project
   '{project_name}' created successfully."`), which stays unconditional.
+  `projects` (`list_projects`) is a special case: its listing output (the
+  "No projects found" line and the "Available projects" header/rows) is
+  the command's actual result, not narration, and stays unconditional in
+  its entirety.
 - `cli.py`'s formatter modules (`global_config.py`, `project_resolution.py`,
   `project_registry.py`, `dev.py`, `legacy.py`) are audited for output that
   is actually a debug trace versus the command's documented result; any
