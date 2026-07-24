@@ -20,7 +20,7 @@ forbidden_actions:
   - change_tw_activate_semantics
 acceptance:
   - "when `taurworks` does not resolve on $PATH, `tw`'s initial delegation prints a diagnostic identifying the likely cause (an active Conda environment without taurworks installed) and a concrete next step, then returns non-zero, instead of a bare shell 'command not found'"
-  - "every internal `command taurworks ...` call site inside tw activate (including those made after conda activate runs, e.g. the legacy inspect / project trust set calls in the untrusted-legacy flow) is guarded against the same PATH-loss failure, not only the outermost entry point"
+  - "every `command taurworks ...` call site in src/taurworks/resources/shell/taurworks-shell.sh is guarded against the same PATH-loss failure, not only the outermost fallthrough: this includes tw activate's own calls before conda activate runs (project activate --shell), the calls reached after conda activate runs (legacy inspect / project trust set in the untrusted-legacy flow), tw shell refresh's shell print call, and tw help's delegation calls"
   - "the guard adds no new subprocess spawn beyond what is already needed to check resolvability (e.g. a single `command -v taurworks` check, cached for the duration of one tw invocation where applicable)"
   - "tl is verified to need no equivalent change, since it never depends on taurworks being resolvable"
   - "tests or a documented manual dogfood procedure demonstrate the diagnostic firing when taurworks is hidden by a Conda environment switch, both at initial delegation and from within tw activate after conda activate runs"
@@ -45,21 +45,29 @@ found` be the only signal. This is Decisions #4 from
 
 Switching into a Conda environment that lacks `taurworks` currently fails
 as a bare shell `command not found` with no indication of cause or fix.
-`tw activate` itself runs `conda activate <name>` mid-function
-(`src/taurworks/resources/shell/taurworks-shell.sh`) and makes further
-internal `command taurworks ...` calls afterward — for example `legacy
-inspect` and `project trust set` during interactive untrusted-legacy
-handling (lines ~78, ~87), plus the `project activate --shell` calls (lines
-~198, ~204) and the `shell print` call inside `tw shell refresh` (line
-~372). A single check at the outermost entry/fallthrough point (line ~415)
-would miss the case where the newly-activated environment hides
-`taurworks` mid-function, after that entry check already passed.
+`src/taurworks/resources/shell/taurworks-shell.sh` has 8 distinct
+`command taurworks ...` call sites, not just one: `tw activate`'s own
+`project activate --shell` calls *before* `conda activate` runs (lines
+~198, ~204); the `legacy inspect` / `project trust set` calls reached
+*after* `conda activate` runs, during interactive untrusted-legacy
+handling (lines ~78, ~87); `tw shell refresh`'s `shell print` call (line
+~372); `tw help`'s two delegation calls (lines ~408, ~410); and the
+general fallthrough delegation (line ~415). Review corrected an earlier,
+narrower framing of this work item that guarded only the fallthrough and
+the post-activation calls — a single check at the outermost
+entry/fallthrough point alone would miss every other call site, including
+ones reached *before* any Conda activation happens at all (`tw activate`'s
+own initial calls) and ones in code paths (`tw shell refresh`, `tw help`)
+that have nothing to do with activation. All 8 call sites are now in
+scope.
 
-Prior art check: no existing PATH-loss diagnostic or equivalent effort
-found in-repo (`grep -rl "PATH-loss\|command not found\|conda.*taurworks.*resolve"`
-across work items/roadmap/focus returns nothing). No `FOCUS-*`/`ROADMAP-*`
-phase covers this yet; `related_focus`/`related_roadmap` left empty per
-`WI-SHELL-HELPER-REFRESH-0001` precedent.
+Prior art check: before drafting this work item, no existing work item,
+roadmap phase, or focus entry covered a PATH-loss diagnostic for `tw`
+(`grep -rl "PATH-loss\|command not found\|conda.*taurworks.*resolve"`
+across work items/roadmap/focus returned nothing at that time — that grep
+will of course now match this file itself once it exists in the repo). No
+`FOCUS-*`/`ROADMAP-*` phase covers this yet; `related_focus`/`related_roadmap`
+left empty per `WI-SHELL-HELPER-REFRESH-0001` precedent.
 
 One of four work items drafted from `project/design/packaging_and_install.md`;
 the others cover the `taurworks setup` command, the `bin/`/`taurscripts`
@@ -68,26 +76,40 @@ scoped to the PATH-loss diagnostic only.
 
 ## Scope
 
-- Add a resolvability check to `tw`'s initial delegation path.
-- Extend that guard to cover internal `command taurworks ...` call sites
-  reached after `conda activate` runs within `tw activate`, not only the
-  outermost entry point.
+- Add a resolvability check to `tw`'s fallthrough delegation path.
+- Extend that guard to cover all `command taurworks ...` call sites in
+  `src/taurworks/resources/shell/taurworks-shell.sh` — not only the
+  fallthrough, and not only calls reached after `conda activate` runs: all
+  8 call sites (`tw activate`'s pre-activation calls, its
+  post-activation untrusted-legacy calls, `tw shell refresh`'s call, `tw
+  help`'s two calls, and the fallthrough).
 - Document the diagnostic's behavior in README.md.
 
 ## Required Changes
 
 1. Add a `command -v taurworks` (or equivalent) resolvability check before
-   `tw`'s fallthrough delegation (`command taurworks "$@"`).
+   `tw`'s fallthrough delegation (`command taurworks "$@"`, line ~415).
 2. On failure, print a diagnostic to stderr naming the likely cause (an
    active Conda environment without `taurworks` installed) and a concrete
    next step (switch back, or check `which taurworks` / `pipx list`), then
    return non-zero.
-3. Guard every internal `command taurworks ...` call site reached from
-   within `tw activate` after `conda activate` runs — either by
-   re-checking resolvability at each site, or by resolving and caching the
-   executable path once before Conda activation happens in a given
-   invocation and reusing that resolved reference for the rest of the
-   invocation. Exact mechanism is an implementation decision for this WI.
+3. Guard all 8 `command taurworks ...` call sites in
+   `taurworks-shell.sh`, not only the fallthrough and not only calls
+   reached after `conda activate` runs:
+   - `tw activate`'s own `project activate --shell` calls, reached
+     *before* any `conda activate` runs (lines ~198, ~204);
+   - the `legacy inspect` / `project trust set` calls reached *after*
+     `conda activate` runs, during interactive untrusted-legacy handling
+     (lines ~78, ~87);
+   - `tw shell refresh`'s `shell print` call (line ~372);
+   - `tw help`'s two delegation calls (lines ~408, ~410);
+   - the general fallthrough delegation (line ~415).
+
+   Guard by either re-checking resolvability at each site, or by resolving
+   and caching the executable path once per `tw` invocation (before any
+   Conda activation that invocation might perform) and reusing that
+   resolved reference at every call site in the same invocation. Exact
+   mechanism is an implementation decision for this WI.
 4. Do not add a new subprocess spawn beyond what resolvability checking
    itself requires.
 5. Verify `tl` needs no equivalent change (documented already in the
@@ -110,11 +132,14 @@ scoped to the PATH-loss diagnostic only.
   prints a diagnostic identifying the likely cause (an active Conda
   environment without `taurworks` installed) and a concrete next step,
   then returns non-zero, instead of a bare shell "command not found."
-- Every internal `command taurworks ...` call site inside `tw activate`
-  (including those made after `conda activate` runs, e.g. the `legacy
-  inspect` / `project trust set` calls in the untrusted-legacy flow) is
-  guarded against the same PATH-loss failure, not only the outermost entry
-  point.
+- Every `command taurworks ...` call site in
+  `src/taurworks/resources/shell/taurworks-shell.sh` is guarded against
+  the same PATH-loss failure — all 8 sites: `tw activate`'s pre-activation
+  calls (`project activate --shell`), its post-activation untrusted-legacy
+  calls (`legacy inspect` / `project trust set`), `tw shell refresh`'s
+  `shell print` call, `tw help`'s two delegation calls, and the general
+  fallthrough — not only the fallthrough and not only calls reached after
+  `conda activate` runs.
 - The guard adds no new subprocess spawn beyond what is already needed to
   check resolvability (e.g. a single `command -v taurworks` check, cached
   for the duration of one `tw` invocation where applicable).
@@ -122,8 +147,10 @@ scoped to the PATH-loss diagnostic only.
   `taurworks` being resolvable.
 - Tests or a documented manual dogfood procedure demonstrate the
   diagnostic firing when `taurworks` is hidden by a Conda environment
-  switch, both at initial delegation and from within `tw activate` after
-  `conda activate` runs.
+  switch, covering at minimum: plain `tw ...` fallthrough delegation,
+  `tw activate` before any Conda activation, `tw activate` after `conda
+  activate` runs (untrusted-legacy flow), `tw shell refresh`, and `tw
+  help`.
 
 ## Validation
 
@@ -131,6 +158,7 @@ scoped to the PATH-loss diagnostic only.
 - ./scripts/lint
 - ./scripts/test
 - manual dogfood: activate a Conda environment without `taurworks`
-  installed and confirm the diagnostic fires both at plain `tw ...`
-  delegation and from within `tw activate` after `conda activate` runs
+  installed and confirm the diagnostic fires at each of the 8 call sites
+  (fallthrough, tw activate pre- and post-Conda-activation, tw shell
+  refresh, tw help)
 - lrh validate
