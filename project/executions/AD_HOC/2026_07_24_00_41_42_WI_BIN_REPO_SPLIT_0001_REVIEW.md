@@ -2,14 +2,14 @@
 execution_id: 2026_07_24_00_41_42_WI_BIN_REPO_SPLIT_0001_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_BIN_REPO_SPLIT_0001_REVIEW)[2026-07-24T00:38:40-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/85
-commit: 1fa6250
+commit: 6c83da80f2fd2a1676041cebb3d7beffd21e3e22
 created_at: 2026-07-24T00:41:42-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/85
-session_transcript: pending
+session_transcript: claude-app:43689ae3-1b8e-45ff-b3b8-75e8997239fb
 ---
 
 # Summary
