@@ -2,14 +2,14 @@
 execution_id: 2026_07_24_16_10_29_WI_TAURWORKS_DEBUG_FLAG_0001_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_TAURWORKS_DEBUG_FLAG_0001_REVIEW)[2026-07-24T16:08:11-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/87
-commit: 26c91b6
+commit: 376bf1ca0aa0435aa980241613d254fde586f7cc
 created_at: 2026-07-24T16:10:29-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/87
-session_transcript: pending
+session_transcript: claude-app:43689ae3-1b8e-45ff-b3b8-75e8997239fb
 ---
 
 # Summary
@@ -57,6 +57,8 @@ file's content was untouched).
 
 No comments skipped. (The 3 contributor-file comments are moot after the
 rebase, not skipped by triage — their target no longer exists in the diff.)
+
+CHAIN-NOTE: cycles=1; stops=1; gates=[merge]; friction="branch created off stale local master bundled an unrelated unpushed commit, required manual rebase+force-push before review-response could proceed"; note="PR #87 merged 376bf1c, closeout complete"
 
 # Validation
 
