@@ -2,10 +2,10 @@
 id: WI-BIN-REPO-SPLIT-0001
 title: Split bin/ out of taurworks; relocate migrate_legacy_projects.py; wire sourceme/ into packaging
 type: deliverable
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: "Implemented and merged in PR #88 (commit 6cd1210). bin/ (personal dotfiles) and man/man1/drq.1 split into a new private sibling repo, xenotaur/taurscripts, preserving full commit history (19 commits, 2017-2025) via a two-pass git filter-repo extraction -- not deletion, correcting an earlier flawed in-session audit conclusion. migrate_legacy_projects.py relocated to src/taurworks/tools/. sourceme/'s 3 files relocated to src/taurworks/resources/sourceme/ and wired into setup.py's package_data, fixing the packaging gap PR #84/#85 review caught -- verified via built-wheel inspection."
 related_focus: []
 related_roadmap: []
 related_workstreams: []
