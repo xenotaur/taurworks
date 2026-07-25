@@ -5,11 +5,14 @@ import unittest
 
 from taurworks import project_internals
 
-# bin/ is not an importable package, so load the one-time migration script by
-# path. Its module name has no hyphen, so this is a clean spec-based import.
+# Load the one-time migration script by path rather than as a normal
+# `taurworks.tools` import, keeping it out of the package's public import
+# surface. Its module name has no hyphen, so this is a clean spec-based import.
 _MIGRATE_PATH = (
     pathlib.Path(__file__).resolve().parent.parent
-    / "bin"
+    / "src"
+    / "taurworks"
+    / "tools"
     / "migrate_legacy_projects.py"
 )
 _spec = importlib.util.spec_from_file_location("migrate_legacy_projects", _MIGRATE_PATH)

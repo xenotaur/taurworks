@@ -110,13 +110,14 @@ Three layers make up the activation stack:
   `[activation.exports]`, activates a configured Conda environment, changes
   directory, and offers trust-gated legacy sourcing.
 - **`tl`** ("Taurworks Legacy") is a permanent, dependency-free break-glass
-  fallback provided by `sourceme/aliases.source`. Reach for it when `tw` is
-  unavailable or unreliable — for example, a Conda environment switch hid
-  the `taurworks` executable, or your sourced `tw` function has gone stale
-  (see below) and you don't want to regenerate it mid-task.
+  fallback provided by `src/taurworks/resources/sourceme/aliases.source`.
+  Reach for it when `tw` is unavailable or unreliable — for example, a
+  Conda environment switch hid the `taurworks` executable, or your sourced
+  `tw` function has gone stale (see below) and you don't want to
+  regenerate it mid-task.
 
 ```bash
-source <path-to-checkout>/sourceme/aliases.source
+source <path-to-checkout>/src/taurworks/resources/sourceme/aliases.source
 tl PROJECT_NAME
 ```
 
@@ -903,7 +904,15 @@ The import package is provided from `src/taurworks/` using a standard `src/` lay
 
 ## Legacy shell utility inventory (historical)
 
-The repository still contains historical shell utilities under `bin/` and `sourceme/`. These artifacts remain available, but the command model and roadmap focus for Taurworks development is the `taurworks` executable and the documented namespaced direction above.
+The repository previously contained a `bin/` directory of historical,
+personal Unix shell utilities unrelated to the `taurworks` package
+(`dot.bashrc`, `drq`, `grr`, byobu configs, etc.). These have been split
+out, with their full commit history, into a separate `taurscripts`
+repository, so the `taurworks` repository can focus on the `taurworks`
+command. `tl`'s delivery mechanism (formerly `sourceme/`) is packaged
+`taurworks`-specific tooling, not personal material, and now lives at
+`src/taurworks/resources/sourceme/` (see "`taurworks`, `tw`, and `tl`"
+above).
 
 ## Local quality commands
 
