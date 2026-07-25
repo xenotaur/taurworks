@@ -6,8 +6,9 @@ roles:
 status: active
 execution_mode: autonomous
 display_name: GitHub Copilot
-github: Copilot
+github: copilot-pull-request-reviewer
 notes: >
-  Identifiable via GitHub PR review comments authored by the Copilot
-  account; auto-triggers PR review without per-turn human orchestration.
+  Identifiable via GitHub PR review comments authored by the
+  copilot-pull-request-reviewer account; auto-triggers PR review without
+  per-turn human orchestration.
 ---
