@@ -4,7 +4,7 @@
 - Taurworks is a command-line utility suite that currently includes a project lifecycle tool for creating, refreshing, listing, and activating development project environments.
 
 ## Overview
-- The repository combines legacy Unix utilities (`bin/`) with an installable Python CLI (`taurworks=taurworks.cli:main`).
+- The repository is an installable Python CLI (`taurworks=taurworks.cli:main`); legacy personal Unix utilities formerly under `bin/` have been split out into a separate `taurscripts` repository.
 - Current lifecycle operations are centered in `src/taurworks/cli.py` and `src/taurworks/manager.py`.
 - Lifecycle behavior is explicit and inspectable: directories and scripts are created on disk; activation is printed for manual sourcing.
 
@@ -23,7 +23,6 @@
 ## Known Unknowns
 - Whether non-Conda backends are in scope.
 - Whether formal project metadata/config schema will be introduced.
-- Long-term boundary between legacy utility scripts and lifecycle manager functionality.
 
 ## Notes
 - Derived summary only (non-authoritative).

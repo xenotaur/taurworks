@@ -5,7 +5,9 @@ import tempfile
 import unittest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
-ALIASES_SOURCE = REPO_ROOT / "sourceme" / "aliases.source"
+ALIASES_SOURCE = (
+    REPO_ROOT / "src" / "taurworks" / "resources" / "sourceme" / "aliases.source"
+)
 
 
 def _run(cmd: list[str], env: dict[str, str]) -> subprocess.CompletedProcess:

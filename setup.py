@@ -5,7 +5,14 @@ setup(
     version="0.1",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
-    package_data={"taurworks": ["resources/shell/taurworks-shell.sh"]},
+    package_data={
+        "taurworks": [
+            "resources/shell/taurworks-shell.sh",
+            "resources/sourceme/aliases.source",
+            "resources/sourceme/completions.source",
+            "resources/sourceme/man.source",
+        ]
+    },
     install_requires=[],
     extras_require={
         "dev": [
