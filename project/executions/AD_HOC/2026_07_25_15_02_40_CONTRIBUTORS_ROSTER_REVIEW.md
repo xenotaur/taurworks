@@ -2,13 +2,13 @@
 execution_id: 2026_07_25_15_02_40_CONTRIBUTORS_ROSTER_REVIEW
 prompt_id: PROMPT(AD_HOC:CONTRIBUTORS_ROSTER_REVIEW)[2026-07-25T15:01:17-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/89
-commit: e3d5a52
+commit: 39b9aad169dfffdd3c5ad39deaaa2c7d5673a086
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/89
-session_transcript: pending
+session_transcript: claude-app:94d9d00e-f45f-42fc-90c0-53050ac3470c
 created_at: 2026-07-25T15:02:40-04:00
 ---
 
