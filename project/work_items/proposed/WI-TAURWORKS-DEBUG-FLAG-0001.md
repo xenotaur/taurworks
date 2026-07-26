@@ -6,8 +6,10 @@ status: proposed
 blocked: false
 blocked_reason: null
 resolution: null
-related_focus: []
-related_roadmap: []
+related_focus:
+  - FOCUS-CURRENT
+related_roadmap:
+  - ROADMAP-INIT
 related_workstreams: []
 depends_on: []
 blocked_by: []
@@ -72,9 +74,12 @@ separate from its step-by-step progress prints.
 
 Prior art check: no existing `--debug`/`TAURWORKS_DEBUG` effort found
 in-repo (`grep -rl "TAURWORKS_DEBUG\|--debug flag\|debug flag"` across work
-items/roadmap/focus returns nothing). No `FOCUS-*`/`ROADMAP-*` phase covers
-this yet; `related_focus`/`related_roadmap` left empty per
-`WI-SHELL-HELPER-REFRESH-0001` precedent.
+items/roadmap/focus returns nothing). At the time this work item was
+drafted no `FOCUS-*`/`ROADMAP-*` phase covered this; `project/focus/current_focus.md`
+(`FOCUS-CURRENT`) and `project/roadmap/roadmap.md` (`ROADMAP-INIT` Phase 8)
+have since been updated to cover this and the other three
+`project/design/packaging_and_install.md` work items; `related_focus`/
+`related_roadmap` above reflect that.
 
 One of four work items drafted from `project/design/packaging_and_install.md`;
 the others cover the `taurworks setup` command, the `bin/`/`taurscripts`

@@ -1,58 +1,61 @@
 ---
 id: FOCUS-CURRENT
-title: Side-effect audit follow-ups and tl-compatible legacy retirement automation
+title: Packaging/install cleanup (tracked separately); legacy-migrate-tl-fallback deferred
 status: active
-updated: 2026-07-23
-basis: legacy_migration_and_trust_gating_complete
+updated: 2026-07-25
+basis: bin_repo_split_resolved_legacy_migrate_deferred
 confidence: high
 ---
 
 # Current Focus
 
-Legacy `Admin/project-setup.source` inspect/migrate tooling, trust-gated
-legacy sourcing, the `tl` break-glass helper, and the stale-shell-helper fix
-(`tw shell refresh`) are all implemented and merged. Real-workspace
-dogfooding (2026-07-11 through 2026-07-22) found and fixed a further class
-of bug: a project can be fully migrated to declarative `config.toml` while
-its now-redundant `Admin/project-setup.source` lingers, which risks silently
-duplicating declarative activation behavior if the script is ever trusted.
-Focus now shifts to `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`, which automates
-the by-hand retirement recipe found during that dogfooding. The two
-side-effect audit recommendations that were never captured as work items
-have since been assessed (2026-07-23) and deferred to
-`project/design/backlog.md` rather than formalized as work items.
+`project/design/packaging_and_install.md`'s four-gap packaging/install audit
+is partially landed: the repo/package split (`WI-BIN-REPO-SPLIT-0001`) is
+resolved. The remaining three gaps — a one-step `taurworks setup` install
+command, a `tw` PATH-loss diagnostic, and a `--debug` flag to gate
+`manager.py`'s narration — remain proposed and ready to implement
+(`WI-TAURWORKS-SETUP-0001`, `WI-TW-PATH-LOSS-DIAGNOSTIC-0001`,
+`WI-TAURWORKS-DEBUG-FLAG-0001`). That work is tracked in a separate thread,
+not this one.
+
+`WI-LEGACY-MIGRATE-TL-FALLBACK-0001` (automating
+`Admin/project-setup.source` retirement once a project is fully migrated to
+declarative `config.toml`) remains proposed rather than active. It is being
+deliberately held — possibly permanently — pending confirmation, after the
+packaging work above lands, that legacy `Admin/project-setup.source`
+projects still exist that would actually benefit from it.
+
+The two side-effect audit recommendations that were never captured as work
+items remain assessed-and-deferred in `project/design/backlog.md`
+(unchanged since 2026-07-23).
 
 ## Active direction
 
-1. `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` (in progress): teach
-   `taurworks legacy migrate --apply` an opt-in `--keep-tl-fallback` flag
-   that moves a fully-covered `Admin/project-setup.source` to
-   `.taurworks/project-setup.source` (`tl`'s existing fallback location),
-   gated on the migration being verified fully complete —
-   `unsupported_count == 0` alone is insufficient, since merge-time
-   duplicates/conflicts can leave real behavior unrepresented in
-   `config.toml` without incrementing that count; the gate also requires
-   `manual_review` empty and every `skipped` entry verified equal to what
-   the legacy line would have set — so a partial migration is never
-   silently retired with behavior lost.
-2. Side-effect audit recommendations #1 (metadata-only legacy
-   `refresh`/`create`) and #7 (CI-gating `scripts/audit-side-effects`) are
-   deferred to `project/design/backlog.md` rather than formalized as work
-   items — see that file for rationale and revisit triggers.
-3. Keep `taurworks project activate --print` read-only and `tw activate`/
+1. Packaging/install cleanup (tracked in a separate thread): implement
+   `taurworks setup` + `scripts/install` (`WI-TAURWORKS-SETUP-0001`), the
+   `tw` PATH-loss diagnostic (`WI-TW-PATH-LOSS-DIAGNOSTIC-0001`), and the
+   `--debug`/`TAURWORKS_DEBUG` flag (`WI-TAURWORKS-DEBUG-FLAG-0001`). All
+   three are prompt-ready with no blockers.
+2. `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` stays deferred — do not pick it up
+   without first confirming it's still needed.
+3. Deciding scope for `taurworks dev ...` workflow automation beyond `dev
+   where`/`dev status` remains an open, undecided question.
+4. Keep `taurworks project activate --print` read-only and `tw activate`/
    `tw shell refresh` as the only shell-mutating layers.
 
 ## In scope now
 
-- Landing `WI-LEGACY-MIGRATE-TL-FALLBACK-0001`.
-- Deciding scope for `taurworks dev ...` workflow automation beyond `dev
-  where`/`dev status`.
+- Landing the three proposed packaging/install work items (tracked
+  separately from this focus document's own thread).
+- Deciding `taurworks dev ...` workflow-automation scope.
 
 ## Out of scope now
 
+- Implementing `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` without first
+  confirming it's still needed.
 - Upgrading the `legacy migrate` matcher to handle variable indirection
-  (explicitly not planned per `project/roadmap/roadmap.md`; zero external
-  users; superseded by the one-time real-corpus batch migration).
+  (explicitly not planned; zero external users; superseded by the
+  one-time real-corpus batch migration).
 - Broad repo workflow automation under `taurworks dev ...` without further
   design.
 - Shell startup-file edits.
@@ -82,7 +85,13 @@ have since been assessed (2026-07-23) and deferred to
   (`WI-LEGACY-CONDA-GATING-0001`); most other side-effect audit
   recommendations resolved or reviewed-and-accepted (see
   `project/audits/side_effects.md` for full per-recommendation status).
+- `bin/`'s personal-dotfile material split into a separate sibling repo
+  (`xenotaur/taurscripts`, with full history preserved),
+  `migrate_legacy_projects.py` relocated under the package, and
+  `sourceme/` wired into `setup.py` packaging (`WI-BIN-REPO-SPLIT-0001`).
 - Minimal read-only `taurworks dev where`/`dev status`.
+- Contributors roster (`project/contributors/*.md`) replacing the
+  previously-broken placeholder.
 
 ## Safety stance
 
