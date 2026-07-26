@@ -6,8 +6,10 @@ status: proposed
 blocked: false
 blocked_reason: null
 resolution: null
-related_focus: []
-related_roadmap: []
+related_focus:
+  - FOCUS-CURRENT
+related_roadmap:
+  - ROADMAP-INIT
 related_workstreams: []
 depends_on: []
 blocked_by: []
@@ -60,11 +62,13 @@ Taurworks' own config file.
 Prior art check: no existing `taurworks setup` or `scripts/install`
 implementation found in-repo (`grep -rl "taurworks setup\|scripts/install"`
 across work items/roadmap/focus returns nothing); no open work item or
-backlog entry already requests this. `project/focus/current_focus.md`
-(`FOCUS-CURRENT`) is scoped to legacy migration tooling, not packaging;
-`project/roadmap/roadmap.md` has no phase covering install/packaging yet —
-`related_focus`/`related_roadmap` are left empty, consistent with
-`WI-SHELL-HELPER-REFRESH-0001`'s precedent.
+backlog entry already requests this. At the time this work item was
+drafted, `project/focus/current_focus.md` (`FOCUS-CURRENT`) was scoped to
+legacy migration tooling, not packaging, and `project/roadmap/roadmap.md`
+had no phase covering install/packaging — both have since been updated
+(`FOCUS-CURRENT`, `ROADMAP-INIT` Phase 8) to cover this and the other three
+`project/design/packaging_and_install.md` work items; `related_focus`/
+`related_roadmap` above reflect that.
 
 This is one of four work items drafted from
 `project/design/packaging_and_install.md`; the other three cover the
