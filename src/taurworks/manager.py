@@ -111,7 +111,13 @@ def camel_to_snake(name):
 
 def _validate_project_name(project_name):
     """Ensure the project name is safe from path traversal."""
-    if not project_name or project_name == "." or project_name == ".." or "/" in project_name or "\\" in project_name:
+    if (
+        not project_name
+        or project_name == "."
+        or project_name == ".."
+        or "/" in project_name
+        or "\\" in project_name
+    ):
         print(f"❌ Error: Invalid project name '{project_name}'.", file=sys.stderr)
         sys.exit(1)
 
