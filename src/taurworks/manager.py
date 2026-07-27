@@ -109,6 +109,13 @@ def camel_to_snake(name):
     return re.sub(r"(?<!^)([A-Z])", r"_\1", name).lower()
 
 
+def _validate_project_name(project_name):
+    """Ensure the project name is safe from path traversal."""
+    if not project_name or project_name == "." or project_name == ".." or "/" in project_name or "\\" in project_name:
+        print(f"❌ Error: Invalid project name '{project_name}'.", file=sys.stderr)
+        sys.exit(1)
+
+
 def _write_initial_project_config(project_root, env_name, repo_dir_name):
     """Write missing declarative activation config; never overwrite existing values.
 
@@ -165,6 +172,7 @@ def refresh_project(
     create_env=False,
 ):
     """Ensures a project is correctly set up."""
+    _validate_project_name(project_name)
     project_dir = os.path.join(TAURWORKS_WORKSPACE, project_name)
     admin_dir = os.path.join(project_dir, ".taurworks")
     repo_name = camel_to_snake(project_name)
@@ -525,6 +533,7 @@ def create_project(
     create_env=False,
 ):
     """Creates a new project with the predefined structure."""
+    _validate_project_name(project_name)
     project_dir = os.path.join(TAURWORKS_WORKSPACE, project_name)
 
     # Check if the project already exists
@@ -605,6 +614,7 @@ def create_project(
 
 def activate_project(project_name):
     """Print compatibility activation guidance for a workspace project."""
+    _validate_project_name(project_name)
     project_dir = workspace_path() / project_name
     project = classify_project_entry(project_dir)
 
