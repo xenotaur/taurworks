@@ -2,10 +2,10 @@
 id: WI-TAURWORKS-SETUP-0001
 title: Add `taurworks setup` command and `scripts/install` shim
 type: deliverable
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: "Implemented and merged in PR #93 (commit aace0c46bb7f59896634197f5905ee7ad122374d). Adds `taurworks setup` (idempotent, XDG-aware installation of the `tw`/`tl` shell helpers) and `scripts/install`. Fixes the refresh/setup path-drift gap by making `tw shell refresh` use identical XDG-aware resolution. Review caught 9 real bugs across two follow-up rounds (nounset-safety regression, tilde-prefixed XDG_CONFIG_HOME divergence, relative-override inconsistency, unquoted source lines, pipx PATH assumption, test-isolation leak, missing execution record) -- all fixed and independently re-verified. WI-BIN-REPO-SPLIT-0001's prior merge made the sourceme/->package_data half of Required Change #4 a no-op."
 related_focus:
   - FOCUS-CURRENT
 related_roadmap:
