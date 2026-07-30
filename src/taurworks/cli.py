@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 
 from taurworks import dev
@@ -9,6 +10,30 @@ from taurworks import project_registry
 from taurworks import project_resolution
 from taurworks import setup_command
 from taurworks import shell_resources
+
+
+def _env_flag_truthy(value):
+    """Interpret an environment variable value as a boolean flag.
+
+    Empty/unset/whitespace-only, "0", "false", and "no" (case-insensitive)
+    are falsy; any other non-empty value is truthy.
+    """
+    if value is None:
+        return False
+    stripped = value.strip().lower()
+    return stripped not in ("", "0", "false", "no")
+
+
+def _debug_enabled(args):
+    """Resolve the effective --debug/$TAURWORKS_DEBUG state.
+
+    --debug always wins when passed, since argparse's store_true gives no
+    way to distinguish "not passed" from an explicit "off"; TAURWORKS_DEBUG
+    is only consulted as a fallback when --debug was not passed.
+    """
+    if getattr(args, "debug", False):
+        return True
+    return _env_flag_truthy(os.environ.get("TAURWORKS_DEBUG"))
 
 
 def _handle_config_command(args):
@@ -299,6 +324,15 @@ def main(argv=None):
 
     parser = argparse.ArgumentParser(
         prog="taurworks", description="Manage taurworks projects."
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help=(
+            "Show verbose step-by-step narration for `create`/`refresh` "
+            "(also honored via $TAURWORKS_DEBUG; --debug takes precedence "
+            "when both are set)."
+        ),
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1109,6 +1143,7 @@ def main(argv=None):
             packages=args.packages,
             env_file=args.file,
             create_env=args.create_env,
+            debug=_debug_enabled(args),
         )
     elif args.command == "refresh":
         manager.refresh_project(
@@ -1117,6 +1152,7 @@ def main(argv=None):
             packages=args.packages,
             env_file=args.file,
             create_env=args.create_env,
+            debug=_debug_enabled(args),
         )
     elif args.command == "config":
         _handle_config_command(args)
