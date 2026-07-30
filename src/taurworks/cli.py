@@ -15,12 +15,13 @@ from taurworks import shell_resources
 def _env_flag_truthy(value):
     """Interpret an environment variable value as a boolean flag.
 
-    Empty/unset, "0", "false", and "no" (case-insensitive) are falsy; any
-    other non-empty value is truthy.
+    Empty/unset/whitespace-only, "0", "false", and "no" (case-insensitive)
+    are falsy; any other non-empty value is truthy.
     """
-    if not value:
+    if value is None:
         return False
-    return value.strip().lower() not in ("0", "false", "no")
+    stripped = value.strip().lower()
+    return stripped not in ("", "0", "false", "no")
 
 
 def _debug_enabled(args):

@@ -2843,6 +2843,31 @@ class DebugFlagCliTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertNotIn("Skipping Conda environment creation", result.stdout)
 
+    def test_create_taurworks_debug_env_var_whitespace_only_stays_off(self):
+        # Regression test: `_env_flag_truthy` used to check `if not value`
+        # before stripping, so a whitespace-only value (non-empty as a
+        # string) skipped that early-false branch and fell through to being
+        # treated as truthy -- contradicting its own "empty is falsy"
+        # docstring.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            env = _subprocess_env()
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            env["TAURWORKS_DEBUG"] = "   "
+            cmd = [sys.executable, "-m", "taurworks.cli", "create", "Alpha"]
+            result = subprocess.run(
+                cmd,
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertNotIn("Skipping Conda environment creation", result.stdout)
+
     def test_create_debug_flag_takes_precedence_over_falsy_env_var(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = pathlib.Path(temp_dir)
