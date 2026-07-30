@@ -5,7 +5,7 @@ work_item: AD_HOC
 status: in_progress
 rerun_of: 2026_07_30_16_33_25_WI_TAURWORKS_DEBUG_FLAG_0001
 pr: https://github.com/xenotaur/taurworks/pull/95
-commit: pending
+commit: 726ebe8606f8822d366fa6e9140343653958f591
 created_at: 2026-07-30T23:05:42+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/95
