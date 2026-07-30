@@ -2,10 +2,10 @@
 id: WI-TAURWORKS-DEBUG-FLAG-0001
 title: Add --debug/TAURWORKS_DEBUG flag; gate manager.py narration and audit cli.py formatters
 type: deliverable
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: "Implemented and merged in PR #95 (commit d6c43cc86a53c1bb840b4b1860983e4a1fe2bb4a). Adds a global `--debug` flag / `$TAURWORKS_DEBUG` fallback (flag takes precedence), gating manager.py's create/refresh narration (all 56 print() calls audited) while keeping every final actionable result line unconditional in both success and failure paths. list_projects and activate_project needed no code change -- neither has separate narration to gate. Audit of cli.py's 5 formatter modules (global_config.py, project_resolution.py, project_registry.py, dev.py, legacy.py) plus cli.py itself found zero debug-shaped output anywhere -- every command already prints exactly one documented-result string; nothing gated as a result. Review caught one real bug (whitespace-only $TAURWORKS_DEBUG misclassified as truthy) -- fixed and independently re-verified. This completes all four work items drafted from project/design/packaging_and_install.md."
 related_focus:
   - FOCUS-CURRENT
 related_roadmap:

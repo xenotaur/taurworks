@@ -2,10 +2,10 @@
 execution_id: 2026_07_30_23_16_16_WI_TAURWORKS_DEBUG_FLAG_0001_IMPL_CONFIRM
 prompt_id: PROMPT(AD_HOC:WI_TAURWORKS_DEBUG_FLAG_0001_IMPL_CONFIRM)[2026-07-30T23:16:16+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/95
-commit: 9b3c58bb018a2e9736c6b6517b142518cd84f33d
+commit: d6c43cc86a53c1bb840b4b1860983e4a1fe2bb4a
 created_at: 2026-07-30T23:16:16+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/95
