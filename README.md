@@ -5,16 +5,49 @@ Taurworks is a command-line development framework for creating, switching to, an
 ## User install and shell helper setup
 
 Taurworks is not published to PyPI (a roadmap out-of-scope item), so install
-it from a local checkout. Prefer `pipx` so the `taurworks` command lives in
-its own isolated environment with a shim on `~/.local/bin`: it stays on PATH
-no matter which Conda environment is active, which fixes the
-`taurworks: command not found` failure that otherwise appears after
-activating a project environment that lacks the package. Use `--editable`
-if the checkout is your development copy, so code changes take effect
-without reinstalling:
+it from a local checkout. The one-step path from a fresh checkout is:
+
+```bash
+scripts/install
+```
+
+This runs a non-editable `pipx install . --force` (so the installed command
+is self-contained and independent of the checkout's later fate — see
+"Editable vs. non-editable" below) followed by `taurworks setup`, which
+writes the sourceable shell helper and the `tl` break-glass source file to
+their resolved locations and prints the exact `source` lines to add to your
+shell startup file. `scripts/install` derives the repository root from its
+own location, so it works whether invoked by absolute path or from another
+working directory.
+
+If you already have `taurworks` installed by some other means (a prior
+`pipx install`, a fresh `pip install --upgrade`, etc.), just run:
+
+```bash
+taurworks setup
+```
+
+`taurworks setup` is idempotent and safe to re-run: it reports a
+created/updated/unchanged summary and never edits your shell startup file
+itself — you add the printed `source` lines yourself, once.
+
+### Editable vs. non-editable installs
+
+Prefer `pipx` so the `taurworks` command lives in its own isolated
+environment with a shim on `~/.local/bin`: it stays on PATH no matter which
+Conda environment is active, which fixes the `taurworks: command not found`
+failure that otherwise appears after activating a project environment that
+lacks the package.
+
+`scripts/install`'s `pipx install . --force` (no `--editable`) is the
+public/end-user path: the installed command is a self-contained snapshot,
+independent of the checkout afterward. If you're developing Taurworks
+itself and want code changes to take effect without reinstalling, use
+`--editable` directly instead:
 
 ```bash
 pipx install --editable <path-to-checkout>
+taurworks setup
 ```
 
 A regular `pip` install from the checkout also exposes the Python CLI, but
@@ -28,6 +61,8 @@ For working on Taurworks itself, `scripts/develop` remains the supported
 constrained development install (pinned tool versions via
 `constraints-dev.txt`).
 
+### Shell helper details
+
 The `taurworks` executable is a Python command-line program. Like any normal
 child process, it cannot mutate the parent shell, so
 `taurworks project activate --print` remains read-only activation guidance. The
@@ -35,14 +70,22 @@ child process, it cannot mutate the parent shell, so
 that explicit sourced layer may export declarative activation variables and
 change the current shell directory.
 
-Print the packaged helper with:
+`taurworks setup` resolves the shell helper's location using this
+precedence: `$TAURWORKS_SHELL_HELPER_PATH` if set, then
+`$XDG_CONFIG_HOME/taurworks/taurworks-shell.sh` when `XDG_CONFIG_HOME` is a
+valid absolute path, then `~/.config/taurworks/taurworks-shell.sh` as the
+fallback. `tw shell refresh` (see below) uses the identical precedence, so a
+refresh after an XDG-based setup always updates and re-sources the same
+file.
+
+Print the packaged helper directly with:
 
 ```bash
 taurworks shell print
 ```
 
-To install it manually without a source checkout, redirect the packaged helper
-to a location you control and source it:
+To install it manually without running `taurworks setup`, redirect the
+packaged helper to a location you control and source it:
 
 ```bash
 mkdir -p ~/.config/taurworks
@@ -110,11 +153,19 @@ Three layers make up the activation stack:
   `[activation.exports]`, activates a configured Conda environment, changes
   directory, and offers trust-gated legacy sourcing.
 - **`tl`** ("Taurworks Legacy") is a permanent, dependency-free break-glass
-  fallback provided by `src/taurworks/resources/sourceme/aliases.source`.
-  Reach for it when `tw` is unavailable or unreliable — for example, a
-  Conda environment switch hid the `taurworks` executable, or your sourced
-  `tw` function has gone stale (see below) and you don't want to
-  regenerate it mid-task.
+  fallback. `taurworks setup` places its packaged source file (`tl.source`)
+  alongside the shell helper. Reach for it when `tw` is unavailable or
+  unreliable — for example, a Conda environment switch hid the `taurworks`
+  executable, or your sourced `tw` function has gone stale (see below) and
+  you don't want to regenerate it mid-task.
+
+```bash
+taurworks setup   # prints the exact source line for tl.source, if not already run
+tl PROJECT_NAME
+```
+
+Without running `taurworks setup`, you can also source `tl`'s packaged
+source file directly from a checkout:
 
 ```bash
 source <path-to-checkout>/src/taurworks/resources/sourceme/aliases.source
@@ -343,6 +394,7 @@ The currently implemented namespaced commands are:
 - `taurworks dev where` (implemented, read-only repository/workspace diagnostics)
 - `taurworks dev status` (implemented, read-only summary that explicitly leaves detailed VCS automation for future work)
 - `taurworks shell print` (implemented, prints the packaged sourceable `tw` shell helper)
+- `taurworks setup` (implemented, idempotently installs/refreshes the `tw` shell helper and `tl` source file at their resolved locations)
 - `tw root PROJECT` and `tw working PROJECT` after manually sourcing the printed helper (implemented, convenience aliases that delegate to the same path emitters)
 - `tw activate [PATH_OR_NAME]` after manually sourcing the printed helper (implemented, explicit shell function that changes directory only)
 - `tw activate [PATH_OR_NAME] --verbose` or `--debug` (implemented, prints detailed activation diagnostics on failure)

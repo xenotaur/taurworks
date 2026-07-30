@@ -2764,6 +2764,65 @@ class CliCommandTest(unittest.TestCase):
         self.assertNotIn("migrate the legacy setup", result.stdout)
 
 
+class SetupCliTest(unittest.TestCase):
+
+    def test_setup_creates_shell_helper_and_tl_source_at_default_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cwd = pathlib.Path(temp_dir)
+            home = cwd / "home"
+            home.mkdir()
+            result = _run_cli(
+                ["setup"],
+                cwd=cwd,
+                env_overrides={"HOME": str(home), "XDG_CONFIG_HOME": ""},
+            )
+            shell_helper_path = home / ".config" / "taurworks" / "taurworks-shell.sh"
+            tl_source_path = home / ".config" / "taurworks" / "tl.source"
+            shell_helper_exists = shell_helper_path.exists()
+            tl_source_exists = tl_source_path.exists()
+
+        self.assertEqual(result.returncode, 0, msg=_failure_message(["setup"], result))
+        self.assertTrue(shell_helper_exists)
+        self.assertTrue(tl_source_exists)
+        self.assertIn("- created:", result.stdout)
+        self.assertIn("source ", result.stdout)
+
+    def test_setup_uses_xdg_config_home_when_set(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cwd = pathlib.Path(temp_dir)
+            xdg = cwd / "xdg"
+            xdg.mkdir()
+            result = _run_cli(
+                ["setup"], cwd=cwd, env_overrides={"XDG_CONFIG_HOME": str(xdg)}
+            )
+            shell_helper_path = xdg / "taurworks" / "taurworks-shell.sh"
+            tl_source_path = xdg / "taurworks" / "tl.source"
+            shell_helper_exists = shell_helper_path.exists()
+            tl_source_exists = tl_source_path.exists()
+
+        self.assertEqual(result.returncode, 0, msg=_failure_message(["setup"], result))
+        self.assertTrue(shell_helper_exists)
+        self.assertTrue(tl_source_exists)
+        self.assertIn(str(shell_helper_path), result.stdout)
+
+    def test_setup_second_run_reports_unchanged(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cwd = pathlib.Path(temp_dir)
+            home = cwd / "home"
+            home.mkdir()
+            env_overrides = {"HOME": str(home), "XDG_CONFIG_HOME": ""}
+            _run_cli(["setup"], cwd=cwd, env_overrides=env_overrides)
+            second_result = _run_cli(["setup"], cwd=cwd, env_overrides=env_overrides)
+
+        self.assertEqual(
+            second_result.returncode,
+            0,
+            msg=_failure_message(["setup"], second_result),
+        )
+        self.assertIn("- changed: False", second_result.stdout)
+        self.assertIn("- result: no changes needed", second_result.stdout)
+
+
 class ProjectRegistryCliTest(unittest.TestCase):
 
     def test_project_register_list_and_unregister_commands(self):

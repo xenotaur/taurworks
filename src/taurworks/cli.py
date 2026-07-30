@@ -7,6 +7,7 @@ from taurworks import legacy
 from taurworks import manager
 from taurworks import project_registry
 from taurworks import project_resolution
+from taurworks import setup_command
 from taurworks import shell_resources
 
 
@@ -414,6 +415,19 @@ def main(argv=None):
         "path_or_name",
         metavar="PROJECT",
         help="Project name or path.",
+    )
+
+    subparsers.add_parser(
+        "setup",
+        help="Idempotently install/refresh the tw and tl shell helpers.",
+        description=(
+            "Write the packaged shell helper and tl source file to their "
+            "resolved locations (TAURWORKS_SHELL_HELPER_PATH, then a valid "
+            "absolute XDG_CONFIG_HOME, then ~/.config as fallback), print "
+            "the source lines to add to a shell startup file, and report a "
+            "truth-first created/updated/unchanged summary. Never edits "
+            "shell startup files itself; safe to re-run."
+        ),
     )
 
     # `config` namespace
@@ -1116,6 +1130,9 @@ def main(argv=None):
         _emit_project_path(args.path_or_name, "root", "taurworks root")
     elif args.command == "working":
         _emit_project_path(args.path_or_name, "working", "taurworks working")
+    elif args.command == "setup":
+        diagnostics = setup_command.gather_setup_diagnostics()
+        print(setup_command.format_setup_output(diagnostics))
     elif args.command == "shell":
         _handle_shell_command(args)
     elif args.command == "legacy":
