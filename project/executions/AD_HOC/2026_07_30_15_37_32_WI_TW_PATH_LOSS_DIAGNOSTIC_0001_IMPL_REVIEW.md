@@ -5,7 +5,7 @@ work_item: AD_HOC
 status: in_progress
 rerun_of: 2026_07_30_15_16_47_WI_TW_PATH_LOSS_DIAGNOSTIC_0001
 pr: https://github.com/xenotaur/taurworks/pull/94
-commit: pending
+commit: 15d6c7d814d49739c391489e03fdea34451cee2e
 created_at: 2026-07-30T15:37:32-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/94
