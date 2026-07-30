@@ -1,6 +1,7 @@
 # Source this file from bash or zsh to enable Taurworks shell helpers.
 #
 # Usage:
+#   taurworks setup                          # one-step install of tw/tl (preferred)
 #   taurworks shell print > ~/.config/taurworks/taurworks-shell.sh
 #   source ~/.config/taurworks/taurworks-shell.sh
 #   tw activate [PATH_OR_NAME]
@@ -22,11 +23,12 @@
 # one-time snapshot from `taurworks shell print`, and sourcing it only reads
 # it once, like `.bashrc`. It never auto-updates when the taurworks package
 # changes, and an already-sourced shell keeps running whatever it last
-# sourced, silently. `tw shell refresh` regenerates the file at
-# `${TAURWORKS_SHELL_HELPER_PATH:-$HOME/.config/taurworks/taurworks-shell.sh}`
-# from the currently installed package and re-sources it into the current
-# shell -- it cannot reach any other already-open shell (see
-# project/design/shell_helper_refresh.md).
+# sourced, silently. `tw shell refresh` regenerates the file at its
+# resolved location (TAURWORKS_SHELL_HELPER_PATH, else a valid absolute
+# XDG_CONFIG_HOME, else ~/.config/taurworks/taurworks-shell.sh -- the same
+# precedence `taurworks setup` uses) from the currently installed package
+# and re-sources it into the current shell -- it cannot reach any other
+# already-open shell (see project/design/shell_helper_refresh.md).
 
 _tw_legacy_prompt_choice() {
     # Read one line of a user's response and normalize it to s/t/n/k
@@ -346,7 +348,29 @@ _tw_shell_refresh() {
         return 2
     fi
 
-    target_path="${TAURWORKS_SHELL_HELPER_PATH:-$HOME/.config/taurworks/taurworks-shell.sh}"
+    # Resolution precedence matches `taurworks setup`
+    # (src/taurworks/setup_command.py): TAURWORKS_SHELL_HELPER_PATH first,
+    # then a valid absolute XDG_CONFIG_HOME, then the ~/.config fallback --
+    # so a refresh always targets the same file `taurworks setup` wrote.
+    # Uses the `${VAR-}` unset-safe expansion form throughout (not
+    # `${VAR:-...}` alone) so this stays safe to source under `set -u`/
+    # nounset even when the caller never exported these optional variables
+    # at all, not merely left them empty. A relative
+    # TAURWORKS_SHELL_HELPER_PATH is canonicalized against the current
+    # directory (matching setup_command.py's equivalent CWD-relative
+    # handling) rather than used as-is, so both always agree on the same
+    # absolute file.
+    if [ -n "${TAURWORKS_SHELL_HELPER_PATH-}" ]; then
+        case "$TAURWORKS_SHELL_HELPER_PATH" in
+            /*) target_path="$TAURWORKS_SHELL_HELPER_PATH" ;;
+            *) target_path="$(pwd)/$TAURWORKS_SHELL_HELPER_PATH" ;;
+        esac
+    else
+        case "${XDG_CONFIG_HOME-}" in
+            /*) target_path="$XDG_CONFIG_HOME/taurworks/taurworks-shell.sh" ;;
+            *) target_path="$HOME/.config/taurworks/taurworks-shell.sh" ;;
+        esac
+    fi
 
     # If the configured path is a symlink (e.g. into a dotfiles checkout),
     # write through to its target instead of replacing the link itself --

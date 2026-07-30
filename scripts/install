@@ -1,0 +1,31 @@
+#!/bin/bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+echo "Installing taurworks via pipx and running taurworks setup..."
+set -x
+pipx install . --force
+set +x
+
+# `pipx install` places the entry point in pipx's own app directory
+# (default ~/.local/bin, overridable via PIPX_BIN_DIR -- see `pipx install
+# --help`), which is not guaranteed to be on PATH yet in the same shell
+# that just ran the install (e.g. pipx itself came from Homebrew but its
+# app-bin directory was never added to PATH). Fall back to invoking the
+# installed executable directly rather than assuming `command -v` finds it.
+if command -v taurworks >/dev/null 2>&1; then
+    set -x
+    taurworks setup
+else
+    pipx_bin_dir="${PIPX_BIN_DIR:-$HOME/.local/bin}"
+    if [ -x "$pipx_bin_dir/taurworks" ]; then
+        set -x
+        "$pipx_bin_dir/taurworks" setup
+    else
+        echo "scripts/install: taurworks not found on PATH or at $pipx_bin_dir/taurworks after pipx install." >&2
+        echo "scripts/install: add pipx's app directory to PATH, then run 'taurworks setup' manually." >&2
+        exit 1
+    fi
+fi
