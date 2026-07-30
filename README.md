@@ -78,6 +78,17 @@ fallback. `tw shell refresh` (see below) uses the identical precedence, so a
 refresh after an XDG-based setup always updates and re-sources the same
 file.
 
+**PATH-loss diagnostic.** If `taurworks` does not resolve on `$PATH` when you
+run any `tw ...` command — most commonly right after `conda activate` into an
+environment that lacks the package — `tw` prints a diagnostic naming the
+likely cause and a concrete next step (switch back, install `taurworks` in
+the current environment, or use `tl` in the meantime, since `tl` never
+depends on `taurworks` being resolvable) and returns non-zero, instead of a
+bare shell `command not found`. Every `command taurworks ...` call site in
+the shell helper is guarded this way, including the ones reached only after
+`tw activate` has already run `conda activate` for you (the untrusted-legacy
+trust prompt), not only the outermost fallthrough.
+
 Print the packaged helper directly with:
 
 ```bash
