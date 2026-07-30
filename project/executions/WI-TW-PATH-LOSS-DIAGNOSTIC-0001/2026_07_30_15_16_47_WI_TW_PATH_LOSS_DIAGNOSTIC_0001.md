@@ -75,8 +75,7 @@ since no real TTY is available in a subprocess test).
 
 # Validation
 
-- `git rev-parse HEAD` (pre-push, on top of `94cef92`): pending (recorded
-  at push)
+- `git rev-parse HEAD` (pre-push, on top of `94cef92`): `24a246b9b74a6a26b91b8536b59d128650ebe4be`
 - Tool versions (Taurworks conda env): Python 3.11.10, black 26.3.1, ruff 0.15.12
 - `./scripts/format --check --diff` (via `black --check --diff src tests`
   directly, per `project_scripts_version_tools_missing`): 32 files
