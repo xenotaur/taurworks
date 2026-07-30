@@ -92,6 +92,8 @@ examples, that final result lines are always printed, that `activate`/
 `--debug` from `tw activate`'s unrelated `--verbose`/`--debug` shell-level
 alias.
 
+CHAIN-NOTE: cycles=1; stops=1; gates=[merge]; friction="review took ~50 minutes to land on PR #95 (vs. ~5 min on prior PRs in this series), traced to the user's AI review credits being exhausted for the month rather than a config issue -- flagged to the user, then re-checked once credits were confirmed restored"; note="PR #95 merged d6c43cc; --debug/TAURWORKS_DEBUG flag added, manager.py narration gated (56 print() calls audited), cli.py formatter-module audit found nothing to gate, 1 real review bug (whitespace-only env var truthiness) fixed and independently reverified; WI-TAURWORKS-DEBUG-FLAG-0001 resolved at closeout, completing all 4 WIs of the packaging_and_install.md design series"
+
 # Validation
 
 - Tool versions (Taurworks conda env): Python 3.11.10, black 26.3.1, ruff 0.15.12
