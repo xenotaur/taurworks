@@ -1,6 +1,7 @@
 import importlib.resources
 import os
 import pathlib
+import shutil
 import stat
 import subprocess
 import sys
@@ -30,6 +31,26 @@ def _subprocess_env() -> dict[str, str]:
     env.pop("TAURWORKS_WORKSPACE", None)
     env.pop("TAURWORKS_SHELL_HELPER_PATH", None)
     return env
+
+
+def _path_without_taurworks() -> str:
+    """A $PATH string with just enough directories for bash and the few
+    external tools taurworks-shell.sh calls (awk, mkdir, dirname, readlink,
+    mv, rm) to resolve, but excluding any directory that also has a real
+    `taurworks` executable -- simulating a Conda environment switch that
+    hides `taurworks` from $PATH while leaving the rest of the shell usable.
+    """
+    needed = ["bash", "awk", "mkdir", "dirname", "readlink", "mv", "rm"]
+    dirs: list[str] = []
+    for name in needed:
+        found = shutil.which(name)
+        if found:
+            parent = str(pathlib.Path(found).resolve().parent)
+            if parent not in dirs:
+                dirs.append(parent)
+    return os.pathsep.join(
+        d for d in dirs if not (pathlib.Path(d) / "taurworks").exists()
+    )
 
 
 def _write_taurworks_module_shim(bin_dir: pathlib.Path) -> None:
@@ -239,6 +260,127 @@ class ShellHelperTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertEqual(result.stdout, option_help)
         self.assertIn("usage: taurworks", result.stdout)
+
+    def test_tw_fallthrough_prints_diagnostic_when_taurworks_not_on_conda_path(
+        self,
+    ):
+        # WI-TW-PATH-LOSS-DIAGNOSTIC-0001: the general fallthrough
+        # delegation call site, guarded by tw()'s single up-front check.
+        env = _subprocess_env()
+        env["PATH"] = _path_without_taurworks()
+        env["CONDA_DEFAULT_ENV"] = "fake-env-without-taurworks"
+        cmd = [
+            "bash",
+            "-c",
+            'source "$1" && tw project list',
+            "bash",
+            str(SHELL_HELPER),
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("command not found", result.stderr)
+        self.assertIn("taurworks", result.stderr)
+        self.assertIn("PATH", result.stderr)
+        self.assertIn("fake-env-without-taurworks", result.stderr)
+        self.assertIn("Conda", result.stderr)
+
+    def test_tw_prints_path_diagnostic_when_taurworks_not_on_path_without_conda(
+        self,
+    ):
+        # Same PATH-loss condition, but without an active Conda environment
+        # -- the diagnostic should fall back to a plain $PATH/pipx pointer
+        # instead of naming a Conda environment.
+        env = _subprocess_env()
+        env["PATH"] = _path_without_taurworks()
+        env.pop("CONDA_DEFAULT_ENV", None)
+        cmd = [
+            "bash",
+            "-c",
+            'source "$1" && tw project list',
+            "bash",
+            str(SHELL_HELPER),
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("command not found", result.stderr)
+        self.assertIn("taurworks", result.stderr)
+        self.assertIn("PATH", result.stderr)
+        self.assertNotIn("Conda", result.stderr)
+
+    def test_tw_activate_prints_diagnostic_before_conda_activation_when_taurworks_not_on_path(  # noqa: E501
+        self,
+    ):
+        # WI-TW-PATH-LOSS-DIAGNOSTIC-0001: tw activate's own
+        # `project activate --shell` call, reached *before* any conda
+        # activate would run -- guarded by tw()'s up-front check, so
+        # _tw_activate never even starts.
+        env = _subprocess_env()
+        env["PATH"] = _path_without_taurworks()
+        env["CONDA_DEFAULT_ENV"] = "fake-env-without-taurworks"
+        cmd = [
+            "bash",
+            "-c",
+            'source "$1" && tw activate',
+            "bash",
+            str(SHELL_HELPER),
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("command not found", result.stderr)
+        self.assertIn("taurworks", result.stderr)
+        self.assertIn("fake-env-without-taurworks", result.stderr)
+
+    def test_tw_shell_refresh_prints_diagnostic_when_taurworks_not_on_path(self):
+        # WI-TW-PATH-LOSS-DIAGNOSTIC-0001: tw shell refresh's
+        # `taurworks shell print` call site.
+        env = _subprocess_env()
+        env["PATH"] = _path_without_taurworks()
+        env["CONDA_DEFAULT_ENV"] = "fake-env-without-taurworks"
+        cmd = [
+            "bash",
+            "-c",
+            'source "$1" && tw shell refresh',
+            "bash",
+            str(SHELL_HELPER),
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("command not found", result.stderr)
+        self.assertIn("taurworks", result.stderr)
+        self.assertIn("fake-env-without-taurworks", result.stderr)
+
+    def test_tw_help_prints_diagnostic_when_taurworks_not_on_path(self):
+        # WI-TW-PATH-LOSS-DIAGNOSTIC-0001: tw help's delegation call sites.
+        env = _subprocess_env()
+        env["PATH"] = _path_without_taurworks()
+        env["CONDA_DEFAULT_ENV"] = "fake-env-without-taurworks"
+        cmd = [
+            "bash",
+            "-c",
+            'source "$1" && tw help',
+            "bash",
+            str(SHELL_HELPER),
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("command not found", result.stderr)
+        self.assertIn("taurworks", result.stderr)
+        self.assertIn("fake-env-without-taurworks", result.stderr)
 
     def test_tw_activate_changes_directory_to_configured_working_dir(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1576,6 +1718,56 @@ class LegacyTrustSourcingShellTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertTrue(sentinel_exists)
         self.assertIn("[trust.Proj]", trust_text)
+
+    def test_offer_legacy_trust_prints_diagnostic_when_taurworks_lost_after_conda_activate(  # noqa: E501
+        self,
+    ):
+        # WI-TW-PATH-LOSS-DIAGNOSTIC-0001: `_tw_offer_legacy_trust` is only
+        # reached after `_tw_activate` may have already run `conda
+        # activate`, which can hide `taurworks` even when it was resolvable
+        # at the start of the `tw` invocation -- so this call site needs its
+        # own re-check, not just the one at the top of `tw()`. Simulated
+        # directly here (as the other _tw_offer_legacy_trust tests do,
+        # since the real interactive TTY gate can't be driven from a
+        # subprocess test) by calling the function with a $PATH that
+        # already lacks taurworks, standing in for "after conda activate
+        # switched environments."
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            workspace = temp_path / "Workspace"
+            sentinel = temp_path / "sentinel.out"
+            admin_dir = workspace / "Proj" / "Admin"
+            self._write_legacy_script(admin_dir, sentinel)
+
+            env = _subprocess_env()
+            env["PATH"] = _path_without_taurworks()
+            env["CONDA_DEFAULT_ENV"] = "fake-env-without-taurworks"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            script_path = admin_dir / "project-setup.source"
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    "printf 's\\n' | "
+                    '_tw_offer_legacy_trust "$2" "Proj" "$3" "False"'
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(script_path),
+                str(workspace / "Proj"),
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+            )
+            sentinel_exists = sentinel.exists()
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(sentinel_exists)
+        self.assertNotIn("command not found", result.stderr)
+        self.assertIn("taurworks", result.stderr)
+        self.assertIn("fake-env-without-taurworks", result.stderr)
+        self.assertNotIn("untrusted legacy setup script", result.stderr)
 
     def test_offer_legacy_trust_skip_choice_does_not_source_or_trust(self):
         with tempfile.TemporaryDirectory() as temp_dir:

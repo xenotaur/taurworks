@@ -72,6 +72,14 @@ _tw_offer_legacy_trust() {
     project_root=$3
     stale=$4
 
+    # Re-check resolvability here (not just at the top of `tw()`): this
+    # function is only reached after `_tw_activate` may have already run
+    # `conda activate`, which can hide `taurworks` on $PATH even when it
+    # was resolvable at the start of the `tw` invocation.
+    if ! _tw_require_taurworks; then
+        return 1
+    fi
+
     if [ "$stale" = "True" ]; then
         printf '%s\n' "tw activate: the trusted legacy setup script for '$project_name' has changed since it was trusted:" >&2
     else
@@ -127,6 +135,30 @@ _tw_activation_target_label() {
     else
         printf '%s\n' "$1"
     fi
+}
+
+_tw_require_taurworks() {
+    # Guards every `command taurworks ...` call site in this file against
+    # PATH loss (most commonly a `conda activate` into an environment that
+    # lacks the package). Called once up front in `tw()` -- covering `tw
+    # activate`'s own pre-Conda-activation calls, `tw shell refresh`, `tw
+    # help`, and the general fallthrough, all via that single check -- and
+    # again in `_tw_offer_legacy_trust`, which can only be reached *after*
+    # `_tw_activate` has already run `conda activate`, so PATH may have
+    # changed since `tw()`'s check ran. Two call sites, at most, per `tw`
+    # invocation; never re-checks within a single function body where PATH
+    # cannot have changed since the top of that function.
+    if command -v taurworks >/dev/null 2>&1; then
+        return 0
+    fi
+    printf '%s\n' "tw: \`taurworks\` is not on \$PATH." >&2
+    if [ -n "${CONDA_DEFAULT_ENV-}" ]; then
+        printf '%s\n' "tw: the active Conda environment ('$CONDA_DEFAULT_ENV') likely does not have taurworks installed." >&2
+        printf '%s\n' "tw: switch back to the environment where taurworks is installed, or install it here (e.g. \`pipx install taurworks\` or \`pip install taurworks\`), then retry. \`tl\` remains usable in the meantime -- it never depends on taurworks being resolvable." >&2
+    else
+        printf '%s\n' "tw: check \`which taurworks\` / \`pipx list\` and confirm its install location is on \$PATH, then retry." >&2
+    fi
+    return 1
 }
 
 _tw_activate() {
@@ -414,6 +446,14 @@ _tw_shell_refresh() {
 }
 
 tw() {
+    # Single up-front resolvability check, covering every call site below
+    # except _tw_offer_legacy_trust's (which re-checks itself -- see
+    # _tw_require_taurworks's comment -- since it can only run after
+    # _tw_activate may have already changed PATH via `conda activate`).
+    if ! _tw_require_taurworks; then
+        return 1
+    fi
+
     if [ "$1" = "activate" ]; then
         shift
         _tw_activate "$@"
