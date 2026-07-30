@@ -4,8 +4,8 @@ prompt_id: PROMPT(WI-TAURWORKS-DEBUG-FLAG-0001:WI_TAURWORKS_DEBUG_FLAG_0001)[202
 work_item: WI-TAURWORKS-DEBUG-FLAG-0001
 status: in_progress
 rerun_of:
-pr: pending
-commit: ef679b77539702ac40767c194115593129a13107
+pr: https://github.com/xenotaur/taurworks/pull/95
+commit: 23fc2ff0dd035fcb1d4a9ee836062ebcf71d7f18
 created_at: 2026-07-30T16:33:25-04:00
 agent: claude_app
 instruction_source: project/work_items/proposed/WI-TAURWORKS-DEBUG-FLAG-0001.md
