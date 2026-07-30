@@ -137,6 +137,29 @@ _tw_activation_target_label() {
     fi
 }
 
+_tw_taurworks_executable_path() {
+    # `command -v taurworks` alone doesn't distinguish a real executable on
+    # $PATH from a shell function or alias of the same name: bash prints
+    # just the bare name (with exit 0) for a function/alias match, but the
+    # later `command taurworks ...` call sites use the `command` builtin,
+    # which bypasses function/alias lookup entirely -- so a function-only
+    # match would pass this check yet still hit a bare "command not found"
+    # at the real call site, exactly the failure this guard exists to
+    # replace. Only trust an absolute path that is actually a regular,
+    # executable file.
+    local resolved
+    resolved=$(command -v taurworks 2>/dev/null)
+    case "$resolved" in
+        /*)
+            if [ -f "$resolved" ] && [ -x "$resolved" ]; then
+                printf '%s\n' "$resolved"
+                return 0
+            fi
+            ;;
+    esac
+    return 1
+}
+
 _tw_require_taurworks() {
     # Guards every `command taurworks ...` call site in this file against
     # PATH loss (most commonly a `conda activate` into an environment that
@@ -148,13 +171,13 @@ _tw_require_taurworks() {
     # changed since `tw()`'s check ran. Two call sites, at most, per `tw`
     # invocation; never re-checks within a single function body where PATH
     # cannot have changed since the top of that function.
-    if command -v taurworks >/dev/null 2>&1; then
+    if _tw_taurworks_executable_path >/dev/null; then
         return 0
     fi
     printf '%s\n' "tw: \`taurworks\` is not on \$PATH." >&2
     if [ -n "${CONDA_DEFAULT_ENV-}" ]; then
         printf '%s\n' "tw: the active Conda environment ('$CONDA_DEFAULT_ENV') likely does not have taurworks installed." >&2
-        printf '%s\n' "tw: switch back to the environment where taurworks is installed, or install it here (e.g. \`pipx install taurworks\` or \`pip install taurworks\`), then retry. \`tl\` remains usable in the meantime -- it never depends on taurworks being resolvable." >&2
+        printf '%s\n' "tw: switch back to the environment where taurworks is installed, or install it here (e.g. \`scripts/install\` from a checkout, or \`pipx install <path-to-checkout>\` -- taurworks is not published to PyPI), then retry. \`tl\` remains usable in the meantime -- it never depends on taurworks being resolvable." >&2
     else
         printf '%s\n' "tw: check \`which taurworks\` / \`pipx list\` and confirm its install location is on \$PATH, then retry." >&2
     fi

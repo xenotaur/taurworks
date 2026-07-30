@@ -286,6 +286,38 @@ class ShellHelperTest(unittest.TestCase):
         self.assertIn("PATH", result.stderr)
         self.assertIn("fake-env-without-taurworks", result.stderr)
         self.assertIn("Conda", result.stderr)
+        # Regression: taurworks is not published to PyPI, so the diagnostic
+        # must not suggest a bare-name `pipx install taurworks` / `pip
+        # install taurworks`, which would query a package index and fail.
+        self.assertNotIn("pipx install taurworks", result.stderr)
+        self.assertNotIn("pip install taurworks", result.stderr)
+        self.assertIn("scripts/install", result.stderr)
+
+    def test_tw_prints_diagnostic_when_taurworks_is_only_a_shell_function(self):
+        # Regression test: `command -v taurworks` alone reports success
+        # (exit 0) for a shell function or alias named `taurworks`, but the
+        # later `command taurworks ...` call sites use the `command`
+        # builtin, which bypasses function/alias lookup entirely. A
+        # function-only match must not satisfy the guard, or it would pass
+        # here and still hit a bare "command not found" at the real call
+        # site -- exactly the failure this diagnostic exists to replace.
+        env = _subprocess_env()
+        env["PATH"] = _path_without_taurworks()
+        cmd = [
+            "bash",
+            "-c",
+            ("taurworks() { :; }\n" 'source "$1" && tw project list'),
+            "bash",
+            str(SHELL_HELPER),
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, check=False, timeout=10, env=env
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("command not found", result.stderr)
+        self.assertIn("taurworks", result.stderr)
+        self.assertIn("PATH", result.stderr)
 
     def test_tw_prints_path_diagnostic_when_taurworks_not_on_path_without_conda(
         self,
