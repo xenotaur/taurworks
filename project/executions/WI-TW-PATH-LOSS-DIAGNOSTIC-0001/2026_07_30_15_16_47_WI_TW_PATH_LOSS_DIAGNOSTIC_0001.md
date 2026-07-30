@@ -4,8 +4,8 @@ prompt_id: PROMPT(WI-TW-PATH-LOSS-DIAGNOSTIC-0001:WI_TW_PATH_LOSS_DIAGNOSTIC_000
 work_item: WI-TW-PATH-LOSS-DIAGNOSTIC-0001
 status: in_progress
 rerun_of:
-pr: pending
-commit: pending
+pr: https://github.com/xenotaur/taurworks/pull/94
+commit: c20d97c
 created_at: 2026-07-30T15:16:47-04:00
 agent: claude_app
 instruction_source: project/work_items/proposed/WI-TW-PATH-LOSS-DIAGNOSTIC-0001.md
