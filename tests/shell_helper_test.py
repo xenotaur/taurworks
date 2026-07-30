@@ -1148,6 +1148,84 @@ class ShellRefreshTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         self.assertEqual(written, "TW_SHELL_REFRESH_RELATIVE_XDG_MARKER=1\n")
 
+    def test_tw_shell_refresh_works_under_nounset_with_no_overrides_exported(self):
+        """Regression test: `_tw_shell_refresh`'s XDG-aware target-path
+        resolution must stay safe to source under `set -u`/nounset even
+        when TAURWORKS_SHELL_HELPER_PATH/XDG_CONFIG_HOME were never
+        exported at all (not merely left empty) -- a bare `$VAR`
+        expansion (rather than `${VAR-}`) would abort with "unbound
+        variable" before the fallback is ever selected."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            home_dir = temp_path / "home"
+            bin_dir.mkdir()
+            home_dir.mkdir()
+            self._write_marker_shim(bin_dir, "TW_SHELL_REFRESH_NOUNSET_MARKER=1")
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["HOME"] = str(home_dir)
+            env.pop("XDG_CONFIG_HOME", None)
+            env.pop("TAURWORKS_SHELL_HELPER_PATH", None)
+            cmd = [
+                "bash",
+                "-c",
+                'set -u; source "$1" && tw shell refresh',
+                "bash",
+                str(SHELL_HELPER),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+            default_path = home_dir / ".config" / "taurworks" / "taurworks-shell.sh"
+            written = default_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertNotIn("unbound variable", result.stderr)
+        self.assertEqual(written, "TW_SHELL_REFRESH_NOUNSET_MARKER=1\n")
+
+    def test_tw_shell_refresh_canonicalizes_relative_taurworks_shell_helper_path(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir)
+            bin_dir = temp_path / "bin"
+            cwd_dir = temp_path / "cwd"
+            bin_dir.mkdir()
+            cwd_dir.mkdir()
+            self._write_marker_shim(
+                bin_dir, "TW_SHELL_REFRESH_RELATIVE_OVERRIDE_MARKER=1"
+            )
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_SHELL_HELPER_PATH"] = "custom/helper.sh"
+            cmd = [
+                "bash",
+                "-c",
+                'cd "$1" && source "$2" && tw shell refresh',
+                "bash",
+                str(cwd_dir),
+                str(SHELL_HELPER),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+            canonical_path = cwd_dir / "custom" / "helper.sh"
+            written = canonical_path.read_text(encoding="utf-8")
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertEqual(written, "TW_SHELL_REFRESH_RELATIVE_OVERRIDE_MARKER=1\n")
+
     def test_setup_then_shell_refresh_target_same_file(self):
         """WI-TAURWORKS-SETUP-0001: `taurworks setup` and `tw shell refresh`
         must resolve to the same file so a refresh after an XDG-based setup

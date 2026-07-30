@@ -352,10 +352,21 @@ _tw_shell_refresh() {
     # (src/taurworks/setup_command.py): TAURWORKS_SHELL_HELPER_PATH first,
     # then a valid absolute XDG_CONFIG_HOME, then the ~/.config fallback --
     # so a refresh always targets the same file `taurworks setup` wrote.
-    if [ -n "$TAURWORKS_SHELL_HELPER_PATH" ]; then
-        target_path="$TAURWORKS_SHELL_HELPER_PATH"
+    # Uses the `${VAR-}` unset-safe expansion form throughout (not
+    # `${VAR:-...}` alone) so this stays safe to source under `set -u`/
+    # nounset even when the caller never exported these optional variables
+    # at all, not merely left them empty. A relative
+    # TAURWORKS_SHELL_HELPER_PATH is canonicalized against the current
+    # directory (matching setup_command.py's equivalent CWD-relative
+    # handling) rather than used as-is, so both always agree on the same
+    # absolute file.
+    if [ -n "${TAURWORKS_SHELL_HELPER_PATH-}" ]; then
+        case "$TAURWORKS_SHELL_HELPER_PATH" in
+            /*) target_path="$TAURWORKS_SHELL_HELPER_PATH" ;;
+            *) target_path="$(pwd)/$TAURWORKS_SHELL_HELPER_PATH" ;;
+        esac
     else
-        case "$XDG_CONFIG_HOME" in
+        case "${XDG_CONFIG_HOME-}" in
             /*) target_path="$XDG_CONFIG_HOME/taurworks/taurworks-shell.sh" ;;
             *) target_path="$HOME/.config/taurworks/taurworks-shell.sh" ;;
         esac

@@ -24,6 +24,7 @@ def _subprocess_env(overrides: dict[str, str] | None = None) -> dict[str, str]:
     env["HOME"] = str(isolated_root / "home")
     env["XDG_CONFIG_HOME"] = str(isolated_root / "xdg")
     env.pop("TAURWORKS_WORKSPACE", None)
+    env.pop("TAURWORKS_SHELL_HELPER_PATH", None)
     if overrides is not None:
         env.update(overrides)
     return env

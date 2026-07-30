@@ -1,6 +1,7 @@
 import dataclasses
 import os
 import pathlib
+import shlex
 
 from taurworks import shell_resources
 
@@ -22,21 +23,29 @@ def resolve_shell_helper_path() -> ResolvedSetupPath:
     `_tw_shell_refresh`, `src/taurworks/resources/shell/taurworks-shell.sh`):
     `TAURWORKS_SHELL_HELPER_PATH` (any value) takes precedence, then a valid
     absolute `XDG_CONFIG_HOME`, then the `~/.config` fallback.
+
+    Deliberately does not call `expanduser()` on either variable: the bash
+    side treats both completely literally (a `~` inside a variable's stored
+    value is never shell-expanded), so expanding it here would let a
+    tilde-prefixed value resolve differently in `taurworks setup` than in
+    `tw shell refresh`. A relative `TAURWORKS_SHELL_HELPER_PATH` is
+    canonicalized against the current working directory instead of
+    rejected, matching `_tw_shell_refresh`'s equivalent `$(pwd)`-relative
+    handling, so both always agree on the same absolute file.
     """
     override = os.environ.get("TAURWORKS_SHELL_HELPER_PATH")
     if override:
-        return ResolvedSetupPath(
-            pathlib.Path(override).expanduser(), "TAURWORKS_SHELL_HELPER_PATH"
-        )
+        override_path = pathlib.Path(override)
+        if not override_path.is_absolute():
+            override_path = pathlib.Path.cwd() / override_path
+        return ResolvedSetupPath(override_path, "TAURWORKS_SHELL_HELPER_PATH")
 
     xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
-    if xdg_config_home:
-        candidate_base_dir = pathlib.Path(xdg_config_home).expanduser()
-        if candidate_base_dir.is_absolute():
-            return ResolvedSetupPath(
-                candidate_base_dir / "taurworks" / "taurworks-shell.sh",
-                "XDG_CONFIG_HOME",
-            )
+    if xdg_config_home and pathlib.Path(xdg_config_home).is_absolute():
+        return ResolvedSetupPath(
+            pathlib.Path(xdg_config_home) / "taurworks" / "taurworks-shell.sh",
+            "XDG_CONFIG_HOME",
+        )
 
     return ResolvedSetupPath(
         pathlib.Path.home() / ".config" / "taurworks" / "taurworks-shell.sh",
@@ -101,8 +110,8 @@ def gather_setup_diagnostics() -> dict:
         "warnings": [],
         "changed": bool(created or updated),
         "source_lines": [
-            f"source {shell_helper_resolved.path}",
-            f"source {tl_source_path}",
+            f"source {shlex.quote(str(shell_helper_resolved.path))}",
+            f"source {shlex.quote(str(tl_source_path))}",
         ],
     }
 
