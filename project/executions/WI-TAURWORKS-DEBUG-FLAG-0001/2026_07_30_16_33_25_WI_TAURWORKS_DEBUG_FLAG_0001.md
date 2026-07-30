@@ -5,7 +5,7 @@ work_item: WI-TAURWORKS-DEBUG-FLAG-0001
 status: in_progress
 rerun_of:
 pr: pending
-commit: pending
+commit: ef679b77539702ac40767c194115593129a13107
 created_at: 2026-07-30T16:33:25-04:00
 agent: claude_app
 instruction_source: project/work_items/proposed/WI-TAURWORKS-DEBUG-FLAG-0001.md
