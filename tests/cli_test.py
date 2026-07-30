@@ -2765,6 +2765,112 @@ class CliCommandTest(unittest.TestCase):
         self.assertNotIn("migrate the legacy setup", result.stdout)
 
 
+class DebugFlagCliTest(unittest.TestCase):
+    """WI-TAURWORKS-DEBUG-FLAG-0001: --debug / $TAURWORKS_DEBUG."""
+
+    def _run_create(
+        self, workspace: pathlib.Path, project_name: str, args: list[str]
+    ) -> subprocess.CompletedProcess[str]:
+        env = _subprocess_env()
+        env["TAURWORKS_WORKSPACE"] = str(workspace)
+        env.pop("TAURWORKS_DEBUG", None)
+        cmd = [sys.executable, "-m", "taurworks.cli", *args, "create", project_name]
+        return subprocess.run(
+            cmd,
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+            env=env,
+        )
+
+    def test_create_default_suppresses_narration(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            result = self._run_create(workspace, "Alpha", [])
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertNotIn("Skipping Conda environment creation", result.stdout)
+        self.assertIn("To activate, run: tw activate Alpha", result.stdout)
+
+    def test_create_debug_flag_shows_narration(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            result = self._run_create(workspace, "Alpha", ["--debug"])
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Skipping Conda environment creation", result.stdout)
+        self.assertIn("To activate, run: tw activate Alpha", result.stdout)
+
+    def test_create_taurworks_debug_env_var_shows_narration(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            env = _subprocess_env()
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            env["TAURWORKS_DEBUG"] = "1"
+            cmd = [sys.executable, "-m", "taurworks.cli", "create", "Alpha"]
+            result = subprocess.run(
+                cmd,
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Skipping Conda environment creation", result.stdout)
+
+    def test_create_taurworks_debug_env_var_falsy_value_stays_off(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            env = _subprocess_env()
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            env["TAURWORKS_DEBUG"] = "0"
+            cmd = [sys.executable, "-m", "taurworks.cli", "create", "Alpha"]
+            result = subprocess.run(
+                cmd,
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertNotIn("Skipping Conda environment creation", result.stdout)
+
+    def test_create_debug_flag_takes_precedence_over_falsy_env_var(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            env = _subprocess_env()
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            env["TAURWORKS_DEBUG"] = "0"
+            cmd = [
+                sys.executable,
+                "-m",
+                "taurworks.cli",
+                "--debug",
+                "create",
+                "Alpha",
+            ]
+            result = subprocess.run(
+                cmd,
+                cwd=workspace,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("Skipping Conda environment creation", result.stdout)
+
+
 class SetupCliTest(unittest.TestCase):
 
     def test_setup_creates_shell_helper_and_tl_source_at_default_path(self):

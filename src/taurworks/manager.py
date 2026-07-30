@@ -73,16 +73,19 @@ def get_conda_environments():
 
 
 def create_conda_environment(
-    env_name, python_version="3.11", packages=None, env_file=None
+    env_name, python_version="3.11", packages=None, env_file=None, debug=False
 ):
     """Creates a Conda environment if it does not exist."""
     if env_name in get_conda_environments():
-        print(f"✔ Conda environment {env_name} already exists.")
+        if debug:
+            print(f"✔ Conda environment {env_name} already exists.")
         return
 
-    print(f"Creating Conda environment: {env_name} ...")
+    if debug:
+        print(f"Creating Conda environment: {env_name} ...")
     if env_file:
-        print(f"Using environment file: {env_file}")
+        if debug:
+            print(f"Using environment file: {env_file}")
         subprocess.run(
             ["conda", "env", "create", "--name", env_name, "--file", env_file],
             check=True,
@@ -99,7 +102,8 @@ def create_conda_environment(
         if packages:
             package_list = packages.split(",")
             conda_cmd.extend(package_list)
-            print(f"Installing additional packages: {package_list}")
+            if debug:
+                print(f"Installing additional packages: {package_list}")
 
         subprocess.run(conda_cmd, check=True)
 
@@ -163,6 +167,7 @@ def refresh_project(
     packages=None,
     env_file=None,
     create_env=False,
+    debug=False,
 ):
     """Ensures a project is correctly set up."""
     project_dir = os.path.join(TAURWORKS_WORKSPACE, project_name)
@@ -176,18 +181,22 @@ def refresh_project(
 
     # Ensure project directory exists
     if not os.path.exists(project_dir):
-        print(f"Creating project directory: {project_dir}")
+        if debug:
+            print(f"Creating project directory: {project_dir}")
         os.makedirs(project_dir)
 
     # Ensure .taurworks directory exists
     if not os.path.exists(admin_dir):
-        print(f"Creating .taurworks directory: {admin_dir}")
+        if debug:
+            print(f"Creating .taurworks directory: {admin_dir}")
         os.makedirs(admin_dir)
 
     # Ensure Conda environment exists, only when explicitly requested
     if create_env:
-        create_conda_environment(env_name, python_version, packages, env_file)
-    else:
+        create_conda_environment(
+            env_name, python_version, packages, env_file, debug=debug
+        )
+    elif debug:
         print(
             "Skipping Conda environment creation " "(pass --create-env to create one)."
         )
@@ -200,7 +209,8 @@ def refresh_project(
 
     # Ensure repository directory exists
     if not os.path.exists(repo_dir):
-        print(f"Creating repository directory: {repo_dir}")
+        if debug:
+            print(f"Creating repository directory: {repo_dir}")
         os.makedirs(repo_dir)
 
     # Ensure declarative activation config exists (never overwrites existing values)
@@ -208,12 +218,13 @@ def refresh_project(
         pathlib.Path(project_dir), env_name, repo_name
     )
     config_path = project_internals.project_config_path(pathlib.Path(project_dir))
-    if config_changes:
-        print(f"Updating Taurworks config: {config_path}")
-        for change in config_changes:
-            print(f"  {change}")
-    else:
-        print(f"✔ Taurworks config already up to date: {config_path}")
+    if debug:
+        if config_changes:
+            print(f"Updating Taurworks config: {config_path}")
+            for change in config_changes:
+                print(f"  {change}")
+        else:
+            print(f"✔ Taurworks config already up to date: {config_path}")
 
     if create_env:
         print(f"✔ Project {project_name} is fully set up.")
@@ -523,6 +534,7 @@ def create_project(
     packages=None,
     env_file=None,
     create_env=False,
+    debug=False,
 ):
     """Creates a new project with the predefined structure."""
     project_dir = os.path.join(TAURWORKS_WORKSPACE, project_name)
@@ -546,10 +558,12 @@ def create_project(
 
     # Create Conda environment, only when explicitly requested
     if create_env:
-        print(f"Creating Conda environment: {env_name} ...")
+        if debug:
+            print(f"Creating Conda environment: {env_name} ...")
 
         if env_file:
-            print(f"Using environment file: {env_file}")
+            if debug:
+                print(f"Using environment file: {env_file}")
             subprocess.run(
                 ["conda", "env", "create", "--name", env_name, "--file", env_file],
                 check=True,
@@ -566,10 +580,11 @@ def create_project(
             if packages:
                 package_list = packages.split(",")
                 conda_cmd.extend(package_list)
-                print(f"Installing additional packages: {package_list}")
+                if debug:
+                    print(f"Installing additional packages: {package_list}")
 
             subprocess.run(conda_cmd, check=True)
-    else:
+    elif debug:
         print(
             "Skipping Conda environment creation " "(pass --create-env to create one)."
         )
@@ -588,7 +603,7 @@ def create_project(
         pathlib.Path(project_dir), env_name, project_name
     )
     config_path = project_internals.project_config_path(pathlib.Path(project_dir))
-    if config_changes:
+    if debug and config_changes:
         print(f"Updating Taurworks config: {config_path}")
         for change in config_changes:
             print(f"  {change}")

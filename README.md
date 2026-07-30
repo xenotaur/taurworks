@@ -382,6 +382,21 @@ The namespaced model is the active design direction. The currently shipped CLI r
 - `taurworks activate`
 - `taurworks projects`
 
+`taurworks create` and `taurworks refresh` print step-by-step narration
+("Creating Conda environment...", "Updating Taurworks config...") by
+default only when `--debug` is passed before the subcommand (e.g.
+`taurworks --debug create NAME`) or `$TAURWORKS_DEBUG` is set to a truthy
+value (anything other than unset/empty/`0`/`false`/`no`); `--debug` wins
+whenever both are set. Each command's actionable result lines (for
+example `"To activate, run: tw activate NAME"` and the `✔`/`❌` success or
+failure line) are always printed regardless of `--debug`. `taurworks
+activate` has no narration to gate -- its output already is the result.
+`taurworks projects`' listing output (including `"No projects found."`) is
+its result, not narration, and is always printed in full. This `--debug`/
+`$TAURWORKS_DEBUG` flag is unrelated to `tw activate`'s own `--verbose`/
+`--debug` alias documented below, which controls a different, shell-level
+diagnostic.
+
 The currently implemented namespaced commands are:
 
 - `taurworks config where` (implemented, read-only global config path diagnostics)

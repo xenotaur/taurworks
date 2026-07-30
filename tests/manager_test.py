@@ -130,8 +130,31 @@ class ManagerModuleTest(unittest.TestCase):
                 manager.refresh_project("Alpha")
 
             run_mock.assert_not_called()
-            self.assertIn("Skipping Conda environment creation", stdout.getvalue())
             self.assertTrue((pathlib.Path(temp_dir) / "Alpha" / ".taurworks").exists())
+        # WI-TAURWORKS-DEBUG-FLAG-0001: narration is suppressed by default;
+        # the final result line stays unconditional either way.
+        self.assertNotIn("Skipping Conda environment creation", stdout.getvalue())
+        self.assertIn("To activate, run: tw activate Alpha", stdout.getvalue())
+
+    def test_refresh_project_debug_shows_narration(self):
+        # WI-TAURWORKS-DEBUG-FLAG-0001: debug=True restores the narration
+        # that is suppressed by default.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(manager.subprocess, "run") as run_mock,
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                manager.refresh_project("Alpha", debug=True)
+
+            run_mock.assert_not_called()
+
+        output = stdout.getvalue()
+        self.assertIn("Skipping Conda environment creation", output)
+        self.assertIn("Creating project directory", output)
+        self.assertIn("Creating .taurworks directory", output)
+        self.assertIn("Creating repository directory", output)
+        self.assertIn("To activate, run: tw activate Alpha", output)
 
     def test_refresh_project_create_env_creates_conda_environment(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -159,8 +182,28 @@ class ManagerModuleTest(unittest.TestCase):
                 manager.create_project("Beta")
 
             run_mock.assert_not_called()
-            self.assertIn("Skipping Conda environment creation", stdout.getvalue())
             self.assertTrue((pathlib.Path(temp_dir) / "Beta" / ".taurworks").exists())
+        # WI-TAURWORKS-DEBUG-FLAG-0001: narration is suppressed by default;
+        # the final result line stays unconditional either way.
+        self.assertNotIn("Skipping Conda environment creation", stdout.getvalue())
+        self.assertIn("To activate, run: tw activate Beta", stdout.getvalue())
+
+    def test_create_project_debug_shows_narration(self):
+        # WI-TAURWORKS-DEBUG-FLAG-0001: debug=True restores the narration
+        # that is suppressed by default.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+                unittest.mock.patch.object(manager.subprocess, "run") as run_mock,
+                contextlib.redirect_stdout(io.StringIO()) as stdout,
+            ):
+                manager.create_project("Beta", debug=True)
+
+            run_mock.assert_not_called()
+
+        output = stdout.getvalue()
+        self.assertIn("Skipping Conda environment creation", output)
+        self.assertIn("To activate, run: tw activate Beta", output)
 
     def test_create_project_create_env_creates_conda_environment(self):
         with tempfile.TemporaryDirectory() as temp_dir:
