@@ -73,6 +73,8 @@ environments" the same way the existing tests in that class already
 simulate the interactive prompt -- by calling the function directly,
 since no real TTY is available in a subprocess test).
 
+CHAIN-NOTE: cycles=1; stops=1; gates=[merge]; friction="none -- clean run, no tool/environment mistakes"; note="PR #94 merged 2a4e72c; Conda PATH-loss diagnostic added covering all 8 command taurworks call sites, 2 review comments (function/alias PATH-lookup bypass, bad PyPI install suggestion) both fixed and independently reverified; WI-TW-PATH-LOSS-DIAGNOSTIC-0001 resolved at closeout"
+
 # Validation
 
 - `git rev-parse HEAD` (pre-push, on top of `94cef92`): `24a246b9b74a6a26b91b8536b59d128650ebe4be`
