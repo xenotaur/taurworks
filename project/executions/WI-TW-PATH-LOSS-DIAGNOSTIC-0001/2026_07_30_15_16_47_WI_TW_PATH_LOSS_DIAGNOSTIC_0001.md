@@ -2,10 +2,10 @@
 execution_id: 2026_07_30_15_16_47_WI_TW_PATH_LOSS_DIAGNOSTIC_0001
 prompt_id: PROMPT(WI-TW-PATH-LOSS-DIAGNOSTIC-0001:WI_TW_PATH_LOSS_DIAGNOSTIC_0001)[2026-07-30T15:16:47-04:00]
 work_item: WI-TW-PATH-LOSS-DIAGNOSTIC-0001
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/94
-commit: c20d97c
+commit: 2a4e72ca663b844a524fd4bcb474cbbfad2747df
 created_at: 2026-07-30T15:16:47-04:00
 agent: claude_app
 instruction_source: project/work_items/proposed/WI-TW-PATH-LOSS-DIAGNOSTIC-0001.md

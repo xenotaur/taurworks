@@ -2,10 +2,10 @@
 execution_id: 2026_07_30_15_37_32_WI_TW_PATH_LOSS_DIAGNOSTIC_0001_IMPL_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_TW_PATH_LOSS_DIAGNOSTIC_0001_IMPL_REVIEW)[2026-07-30T15:37:32-04:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_07_30_15_16_47_WI_TW_PATH_LOSS_DIAGNOSTIC_0001
 pr: https://github.com/xenotaur/taurworks/pull/94
-commit: 15d6c7d814d49739c391489e03fdea34451cee2e
+commit: 2a4e72ca663b844a524fd4bcb474cbbfad2747df
 created_at: 2026-07-30T15:37:32-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/94

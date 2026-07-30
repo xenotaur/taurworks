@@ -2,10 +2,10 @@
 id: WI-TW-PATH-LOSS-DIAGNOSTIC-0001
 title: Add Conda PATH-loss diagnostic to the tw shell helper
 type: deliverable
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: "Implemented and merged in PR #94 (commit 2a4e72ca663b844a524fd4bcb474cbbfad2747df). Adds a Conda PATH-loss diagnostic to the tw shell helper: a resolvability guard (_tw_require_taurworks) covers all 8 `command taurworks ...` call sites via a single up-front check in tw() plus one re-check in _tw_offer_legacy_trust (the only site reached after conda activate may have already hidden taurworks from $PATH). Review caught 2 real bugs (a shell-function/alias could fool a naive `command -v` check since `command taurworks` bypasses function lookup; the diagnostic wrongly suggested a bare-name pipx/pip install when taurworks isn't on PyPI) -- both fixed and independently re-verified. tl confirmed to need no equivalent change since it never calls `command taurworks`."
 related_focus:
   - FOCUS-CURRENT
 related_roadmap:
