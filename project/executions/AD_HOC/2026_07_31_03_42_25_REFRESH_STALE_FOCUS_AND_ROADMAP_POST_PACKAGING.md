@@ -2,10 +2,10 @@
 execution_id: 2026_07_31_03_42_25_REFRESH_STALE_FOCUS_AND_ROADMAP_POST_PACKAGING
 prompt_id: PROMPT(AD_HOC:REFRESH_STALE_FOCUS_AND_ROADMAP_POST_PACKAGING)[2026-07-31T03:42:25+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/96
-commit: 61328bc199d6c6d1281848f0f8b46fab7eb134c2
+commit: 9ac0b4fbfe9c16d6087c20c1560fae9abc9c8b12
 created_at: 2026-07-31T03:42:25+00:00
 agent: claude_app
 instruction_source: conversational session — user asked "what's left on the roadmap now", I identified project/roadmap/roadmap.md and project/focus/current_focus.md as stale (both still described the 3 just-resolved packaging WIs as proposed/prompt-ready), showed the proposed diff, and the user confirmed applying it
@@ -52,6 +52,8 @@ resolved WIs was already correctly wired (`[FOCUS-CURRENT]`/
 there was no self-contradiction to fix this time since these WIs already
 referenced the focus/roadmap IDs they're now marked resolved against.
 
+CHAIN-NOTE: cycles=1; stops=0; gates=[merge]; friction="review caught a real cross-document consistency gap: this PR updated roadmap.md/current_focus.md to say the packaging design was fully delivered but left the governing project/design/packaging_and_install.md's own Status section saying \"nothing implemented yet\", plus this record's own boilerplate Follow-up section had gone stale the moment pr:/session_transcript were set"; note="PR #96 merged 9ac0b4f; roadmap/focus refreshed to reflect all 4 packaging_and_install.md WIs resolved, governing design doc's Status section also updated for consistency; no WI resolved (AD_HOC doc refresh, not a work item)"
+
 # Validation
 
 - `lrh validate`: 0 errors, 0 warnings.
@@ -60,7 +62,5 @@ referenced the focus/roadmap IDs they're now marked resolved against.
 
 # Follow-up
 
-- PR #96 is open (`session_transcript` already set to this session's
-  transcript in frontmatter). Next: wait for reviewer comments, run
-  `/lrh-review-response`/`/lrh-confirm-fixes`, then `/lrh-closeout` after
-  merge.
+- None outstanding. PR #96 merged (`9ac0b4f`); review response and
+  confirm-fixes already landed against it before merge.
