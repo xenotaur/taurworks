@@ -31,7 +31,7 @@ acceptance:
   - "the delegated subprocess's exit code is returned unchanged as taurworks dev <command>'s own exit code, and its stdout/stderr stream live (inherited, not captured-then-reprinted)"
   - "when neither tier resolves for a given command, taurworks dev <command> exits non-zero with a message naming the command and both locations checked ([dev.commands].<name> and the resolved script path) -- never a silent no-op"
   - "run from this repo's own root, taurworks dev clean/test/smoke/lint/format/build each delegate to the matching ./scripts/<name> and produce the same exit code and output as running that script directly"
-  - "tests cover Tier 1 resolution, Tier 2 resolution, Tier 1 taking precedence over Tier 2 when both are present, the neither-resolves failure path, and exit-code passthrough for at least one command"
+  - "tests cover Tier 1 resolution, Tier 2 resolution, Tier 1 taking precedence over Tier 2 when both are present, the neither-resolves failure path, exit-code passthrough for at least one command, Tier 1 config being read from project_root even when a nested working_dir is configured, and the delegated subprocess running with cwd set to the resolved work_directory_guess base"
   - "README.md documents the six new dev commands, the two-tier resolution order, and the [dev.commands] config table"
 artifacts_expected:
   - src/taurworks/dev.py
@@ -129,14 +129,28 @@ item was drafted.
    name, returns either a Tier 1 shell-split argv (via `shlex.split` on the
    configured string, never `shell=True`), a Tier 2 argv (the resolved
    `scripts/<name>` path plus no extra args in v1), or a clear failure
-   naming both locations checked. Reuse
+   naming both locations checked. **Tier 1 and Tier 2 resolve against two
+   different base directories, not one** (a real bug caught in review of
+   this WI's first draft): Tier 1's `[dev.commands]` table must always be
+   read from the detected `project_root`'s `.taurworks/config.toml` (via
+   `project_internals.find_project_root_candidate`, the same function
+   `gather_dev_where_diagnostics()` already calls) — `.taurworks/config.toml`
+   is metadata owned by `project_root`, never by a possibly-nested
+   `working_dir` (`project/design/design.md`'s project_root/working_dir
+   distinction). Tier 2's `scripts/<name>` resolves against
    `gather_dev_where_diagnostics()`'s existing `work_directory_guess`
-   resolution (configured `working_dir`, else nearest `.git` root, else
-   detected project root, else cwd) as the base directory both tiers
-   resolve `.taurworks/config.toml` and `scripts/<name>` against.
+   (configured `working_dir`, else nearest `.git` root, else detected
+   project root, else cwd), which may legitimately differ from
+   `project_root` when a nested `working_dir` is configured.
 3. `src/taurworks/dev.py`: add an execution function that runs the
    resolved argv via `subprocess.run` with inherited stdio (no
-   `capture_output`), and returns the child's exit code unchanged.
+   `capture_output`) and **`cwd` set to the resolved `work_directory_guess`
+   base directory** (also caught in review: omitting `cwd` would run the
+   delegated command in whatever directory the invoking shell happened to
+   be in, not the resolved base — breaking dogfood scripts like
+   `scripts/test`/`scripts/lint`, which assume repo-root-relative paths,
+   when `taurworks dev test` is invoked from a subdirectory), and returns
+   the child's exit code unchanged.
 4. `src/taurworks/cli.py`: add `clean`, `test`, `smoke`, `lint`, `format`,
    and `build` subparsers under `dev`, wired through `_handle_dev_command`
    to the new resolution/execution functions, with `raise SystemExit(<code>)`
@@ -144,8 +158,13 @@ item was drafted.
 5. `tests/dev_test.py`: add cases for Tier 1 resolution, Tier 2 resolution,
    Tier 1 taking precedence when both are configured, the
    neither-resolves failure path (clear message, non-zero exit, no
-   subprocess invoked), and exit-code passthrough (a fake script/configured
-   command that exits non-zero).
+   subprocess invoked), exit-code passthrough (a fake script/configured
+   command that exits non-zero), **Tier 1 config resolving from
+   `project_root` even when a nested `working_dir` is configured** (the
+   two-base-directories regression this review round caught), and **the
+   delegated subprocess's `cwd`** matching `work_directory_guess` (e.g. a
+   fixture script that writes its own `os.getcwd()` to a file, invoked
+   with the process's real cwd set to something else).
 6. `tests/cli_test.py`: add an end-to-end case delegating to a real
    `scripts/<name>`-style fixture script via a real subprocess CLI
    invocation, confirming stdout is inherited and the exit code matches.
@@ -174,13 +193,16 @@ item was drafted.
 ## Acceptance Criteria
 
 - `taurworks dev clean/test/smoke/lint/format/build` subcommands exist,
-  each resolving via Tier 1 (`[dev.commands].<name>` in
-  `.taurworks/config.toml`, `shlex.split`, no `shell=True`) then Tier 2
-  (`<base_dir>/scripts/<name>`, executed directly as an argv list), using
-  the same base-directory precedence as `dev where`'s
-  `work_directory_guess`.
-- The delegated subprocess's exit code is returned unchanged as
-  `taurworks dev <command>`'s own exit code, and its stdout/stderr stream
+  each resolving via Tier 1 (`[dev.commands].<name>` read from the
+  detected `project_root`'s `.taurworks/config.toml`, `shlex.split`, no
+  `shell=True`) then Tier 2 (`<work_directory_guess>/scripts/<name>`,
+  executed directly as an argv list) -- Tier 1 and Tier 2 resolve against
+  `project_root` and `work_directory_guess` respectively, which are
+  distinct directories whenever a nested `working_dir` is configured, not
+  a single shared base.
+- The delegated subprocess runs with `cwd` set to the resolved
+  `work_directory_guess`, and its exit code is returned unchanged as
+  `taurworks dev <command>`'s own exit code, with stdout/stderr streaming
   live (inherited, not captured-then-reprinted).
 - When neither tier resolves, `taurworks dev <command>` exits non-zero
   with a message naming the command and both locations checked -- never a
@@ -189,9 +211,12 @@ item was drafted.
   the matching `./scripts/<name>` and produces the same exit code and
   output as running that script directly.
 - Tests cover Tier 1 resolution, Tier 2 resolution, Tier 1
-  precedence-over-Tier 2, the neither-resolves failure path, and
-  exit-code passthrough.
-- README.md documents the six commands, the resolution order, and the
+  precedence-over-Tier 2, the neither-resolves failure path, exit-code
+  passthrough, Tier 1 config resolving from `project_root` even with a
+  nested `working_dir` configured, and the delegated subprocess's `cwd`
+  matching `work_directory_guess`.
+- README.md documents the six commands, the resolution order (including
+  the `project_root`/`work_directory_guess` split), and the
   `[dev.commands]` config table.
 
 ## Validation
@@ -222,3 +247,14 @@ item was drafted.
   delegate to by default" are different questions -- a future WI adding
   `develop` (or any other deferred command) must independently verify its
   script's side effects, not just its existence.
+- `project_root` and `work_directory_guess` are not interchangeable, and
+  this WI's own first draft conflated them (caught in review before
+  implementation started): `.taurworks/config.toml` is metadata owned by
+  `project_root` and must never be looked up under a possibly-nested
+  `working_dir`, while `scripts/<name>` and the delegated subprocess's
+  `cwd` both use `work_directory_guess`, which can legitimately be a
+  different, nested directory. This repo's own dogfood target
+  (`working_dir = "."`) doesn't exercise the divergent case at all, so
+  implementation must not rely on manual dogfooding alone to catch a
+  regression here -- the dedicated nested-`working_dir` test case is load
+  bearing.
