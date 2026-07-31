@@ -4,8 +4,8 @@ prompt_id: PROMPT(AD_HOC:REFRESH_STALE_FOCUS_AND_ROADMAP_POST_PACKAGING)[2026-07
 work_item: AD_HOC
 status: in_progress
 rerun_of:
-pr: pending
-commit: a013f638c9af66faa06571261d175d9e79342835
+pr: https://github.com/xenotaur/taurworks/pull/96
+commit: 61328bc199d6c6d1281848f0f8b46fab7eb134c2
 created_at: 2026-07-31T03:42:25+00:00
 agent: claude_app
 instruction_source: conversational session — user asked "what's left on the roadmap now", I identified project/roadmap/roadmap.md and project/focus/current_focus.md as stale (both still described the 3 just-resolved packaging WIs as proposed/prompt-ready), showed the proposed diff, and the user confirmed applying it
