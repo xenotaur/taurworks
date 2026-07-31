@@ -2,10 +2,10 @@
 execution_id: 2026_07_31_08_28_58_SCOPE_DEV_WORKFLOW_AUTOMATION_REVIEW
 prompt_id: PROMPT(AD_HOC:SCOPE_DEV_WORKFLOW_AUTOMATION_REVIEW)[2026-07-31T08:28:58+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_07_31_08_10_46_SCOPE_DEV_WORKFLOW_AUTOMATION
 pr: https://github.com/xenotaur/taurworks/pull/98
-commit:
+commit: 18d00730c4b0729aab91140977fffe2b2aea4b48
 created_at: 2026-07-31T08:28:58+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/98
@@ -69,5 +69,5 @@ in a follow-up commit before merge.
 
 # Follow-up
 
-- Recommend `/lrh-confirm-fixes` before merge to verify the fixes against
-  the current diff and resolve the review threads.
+- None outstanding. PR #98 merged (`18d0073`); confirm-fixes already
+  landed against it before merge.

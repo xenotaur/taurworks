@@ -2,10 +2,10 @@
 execution_id: 2026_07_31_08_34_12_SCOPE_DEV_WORKFLOW_AUTOMATION_CONFIRM
 prompt_id: PROMPT(AD_HOC:SCOPE_DEV_WORKFLOW_AUTOMATION_CONFIRM)[2026-07-31T08:34:12+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/98
-commit:
+commit: 18d00730c4b0729aab91140977fffe2b2aea4b48
 created_at: 2026-07-31T08:34:12+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/98
@@ -61,6 +61,5 @@ resolved, no exceptions remain open.
 
 # Follow-up
 
-- Merge-readiness verdict: contingent on CI going green (was pending as
-  of this record). Awaiting explicit user go-ahead before merging (hard
-  gate per the outer task's instructions), in addition to CI.
+- None outstanding. PR #98 merged (`18d0073`) after explicit user
+  approval.

@@ -2,10 +2,10 @@
 execution_id: 2026_07_31_08_10_46_SCOPE_DEV_WORKFLOW_AUTOMATION
 prompt_id: PROMPT(AD_HOC:SCOPE_DEV_WORKFLOW_AUTOMATION)[2026-07-31T08:10:46+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/98
-commit:
+commit: 18d00730c4b0729aab91140977fffe2b2aea4b48
 created_at: 2026-07-31T08:10:46+00:00
 agent: claude_app
 instruction_source: conversational session — user asked to decide taurworks dev ...'s workflow-automation scope; I surveyed existing design docs (design.md, unified_command_model.md) and this repo's own scripts/ layout, found a real inconsistency between design.md's and roadmap.md's "higher-risk commands" lists, proposed a narrow delegate-only v1, and the user confirmed
@@ -79,6 +79,8 @@ Drafted the implementation work item,
 after this one lands), per the packaging-series precedent of landing a
 design/scope decision before drafting the work item(s) that implement it.
 
+CHAIN-NOTE: cycles=2; stops=1; gates=[merge]; friction="review caught a real scoping mistake in the original decision (develop wrongly classified low-risk despite scripts/develop running pip install), and a cold confirm-fixes subagent caught that my own first-round fix for it was incomplete (a straggler v1 mention survived in roadmap.md's summary paragraph, requiring a second confirm-fixes round to close)"; note="PR #98 merged 18d0073; taurworks dev workflow-automation v1 scope decided as clean/test/smoke/lint/format/build (develop moved to deferred), design.md/roadmap.md's disagreeing higher-risk-command lists reconciled; WI-DEV-WORKFLOW-AUTOMATION-0001 drafted and approved, to be opened as its own PR next"
+
 # Validation
 
 - `lrh validate`: 0 errors, 0 warnings.
@@ -87,7 +89,6 @@ design/scope decision before drafting the work item(s) that implement it.
 
 # Follow-up
 
-- Next: open PR, wait for reviewer comments, run
-  `/lrh-review-response`/`/lrh-confirm-fixes`, then `/lrh-closeout` after
-  merge. Once merged, draft `WI-DEV-WORKFLOW-AUTOMATION-0001` in a fresh
-  branch off the updated master.
+- PR #98 merged (`18d0073`); review response and confirm-fixes already
+  landed against it before merge. Next: draft `WI-DEV-WORKFLOW-AUTOMATION-0001`
+  in a fresh branch off the updated master.
