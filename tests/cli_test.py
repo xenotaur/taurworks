@@ -2931,6 +2931,44 @@ class DevWorkflowAutomationCliTest(unittest.TestCase):
         self.assertIn("no delegation target found", result.stderr)
         self.assertIn("[dev.commands].test", result.stderr)
 
+    def test_dev_test_malformed_config_fails_clearly_not_with_traceback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = pathlib.Path(temp_dir)
+            admin_dir = project_root / ".taurworks"
+            admin_dir.mkdir()
+            (admin_dir / "config.toml").write_text(
+                'schema_version = 1\n\n[dev]\ncommands = "not-a-table"\n',
+                encoding="utf-8",
+            )
+            self._write_executable_script(
+                project_root / "scripts" / "test", "#!/bin/sh\nexit 0\n"
+            )
+            result = _run_cli(["dev", "test"], project_root)
+
+        self.assertEqual(
+            result.returncode, 1, msg=_failure_message(["dev", "test"], result)
+        )
+        self.assertIn("could not be read", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_dev_test_launch_failure_reports_clean_message_not_traceback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = pathlib.Path(temp_dir)
+            admin_dir = project_root / ".taurworks"
+            admin_dir.mkdir()
+            (admin_dir / "config.toml").write_text(
+                "schema_version = 1\n\n[dev.commands]\n"
+                'test = "/nonexistent/binary-does-not-exist"\n',
+                encoding="utf-8",
+            )
+            result = _run_cli(["dev", "test"], project_root)
+
+        self.assertEqual(
+            result.returncode, 1, msg=_failure_message(["dev", "test"], result)
+        )
+        self.assertIn("failed to run", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
     def test_dev_test_config_command_delegates_with_shlex_split(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = pathlib.Path(temp_dir)

@@ -101,6 +101,48 @@ class ResolveDevCommandTest(unittest.TestCase):
         self.assertFalse(resolution.resolved)
         self.assertIn("not executable", resolution.detail)
 
+    def test_malformed_config_fails_clearly_instead_of_falling_through_to_tier2(
+        self,
+    ):
+        # Regression test (review): a malformed [dev.commands] table must
+        # stop resolution with a clear error, not silently fall through to
+        # Tier 2 -- a config typo could otherwise run a different,
+        # unintended script without ever surfacing the typo.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = pathlib.Path(temp_dir)
+            _write_project_config(
+                project_root,
+                'schema_version = 1\n\n[dev]\ncommands = "not-a-table"\n',
+            )
+            _write_executable_script(
+                project_root / "scripts" / "test", "#!/bin/sh\nexit 0\n"
+            )
+            self._chdir(project_root)
+
+            resolution = dev.resolve_dev_command("test")
+
+        self.assertFalse(resolution.resolved)
+        self.assertIsNone(resolution.argv)
+        self.assertIn("could not be read", resolution.detail)
+
+    def test_unparseable_configured_command_fails_clearly(self):
+        # Regression test (review): shlex.split can raise ValueError on
+        # malformed shell quoting; this must produce a clear resolution
+        # failure, not an unhandled traceback.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = pathlib.Path(temp_dir)
+            _write_project_config(
+                project_root,
+                'schema_version = 1\n\n[dev.commands]\ntest = "pytest \\"unterminated"\n',
+            )
+            self._chdir(project_root)
+
+            resolution = dev.resolve_dev_command("test")
+
+        self.assertFalse(resolution.resolved)
+        self.assertIsNone(resolution.argv)
+        self.assertIn("could not be parsed", resolution.detail)
+
     def test_tier1_config_resolves_from_project_root_with_nested_working_dir(self):
         # Regression test (WI-DEV-WORKFLOW-AUTOMATION-0001 review): Tier 1
         # config must be read from project_root, not work_directory_guess,
@@ -196,6 +238,23 @@ class ExecuteDevCommandTest(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(pathlib.Path(reported_cwd), work_dir.resolve())
+
+    def test_missing_executable_raises_oserror_not_silently_swallowed(self):
+        # Regression test (review): a resolved argv whose executable
+        # cannot actually be launched (missing binary, bad interpreter,
+        # permission error, vanished cwd) must raise OSError so the CLI
+        # layer can report a clean failure -- execute_dev_command itself
+        # must not swallow or convert it.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            resolution = dev.DevCommandResolution(
+                resolved=True,
+                argv=[str(pathlib.Path(temp_dir) / "does-not-exist")],
+                cwd=temp_dir,
+                tier="script",
+                detail="does-not-exist",
+            )
+            with self.assertRaises(OSError):
+                dev.execute_dev_command(resolution)
 
 
 class DevCommandFromConfigTest(unittest.TestCase):

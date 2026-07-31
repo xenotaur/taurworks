@@ -213,12 +213,42 @@ def resolve_dev_command(name: str) -> DevCommandResolution:
                 project_internals.ProjectConfigError,
                 OSError,
                 tomllib.TOMLDecodeError,
-            ):
-                configured_command = None
+            ) as error:
+                # Stop here rather than falling through to Tier 2: a
+                # malformed/unreadable config is a real configuration
+                # error, not "no override configured" -- silently trying
+                # Tier 2 instead could run a different, unintended command
+                # (e.g. a stale scripts/<name>) without ever surfacing the
+                # typo that caused it.
+                return DevCommandResolution(
+                    resolved=False,
+                    argv=None,
+                    cwd=work_dir,
+                    tier=None,
+                    detail=(
+                        f"taurworks dev {name}: {config_path} could not be "
+                        f"read: {error}. Fix [dev.commands].{name} before "
+                        "retrying."
+                    ),
+                )
             if configured_command:
+                try:
+                    argv = shlex.split(configured_command)
+                except ValueError as error:
+                    return DevCommandResolution(
+                        resolved=False,
+                        argv=None,
+                        cwd=work_dir,
+                        tier=None,
+                        detail=(
+                            f"taurworks dev {name}: [dev.commands].{name} "
+                            f"in {config_path} could not be parsed as a "
+                            f"shell command ({configured_command!r}): {error}"
+                        ),
+                    )
                 return DevCommandResolution(
                     resolved=True,
-                    argv=shlex.split(configured_command),
+                    argv=argv,
                     cwd=work_dir,
                     tier="config",
                     detail=f"[dev.commands].{name} in {config_path}",
@@ -259,6 +289,12 @@ def resolve_dev_command(name: str) -> DevCommandResolution:
 
 
 def execute_dev_command(resolution: DevCommandResolution) -> int:
-    """Run a resolved dev command with inherited stdio; return its exit code."""
+    """Run a resolved dev command with inherited stdio; return its exit code.
+
+    Raises `OSError` if the child process itself could not be launched
+    (missing executable, unreadable interpreter, permission error, a
+    `cwd` that no longer exists, etc.) -- callers should catch this and
+    report a clean failure rather than let a raw traceback surface.
+    """
     result = subprocess.run(resolution.argv, cwd=resolution.cwd)
     return result.returncode

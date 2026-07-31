@@ -276,7 +276,16 @@ def _handle_dev_command(args):
         if not resolution.resolved:
             print(resolution.detail, file=sys.stderr)
             raise SystemExit(1)
-        raise SystemExit(dev.execute_dev_command(resolution))
+        try:
+            exit_code = dev.execute_dev_command(resolution)
+        except OSError as error:
+            print(
+                f"taurworks dev {args.dev_command}: failed to run "
+                f"{resolution.argv[0]}: {error}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from error
+        raise SystemExit(exit_code)
 
     args.dev_parser.print_help()
 
@@ -1079,7 +1088,7 @@ def main(argv=None):
             description=(
                 f"{_dev_v1_help} Resolves via an explicit "
                 f"[dev.commands].{_dev_v1_name} entry in the project root's "
-                f"config.toml (Tier 1), then a project-local "
+                f".taurworks/config.toml (Tier 1), then a project-local "
                 f"scripts/{_dev_v1_name} file relative to the resolved "
                 "working directory (Tier 2). Fails clearly if neither "
                 "resolves."
