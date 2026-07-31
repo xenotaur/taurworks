@@ -60,8 +60,7 @@ referenced the focus/roadmap IDs they're now marked resolved against.
 
 # Follow-up
 
-- `session_transcript: pending` should be updated to
-  `claude-app:<session-id>` after this session ends.
-- Next steps: open PR, wait for reviewer comments, run
+- PR #96 is open (`session_transcript` already set to this session's
+  transcript in frontmatter). Next: wait for reviewer comments, run
   `/lrh-review-response`/`/lrh-confirm-fixes`, then `/lrh-closeout` after
   merge.
