@@ -5,7 +5,7 @@ work_item: WI-LEGACY-MIGRATE-TL-FALLBACK-0001
 status: in_progress
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/97
-commit: 695e8883966af8cb3b7a27b41248b89dc98b28c9
+commit:
 created_at: 2026-07-31T04:30:23+00:00
 agent: claude_app
 instruction_source: conversational session — user asked to decide WI-LEGACY-MIGRATE-TL-FALLBACK-0001's fate; I audited the real workspace, found zero remaining Admin/project-setup.source files, recommended abandoning the WI, and the user confirmed
@@ -33,10 +33,15 @@ Problem/Context (`LCATS`, `EmbodiedAI`, `CentaursGuide`, `ImageWorks`,
 `Admin/project-setup.source` retired by hand: most renamed to
 `Admin/project-setup.source~` (backup) with the active copy now at
 `.taurworks/project-setup.source`, two (`Taurcode`, `LCATS`) renamed
-`.legacy`, and `ImageWorks`/`Scansion`'s `Admin/` directories now
-completely empty. This directly answers the roadmap's own held condition
-("pending confirmation ... that legacy projects still exist needing it")
-as: no.
+`.legacy`, and `ImageWorks`'s `Admin/` directory now completely empty.
+`Scansion` was not one of the WI's 11 named projects, but its `Admin/`
+directory was also found completely empty during the same audit, and a
+separate stray `project-setup.source` sits directly at its project root
+(pre-dating the `Admin/`/`.taurworks/` layout entirely, unrelated to this
+WI's specific retirement target) — noted here as an incidental finding,
+not counted toward the 11. This directly answers the roadmap's own held
+condition ("pending confirmation ... that legacy projects still exist
+needing it") as: no.
 
 **Disposition**: `project/work_items/proposed/WI-LEGACY-MIGRATE-TL-FALLBACK-0001.md`
 moved to `project/work_items/abandoned/` (new bucket; `lrh work-items

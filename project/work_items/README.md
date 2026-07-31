@@ -5,6 +5,9 @@ Work items are organized by status bucket directories:
 - `active/`
 - `proposed/`
 - `resolved/`
+- `abandoned/` — terminal status for a work item that will not be
+  implemented (e.g. its motivating need no longer exists), as distinct
+  from `resolved/`, which means the work was actually done
 
 Each work item Markdown file should include YAML frontmatter at the top.
 At minimum:
