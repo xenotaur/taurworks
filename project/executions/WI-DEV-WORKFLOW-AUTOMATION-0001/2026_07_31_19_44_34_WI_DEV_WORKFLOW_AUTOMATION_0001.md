@@ -4,7 +4,7 @@ prompt_id: PROMPT(WI-DEV-WORKFLOW-AUTOMATION-0001:WI_DEV_WORKFLOW_AUTOMATION_000
 work_item: WI-DEV-WORKFLOW-AUTOMATION-0001
 status: in_progress
 rerun_of:
-pr: pending
+pr: https://github.com/xenotaur/taurworks/pull/100
 commit:
 created_at: 2026-07-31T19:44:34+00:00
 agent: claude_app
