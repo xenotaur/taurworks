@@ -4,7 +4,7 @@ prompt_id: PROMPT(AD_HOC:SCOPE_DEV_WORKFLOW_AUTOMATION)[2026-07-31T08:10:46+00:0
 work_item: AD_HOC
 status: in_progress
 rerun_of:
-pr: pending
+pr: https://github.com/xenotaur/taurworks/pull/98
 commit:
 created_at: 2026-07-31T08:10:46+00:00
 agent: claude_app
