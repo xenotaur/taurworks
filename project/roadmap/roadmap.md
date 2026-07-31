@@ -11,7 +11,7 @@ confidence: medium
 
 This roadmap is phased and conservative. It prioritizes command-model alignment, safe incremental delivery, and explicit trust boundaries.
 
-## Current phase snapshot (2026-07-25)
+## Current phase snapshot (2026-07-30)
 
 Phases 1 through 5A below, and the entire dogfood recovery plan
 (`WI-INTERIM-TL-PIPX-0001`, `WI-LEGACY-BATCH-MIGRATION-0001`,
@@ -23,27 +23,28 @@ separate stale-shell-helper problem, `tw shell refresh`
 
 A packaging/install audit (`project/design/packaging_and_install.md`, design
 discussion 2026-07-22) found four gaps in taurworks' installability on a
-machine other than its original author's. The first — the repo mixing
-taurworks package code with unrelated personal dotfile scripts — is
-resolved (Phase 8 below, `WI-BIN-REPO-SPLIT-0001`). The remaining three —
-a one-step install/setup command, a `tw` PATH-loss diagnostic, and a
-`--debug` flag to gate `manager.py`'s narration — are proposed and
-prompt-ready (`WI-TAURWORKS-SETUP-0001`, `WI-TW-PATH-LOSS-DIAGNOSTIC-0001`,
-`WI-TAURWORKS-DEBUG-FLAG-0001`), tracked in a separate work thread.
+machine other than its original author's. All four are now resolved (Phase
+8 below is done): the repo/package split (`WI-BIN-REPO-SPLIT-0001`), the
+one-step `taurworks setup` install command (`WI-TAURWORKS-SETUP-0001`), the
+`tw` PATH-loss diagnostic (`WI-TW-PATH-LOSS-DIAGNOSTIC-0001`), and the
+`--debug`/`TAURWORKS_DEBUG` flag (`WI-TAURWORKS-DEBUG-FLAG-0001`). This
+design is fully delivered; no further work is planned against it without a
+new need being raised.
 
 `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` — automating retirement of a
 now-redundant `Admin/project-setup.source` once a project is fully migrated
 to declarative `config.toml`, found during 2026-07-22 real-workspace
 dogfooding — remains proposed rather than active. It is deliberately held,
-possibly permanently, pending confirmation after the packaging work above
-lands that legacy projects still exist needing it. The two side-effect
-audit recommendations that were never captured as work items remain
-assessed and deferred to `project/design/backlog.md` (see below).
+possibly permanently, pending confirmation — now that the packaging work
+above has landed — that legacy `Admin/project-setup.source` projects still
+exist that would actually benefit from it. The two side-effect audit
+recommendations that were never captured as work items remain assessed and
+deferred to `project/design/backlog.md` (see below).
 
 ### In scope now
 
-- Landing the three proposed packaging/install work items (Phase 8 below),
-  tracked in a separate work thread.
+- Confirming whether `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` is still needed,
+  now that the packaging/install work above has landed.
 - Deciding scope for `taurworks dev ...` workflow automation beyond
   read-only diagnostics.
 
@@ -176,30 +177,30 @@ assessed and deferred to `project/design/backlog.md` (see below).
 
 - After compatibility is preserved and namespaced commands are stable, define deprecation/migration for legacy top-level commands.
 
-## Phase 8 — Packaging and install cleanup (in progress, tracked separately)
+## Phase 8 — Packaging and install cleanup (done)
 
 Prompted by `project/design/packaging_and_install.md`'s 2026-07-22 audit of
 four gaps blocking taurworks from working on a machine other than its
-original author's.
+original author's. All four are resolved:
 
-- Repo/package split (done): `bin/`'s personal-dotfile material split into
+- Repo/package split: `bin/`'s personal-dotfile material split into
   a separate sibling repo (`xenotaur/taurscripts`, full history preserved),
   `migrate_legacy_projects.py` relocated under the package, `sourceme/`
-  wired into `setup.py` packaging (`WI-BIN-REPO-SPLIT-0001`).
-- One-step install/setup command (proposed, prompt-ready): `taurworks
-  setup` plus a `scripts/install` shim, superseding the current
-  multi-step manual install sequence (`WI-TAURWORKS-SETUP-0001`).
-- `tw` PATH-loss diagnostic (proposed, prompt-ready): a clear diagnostic
-  instead of a bare shell "command not found" when a Conda environment
-  switch hides the installed `taurworks` executable
-  (`WI-TW-PATH-LOSS-DIAGNOSTIC-0001`).
-- `--debug`/`TAURWORKS_DEBUG` flag (proposed, prompt-ready): gate
-  `manager.py`'s ~56 unconditional narration lines and audit `cli.py`'s
-  formatter modules for debug-shaped output
-  (`WI-TAURWORKS-DEBUG-FLAG-0001`).
+  wired into `setup.py` packaging (`WI-BIN-REPO-SPLIT-0001`, PR #88).
+- One-step install/setup command: `taurworks setup` plus a
+  `scripts/install` shim, superseding the prior multi-step manual install
+  sequence (`WI-TAURWORKS-SETUP-0001`, PR #93).
+- `tw` PATH-loss diagnostic: a clear diagnostic instead of a bare shell
+  "command not found" when a Conda environment switch hides the installed
+  `taurworks` executable, covering all 8 `command taurworks ...` call
+  sites in the shell helper (`WI-TW-PATH-LOSS-DIAGNOSTIC-0001`, PR #94).
+- `--debug`/`TAURWORKS_DEBUG` flag: gates `manager.py`'s narration prints
+  (final result lines stay unconditional) and audits `cli.py`'s formatter
+  modules for debug-shaped output (none found)
+  (`WI-TAURWORKS-DEBUG-FLAG-0001`, PR #95).
 
-This work is tracked in a separate thread from this roadmap's own
-maintenance; do not duplicate it here.
+No further work is planned against this design without a new need being
+raised.
 
 ## Design backlog
 

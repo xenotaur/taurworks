@@ -2,8 +2,17 @@
 
 ## Status
 
-This document is a design note. Nothing described here is implemented yet.
-It proposes the packaging/install cleanup needed before taurworks is
+All four decisions this design proposes are implemented and merged:
+the repo/package split (`WI-BIN-REPO-SPLIT-0001`, PR #88), the one-step
+`taurworks setup` install command (`WI-TAURWORKS-SETUP-0001`, PR #93),
+the `tw` PATH-loss diagnostic (`WI-TW-PATH-LOSS-DIAGNOSTIC-0001`, PR #94),
+and the `--debug`/`TAURWORKS_DEBUG` flag (`WI-TAURWORKS-DEBUG-FLAG-0001`,
+PR #95). This design is fully delivered; see
+`project/roadmap/roadmap.md`'s Phase 8 and `project/focus/current_focus.md`
+for the current tracking summary. No further work is planned against this
+design without a new need being raised.
+
+It proposed the packaging/install cleanup needed before taurworks is
 public-release-ready: a one-step install for a new user on a fresh machine
 or a Conda environment without taurworks, a real split between the
 `taurworks` package and unrelated legacy dotfile scripts, a warning instead
