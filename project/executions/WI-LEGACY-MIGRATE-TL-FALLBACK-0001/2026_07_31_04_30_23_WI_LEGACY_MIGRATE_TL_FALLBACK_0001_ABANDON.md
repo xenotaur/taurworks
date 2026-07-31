@@ -2,10 +2,10 @@
 execution_id: 2026_07_31_04_30_23_WI_LEGACY_MIGRATE_TL_FALLBACK_0001_ABANDON
 prompt_id: PROMPT(WI-LEGACY-MIGRATE-TL-FALLBACK-0001:WI_LEGACY_MIGRATE_TL_FALLBACK_0001_ABANDON)[2026-07-31T04:30:23+00:00]
 work_item: WI-LEGACY-MIGRATE-TL-FALLBACK-0001
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/97
-commit:
+commit: a44c4ee3c64de7295f26b54a07b91d2af6c1e61b
 created_at: 2026-07-31T04:30:23+00:00
 agent: claude_app
 instruction_source: conversational session — user asked to decide WI-LEGACY-MIGRATE-TL-FALLBACK-0001's fate; I audited the real workspace, found zero remaining Admin/project-setup.source files, recommended abandoning the WI, and the user confirmed
@@ -58,6 +58,8 @@ In/Out of scope) and `project/focus/current_focus.md` (title, `updated`/
 `basis` frontmatter, Current Focus prose, Active direction/In-scope/
 Out-of-scope lists) to state the item is abandoned rather than deferred.
 
+CHAIN-NOTE: cycles=1; stops=1; gates=[merge]; friction="review caught this session's own convention violation: commit was being populated in execution records while status was still in_progress, across every PR since #93, contradicting project/executions/README.md's populated-as-known guidance -- fixed here going forward, not retroactively in already-landed prior records; also caught a real factual ambiguity (Scansion named without context) and a genuine doc gap (abandoned/ bucket undocumented)"; note="PR #97 merged a44c4ee; WI-LEGACY-MIGRATE-TL-FALLBACK-0001 marked abandoned (not resolved) after a direct workspace audit found zero remaining Admin/project-setup.source files -- the roadmap's held-pending-confirmation question now has a definitive answer"
+
 # Validation
 
 - `lrh validate`: 0 errors, 0 warnings.
@@ -68,6 +70,5 @@ Out-of-scope lists) to state the item is abandoned rather than deferred.
 
 # Follow-up
 
-- Next: open PR, wait for reviewer comments, run
-  `/lrh-review-response`/`/lrh-confirm-fixes`, then `/lrh-closeout` after
-  merge.
+- None outstanding. PR #97 merged (`a44c4ee`); review response and
+  confirm-fixes already landed against it before merge.
