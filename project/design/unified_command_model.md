@@ -71,12 +71,15 @@ list. The one item still open from this sequence:
 
 1. Expand `taurworks dev ...` beyond read-only diagnostics (`dev where`,
    `dev status`) into workflow automation. Scoped 2026-07-31: v1 covers
-   `clean`, `develop`, `test`, `smoke`, `lint`, `format`, and `build` only
-   — delegate-only (explicit config override, then a project-local script
+   `clean`, `test`, `smoke`, `lint`, `format`, and `build` only —
+   delegate-only (explicit config override, then a project-local script
    such as `scripts/test`; no built-in per-project-type defaults yet).
-   `init`, `coverage`, `update`, `precommit`, `publish`, `sandbox`,
-   `version`, and `validate` remain deferred (see `project/roadmap/roadmap.md`
-   Phase 6).
+   `init`, `develop`, `coverage`, `update`, `precommit`, `publish`,
+   `sandbox`, `version`, and `validate` remain deferred (`develop` is
+   dependency-mutating in this repo's own dogfood target — `scripts/develop`
+   runs `pip install` — so it is grouped with the other deferred,
+   higher-risk commands rather than the reversible v1 set; see
+   `project/roadmap/roadmap.md` Phase 6).
 
 ## Compatibility and migration notes
 - Existing top-level commands (`create`, `refresh`, `activate`, `projects`) are retained as compatibility commands.

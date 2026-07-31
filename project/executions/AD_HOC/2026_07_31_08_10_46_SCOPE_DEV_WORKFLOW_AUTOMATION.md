@@ -22,13 +22,13 @@ left this as an explicitly open, undecided question since Phase 4.
 # Result
 
 **Survey**: `project/design/design.md` and
-`project/design/unified_command_model.md` already spec a full 15-command
-`dev` namespace and a 3-tier resolution model (explicit config → project-
-local script → built-in per-project-type default), but no dev workflow
-command beyond diagnostics was ever implemented. This repo's own
-`scripts/` directory already has 7 of the 15 speced commands (`clean`,
+`project/design/unified_command_model.md` already specify a full
+15-command `dev` namespace and a 3-tier resolution model (explicit config
+→ project-local script → built-in per-project-type default), but no dev
+workflow command beyond diagnostics was ever implemented. This repo's own
+`scripts/` directory already has 7 of the 15 specified commands (`clean`,
 `develop`, `test`, `smoke`, `lint`, `format`, `build`), making delegation
-to them immediately dogfoodable.
+to most of them immediately dogfoodable.
 
 **Inconsistency found and fixed**: `design.md`'s "higher-risk commands"
 list (`clean`, precommit, publish, update, sandbox) and `roadmap.md`'s
@@ -37,24 +37,35 @@ update) disagreed — `clean` was flagged risky in one but not the other,
 and `version`/`validate` vice versa. Reconciled both to the same v1/
 deferred split.
 
-**Decision**: v1 is delegate-only (Tier 1 config override + Tier 2
-project-local-script), covering the 7 commands with existing scripts in
-this repo (`clean`, `develop`, `test`, `smoke`, `lint`, `format`,
-`build`). Deferred: `init`, `coverage`, `update`, `precommit`, `publish`,
-`sandbox`, `version`, `validate` (higher-risk: irreversible, packaging/
-release, dependency-mutating, or not-yet-semantically-defined), and Tier
-3 (built-in per-project-type defaults, no concrete design yet).
+**Second real gap, caught by review**: the first version of this decision
+included `develop` in the "reversible, low-risk" v1 set. Review pointed
+out that `scripts/develop` in this repo actually runs `pip install`
+(constrained developer-mode setup), which is dependency-mutating —
+directly contradicting Phase 6's own principle of deferring
+dependency-mutating operations until guardrails are proven. Moved
+`develop` into the deferred set across all four docs.
+
+**Decision (final)**: v1 is delegate-only (Tier 1 config override + Tier
+2 project-local-script), covering 6 commands with existing, non-mutating
+scripts in this repo (`clean`, `test`, `smoke`, `lint`, `format`,
+`build`). Deferred: `init`, `develop`, `coverage`, `update`, `precommit`,
+`publish`, `sandbox`, `version`, `validate` (higher-risk: irreversible,
+packaging/release, dependency-mutating, or not-yet-semantically-defined),
+and Tier 3 (built-in per-project-type defaults, no concrete design yet).
 
 **Docs updated**: `project/roadmap/roadmap.md` (Phase 6 rewritten with
 the decided v1/deferred split, "Current phase snapshot"/"In scope now"
 updated), `project/focus/current_focus.md` (title/frontmatter, Current
 Focus prose, Active direction/In-scope/Out-of-scope lists),
 `project/design/design.md` ("Transparency and safety"'s higher-risk list
-reconciled; stale "Status note" language about legacy inspect/migrate and
-trusted hooks being "design-only" corrected, since both are implemented),
-`project/design/unified_command_model.md` ("Status note" and "Remaining
-implementation sequence" corrected similarly — items 1/2/4 of its old
-sequence were already resolved elsewhere and had gone stale).
+reconciled and `develop` corrected; the "Implementation sequence status"
+section's stale claims that legacy inspect/migrate and trusted hooks
+"remain design-only" were also caught by review and fixed, since both are
+implemented; the "safety boundary" text block below it had the same
+staleness and was fixed too), `project/design/unified_command_model.md`
+("Status note" and "Remaining implementation sequence" corrected
+similarly — items 1/2/4 of its old sequence were already resolved
+elsewhere and had gone stale, and `develop` moved to the deferred list).
 
 Also removed two stray untracked files
 (`project/work_items/proposed/WI-TAURWORKS-SETUP-0001.md`,

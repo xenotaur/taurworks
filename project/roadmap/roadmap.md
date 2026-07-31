@@ -183,15 +183,17 @@ workflow automation" question this roadmap had left open since Phase 4.
 type) governs how each in-scope command resolves.
 
 - **v1 scope, delegate-only** (Tiers 1-2 only; no built-in per-project-type
-  defaults yet): `clean`, `develop`, `test`, `smoke`, `lint`, `format`,
-  `build`. Each is a conventional, expected, reversible-or-regenerable
-  operation, and this repo's own `scripts/` already has a matching script
-  to delegate to for dogfooding.
+  defaults yet): `clean`, `test`, `smoke`, `lint`, `format`, `build`. Each
+  is a conventional, expected, reversible-or-regenerable operation, and
+  this repo's own `scripts/` already has a matching script to delegate to
+  for dogfooding.
 - **Deferred** (higher-risk: irreversible, packaging/release,
   dependency-mutating, or not-yet-semantically-defined): `init`,
-  `coverage`, `update`, `precommit`, `publish`, `sandbox`, `version`,
-  `validate` — until core `dev` delegation behavior and guardrails are
-  proven on the v1 set first.
+  `develop`, `coverage`, `update`, `precommit`, `publish`, `sandbox`,
+  `version`, `validate` — until core `dev` delegation behavior and
+  guardrails are proven on the v1 set first. `develop` is grouped here,
+  not v1: this repo's own `scripts/develop` runs `pip install`, making it
+  dependency-mutating like `update`, not reversible like `clean`/`test`.
 
 ## Phase 7 — Define compatibility migration path (not started)
 

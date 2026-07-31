@@ -34,11 +34,13 @@ items remain assessed-and-deferred in `project/design/backlog.md`
 
 `taurworks dev ...` workflow-automation scope is now decided (2026-07-31,
 `project/roadmap/roadmap.md` Phase 6): a delegate-only v1 covering `clean`,
-`develop`, `test`, `smoke`, `lint`, `format`, and `build` (explicit config
-override, then a project-local script such as `scripts/test`; no built-in
-per-project-type defaults yet). `init`, `coverage`, `update`, `precommit`,
-`publish`, `sandbox`, `version`, and `validate` remain deferred as
-higher-risk. Not yet implemented.
+`test`, `smoke`, `lint`, `format`, and `build` (explicit config override,
+then a project-local script such as `scripts/test`; no built-in
+per-project-type defaults yet). `init`, `develop`, `coverage`, `update`,
+`precommit`, `publish`, `sandbox`, `version`, and `validate` remain
+deferred as higher-risk (`develop` is grouped with the deferred set, not
+v1, since this repo's own `scripts/develop` runs `pip install` and is
+therefore dependency-mutating). Not yet implemented.
 
 ## Active direction
 
@@ -48,8 +50,8 @@ higher-risk. Not yet implemented.
 
 ## In scope now
 
-- Implementing `taurworks dev`'s v1 delegation scope (`clean`, `develop`,
-  `test`, `smoke`, `lint`, `format`, `build`).
+- Implementing `taurworks dev`'s v1 delegation scope (`clean`, `test`,
+  `smoke`, `lint`, `format`, `build`).
 
 ## Out of scope now
 
@@ -58,8 +60,9 @@ higher-risk. Not yet implemented.
 - Upgrading the `legacy migrate` matcher to handle variable indirection
   (explicitly not planned; zero external users; superseded by the
   one-time real-corpus batch migration).
-- The higher-risk `dev` commands deferred in Phase 6 (`init`, `coverage`,
-  `update`, `precommit`, `publish`, `sandbox`, `version`, `validate`), and
+- The higher-risk `dev` commands deferred in Phase 6 (`init`, `develop`,
+  `coverage`, `update`, `precommit`, `publish`, `sandbox`, `version`,
+  `validate`), and
   any built-in per-project-type default before delegate-only v1 is proven.
 - Shell startup-file edits.
 - Multi-repo project management.

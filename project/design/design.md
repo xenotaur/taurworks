@@ -58,13 +58,13 @@ Absolute working-directory paths are deferred unless a later design explicitly a
 - `taurworks dev validate`
 
 ## Implementation sequence status
-Dogfooding confirmed that local initialized-project activation works, and the global resolution gap it exposed — a project created in a nested working directory could be valid locally while remaining undiscoverable from the workspace root unless registered — has been closed. Phases 1a-1c and the first Phase 2 activation slices below are implemented; only legacy migration tooling and trusted user-script hooks remain.
+Dogfooding confirmed that local initialized-project activation works, and the global resolution gap it exposed — a project created in a nested working directory could be valid locally while remaining undiscoverable from the workspace root unless registered — has been closed. Phases 1a-1c and the Phase 2 activation slices below, including legacy migration tooling and trusted per-project startup hooks, are all implemented. The only work remaining from this sequence is broader `dev` workflow automation (see "Transparency and safety" above and `project/roadmap/roadmap.md` Phase 6).
 
 1. **Phase 1a — XDG global config and workspace root (implemented):** `$XDG_CONFIG_HOME/taurworks/config.toml`, falling back to `~/.config/taurworks/config.toml`, with schema version 1 and explicit `[workspace].root`. Implemented commands: `taurworks config where`, `taurworks workspace show`, and `taurworks workspace set PATH`. `~/Workspace` is inferred only as a non-mutating convenience when it already exists and no config exists; explicit configuration is required before persisting or treating it as authoritative.
 2. **Phase 1b — Global project registry (implemented):** `[projects.NAME].root` entries in global config with commands `taurworks project register NAME PATH`, `taurworks project unregister NAME`, and `taurworks project registry list`. Registered projects cover intentionally weird or nested locations without recursive scanning by default.
 3. **Phase 1c — Workspace/registry-aware listing and activation (implemented):** `tw projects` / `taurworks projects` merge registered projects, immediate workspace-root children, initialized projects, legacy-admin projects, and workspace-only projects. `config_model.md` remains the canonical source for `tw activate NAME` priority: registered project, initialized workspace project, legacy-admin workspace project, workspace-only directory, local/enclosing fallback, then child path only for explicitly local commands.
-4. **Phase 2 — Declarative activation config (partially implemented):** `.taurworks/config.toml` activation data for readiness messages (`[activation].message`), literal exports (`[activation.exports]`), and Conda environment activation (`[activation.environment] type = "conda"`) are implemented behind the sourced `tw activate` helper. `taurworks legacy inspect`/`legacy migrate PROJECT --apply` for `Admin/project-setup.source` projects remain design-only (see `WI-ACTIVATION-CONFIG-0001`).
-5. **Future phase — Safe user-script support (design-only):** support scripts/hooks only behind explicit opt-in with warnings, inspection/dry-run modes, per-project trust, and no default automatic legacy setup sourcing.
+4. **Phase 2 — Declarative activation config (implemented):** `.taurworks/config.toml` activation data for readiness messages (`[activation].message`), literal exports (`[activation.exports]`), and Conda environment activation (`[activation.environment] type = "conda"`) are implemented behind the sourced `tw activate` helper. `taurworks legacy inspect`/`legacy migrate PROJECT --apply` for `Admin/project-setup.source` projects are also implemented (`WI-ACTIVATION-CONFIG-0001`).
+5. **Phase 2 (continued) — Trusted per-project startup hooks (implemented):** the shipped mechanism is trust-gated sourcing of the existing legacy `Admin/project-setup.source` behind an explicit user-global enable switch plus per-project content-digest trust (`WI-TRUSTED-LEGACY-SOURCING-0001`) — not a new, general hook-file schema. General arbitrary user-script/hook support beyond this remains out of scope; no default automatic legacy setup sourcing.
 
 The safety boundary for this sequence is:
 
@@ -79,13 +79,14 @@ workspace-only / legacy-admin fallback
   cd only, with warning
 
 legacy Admin/project-setup.source
-  recognized for migration/design, not automatic sourcing
+  sourced only behind explicit two-tier trust consent
+  (WI-TRUSTED-LEGACY-SOURCING-0001), never by default
 
-user scripts/hooks
-  future explicit opt-in only
+general user scripts/hooks (beyond the legacy script above)
+  remain out of scope
 ```
 
-Automatic sourcing of legacy `Admin/project-setup.source` scripts is intentionally deferred because it crosses a stronger trust boundary than `cd`-only activation. Full repo workflow automation and multi-repo management remain deferred.
+Automatic (unconsented) sourcing of legacy `Admin/project-setup.source` scripts remains permanently out of scope, since it would cross a stronger trust boundary than `cd`-only activation; the implemented model requires an explicit user-global enable switch plus per-project content-digest trust, both recorded outside the project itself. Full repo workflow automation (beyond the delegate-only `dev` v1, see "Transparency and safety" above) and multi-repo management remain deferred.
 
 ## Compatibility commands
 Existing top-level commands such as `create`, `refresh`, `activate`, and `projects` remain documented compatibility commands until a migration plan is finalized.
@@ -130,14 +131,17 @@ This model preserves project intent while providing a reliable fallback path.
 ## Transparency and safety
 - Command behavior should be explainable and inspectable.
 - Dry-run, verbose, and doctor-style diagnostics should be supported where practical.
-- Higher-risk commands (`init`, `coverage`, `update`, `precommit`, `publish`,
-  `sandbox`, `version`, `validate`) — irreversible, packaging/release,
-  dependency-mutating, or not-yet-semantically-defined operations — are
-  deferred until core `dev` behavior and guardrails are proven (see
-  `project/roadmap/roadmap.md` Phase 6). `clean` is not treated as
-  higher-risk: it is a conventional, expected, and reversible (regenerable)
-  operation with an existing project-local `scripts/clean` to delegate to,
-  same as `test`/`lint`/`format`/`build`/`develop`/`smoke`.
+- Higher-risk commands (`init`, `develop`, `coverage`, `update`,
+  `precommit`, `publish`, `sandbox`, `version`, `validate`) — irreversible,
+  packaging/release, or dependency-mutating operations, or ones not yet
+  semantically defined — are deferred until core `dev` behavior and
+  guardrails are proven (see `project/roadmap/roadmap.md` Phase 6).
+  `develop` is dependency-mutating in this repo's own dogfood target
+  (`scripts/develop` runs `pip install`), so it is deferred alongside
+  `update`/`precommit` rather than treated as low-risk. `clean` is not
+  treated as higher-risk: it is a conventional, expected, and reversible
+  (regenerable) operation with an existing project-local `scripts/clean`
+  to delegate to, same as `test`/`lint`/`format`/`build`/`smoke`.
 
 ## Non-goals
 - Do not replace standard tools with a new build/lint/test/package/release system.
