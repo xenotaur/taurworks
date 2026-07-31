@@ -1,7 +1,7 @@
 # Unified Command Model
 
 ## Status note
-The command model below is implemented for the scope described here. The shipped CLI includes `taurworks project ...` discovery/scaffold commands, existing-root initialization, working-directory metadata, read-only `project activate --print` guidance, an explicitly sourced `taurworks-shell.sh` `tw activate` shell helper, XDG-style global config and workspace-root commands, a global project registry, workspace/registry-aware project listing and activation resolution, a minimal read-only `taurworks dev ...` scaffold (`dev where`, `dev status`), and declarative activation (`[activation].message`, `[activation.exports]`, Conda environment activation). Remaining work is legacy `Admin/project-setup.source` inspect/migrate tooling, trusted user-script hooks, and broader `dev` workflow automation beyond read-only diagnostics.
+The command model below is implemented for the scope described here. The shipped CLI includes `taurworks project ...` discovery/scaffold commands, existing-root initialization, working-directory metadata, read-only `project activate --print` guidance, an explicitly sourced `taurworks-shell.sh` `tw activate` shell helper, XDG-style global config and workspace-root commands, a global project registry, workspace/registry-aware project listing and activation resolution, a minimal read-only `taurworks dev ...` scaffold (`dev where`, `dev status`), declarative activation (`[activation].message`, `[activation.exports]`, Conda environment activation), legacy `Admin/project-setup.source` inspect/migrate tooling, and trusted per-project startup hooks. Remaining work is broader `dev` workflow automation beyond read-only diagnostics, scoped 2026-07-31 (see "Remaining implementation sequence" below).
 
 ## Why one primary executable: `taurworks`
 A single primary executable keeps command discovery simple, avoids duplicated initialization paths, and reduces user confusion around which binary owns workspace vs development behavior.
@@ -60,12 +60,23 @@ Do not document `alias tw=taurworks` as equivalent to the sourceable `taurworks-
 - `taurworks dev validate`
 
 ## Remaining implementation sequence
-Shell UX polish, project-list status classification, the read-only `dev` scaffold, and the first declarative-activation slices (message, exports, Conda) are implemented. It is intentionally still not broad repo workflow automation, not automatic legacy setup sourcing, and not multi-repo project management. Remaining work:
+Shell UX polish, project-list status classification, the read-only `dev` scaffold, and the first declarative-activation slices (message, exports, Conda) are implemented. It is intentionally still not broad repo workflow automation, not automatic legacy setup sourcing, and not multi-repo project management.
 
-1. Add `taurworks legacy inspect PROJECT` and `taurworks legacy migrate PROJECT --apply` to help migrate `Admin/project-setup.source` projects to declarative config without executing those scripts (see `WI-ACTIVATION-CONFIG-0001`).
-2. Design and implement trusted per-project startup hooks only after legacy inspect/migrate has been dogfooded, with explicit opt-in, warnings, and content-change detection.
-3. Expand `taurworks dev ...` beyond read-only diagnostics (`dev where`, `dev status`) into workflow automation, once trust boundaries for that expansion are designed.
-4. Address the outstanding side-effect audit follow-ups (`project/audits/side_effects.md`), notably that legacy top-level `taurworks refresh`/`create` still create a Conda environment by default despite sounding like safe metadata operations.
+Legacy `Admin/project-setup.source` inspect/migrate tooling
+(`WI-ACTIVATION-CONFIG-0001`), trusted per-project startup hooks
+(`WI-TRUSTED-LEGACY-SOURCING-0001`), and the Conda-environment-creation
+side-effect audit follow-up (`WI-LEGACY-CONDA-GATING-0001`) are all
+implemented; see `project/focus/current_focus.md`'s "Already implemented"
+list. The one item still open from this sequence:
+
+1. Expand `taurworks dev ...` beyond read-only diagnostics (`dev where`,
+   `dev status`) into workflow automation. Scoped 2026-07-31: v1 covers
+   `clean`, `develop`, `test`, `smoke`, `lint`, `format`, and `build` only
+   — delegate-only (explicit config override, then a project-local script
+   such as `scripts/test`; no built-in per-project-type defaults yet).
+   `init`, `coverage`, `update`, `precommit`, `publish`, `sandbox`,
+   `version`, and `validate` remain deferred (see `project/roadmap/roadmap.md`
+   Phase 6).
 
 ## Compatibility and migration notes
 - Existing top-level commands (`create`, `refresh`, `activate`, `projects`) are retained as compatibility commands.

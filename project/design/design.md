@@ -1,7 +1,7 @@
 # Design Overview
 
 ## Status note
-The `taurworks project ...` and `taurworks dev ...` namespaces described below are implemented for the scope listed here; broader `dev` workflow automation remains future work. Global resolution has shipped: XDG-style global config (`taurworks config where`, `taurworks workspace show/set`), a global project registry (`taurworks project register/unregister`, `taurworks project registry list`), and workspace/registry-aware `tw projects` / `tw activate NAME` resolution are all implemented (Phases 1a-1c). Declarative activation has also shipped its first slices: `[activation].message`, `[activation.exports]`, and Conda environment activation (`[activation.environment] type = "conda"`) via the sourced `tw activate` helper. Remaining activation work is `taurworks legacy inspect`/`legacy migrate` for `Admin/project-setup.source` projects and trusted user-script hooks, both still design-only (see `project/design/activation_extension.md` and `WI-ACTIVATION-CONFIG-0001`).
+The `taurworks project ...` and `taurworks dev ...` namespaces described below are implemented for the scope listed here; broader `dev` workflow automation remains future work, scoped 2026-07-31 (see "Dev command resolution model" and "Transparency and safety" below). Global resolution has shipped: XDG-style global config (`taurworks config where`, `taurworks workspace show/set`), a global project registry (`taurworks project register/unregister`, `taurworks project registry list`), and workspace/registry-aware `tw projects` / `tw activate NAME` resolution are all implemented (Phases 1a-1c). Declarative activation has also shipped: `[activation].message`, `[activation.exports]`, and Conda environment activation (`[activation.environment] type = "conda"`) via the sourced `tw activate` helper, plus `taurworks legacy inspect`/`legacy migrate` for `Admin/project-setup.source` projects and trusted, content-digest-gated per-project startup hooks (see `project/design/activation_extension.md` and `WI-ACTIVATION-CONFIG-0001`).
 
 ## Product model
 Taurworks uses one executable, `taurworks`, with two namespaces:
@@ -130,7 +130,14 @@ This model preserves project intent while providing a reliable fallback path.
 ## Transparency and safety
 - Command behavior should be explainable and inspectable.
 - Dry-run, verbose, and doctor-style diagnostics should be supported where practical.
-- Higher-risk commands (`clean`, `precommit`, `publish`, `update`, `sandbox`) should use conservative defaults and avoid implicit destructive behavior.
+- Higher-risk commands (`init`, `coverage`, `update`, `precommit`, `publish`,
+  `sandbox`, `version`, `validate`) — irreversible, packaging/release,
+  dependency-mutating, or not-yet-semantically-defined operations — are
+  deferred until core `dev` behavior and guardrails are proven (see
+  `project/roadmap/roadmap.md` Phase 6). `clean` is not treated as
+  higher-risk: it is a conventional, expected, and reversible (regenerable)
+  operation with an existing project-local `scripts/clean` to delegate to,
+  same as `test`/`lint`/`format`/`build`/`develop`/`smoke`.
 
 ## Non-goals
 - Do not replace standard tools with a new build/lint/test/package/release system.
