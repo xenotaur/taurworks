@@ -2,10 +2,10 @@
 id: WI-DEV-WORKFLOW-AUTOMATION-0001
 title: Add taurworks dev workflow automation v1 (clean/test/smoke/lint/format/build)
 type: deliverable
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: "Implemented and merged in PR #100 (commit 43f1bb429e0d62bcbcc9873d3736a48a9b13735a). Adds taurworks dev clean/test/smoke/lint/format/build as delegate-only v1 commands: Tier 1 explicit [dev.commands] config override (read from project_root, per the design fix caught in the planning PR's own review), then Tier 2 project-local scripts/<name> (resolved against work_directory_guess). Fails clearly, never silently, when neither tier resolves. Review of the implementation caught 3 further real bugs (all fixed, independently reverified): a malformed Tier 1 config used to silently fall through to Tier 2 instead of reporting the error; shlex.split and subprocess.run failures could leak raw Python tracebacks instead of clean CLI errors. 25 new tests, dogfooded against this repo's own scripts/ directory."
 related_focus:
   - FOCUS-CURRENT
 related_roadmap:

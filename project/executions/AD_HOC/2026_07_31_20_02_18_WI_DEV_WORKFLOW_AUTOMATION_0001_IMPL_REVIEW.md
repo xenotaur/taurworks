@@ -2,10 +2,10 @@
 execution_id: 2026_07_31_20_02_18_WI_DEV_WORKFLOW_AUTOMATION_0001_IMPL_REVIEW
 prompt_id: PROMPT(AD_HOC:WI_DEV_WORKFLOW_AUTOMATION_0001_IMPL_REVIEW)[2026-07-31T20:02:18+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_07_31_19_44_34_WI_DEV_WORKFLOW_AUTOMATION_0001
 pr: https://github.com/xenotaur/taurworks/pull/100
-commit:
+commit: 43f1bb429e0d62bcbcc9873d3736a48a9b13735a
 created_at: 2026-07-31T20:02:18+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/100
@@ -81,5 +81,5 @@ No comments skipped.
 
 # Follow-up
 
-- Recommend `/lrh-confirm-fixes` before merge to verify the fixes against
-  the current diff and resolve the review threads.
+- None outstanding. PR #100 merged (`43f1bb4`); confirm-fixes already
+  landed against it before merge.

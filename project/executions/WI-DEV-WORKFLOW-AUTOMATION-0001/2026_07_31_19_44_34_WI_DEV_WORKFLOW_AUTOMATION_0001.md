@@ -2,10 +2,10 @@
 execution_id: 2026_07_31_19_44_34_WI_DEV_WORKFLOW_AUTOMATION_0001
 prompt_id: PROMPT(WI-DEV-WORKFLOW-AUTOMATION-0001:WI_DEV_WORKFLOW_AUTOMATION_0001)[2026-07-31T19:44:34+00:00]
 work_item: WI-DEV-WORKFLOW-AUTOMATION-0001
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/100
-commit:
+commit: 43f1bb429e0d62bcbcc9873d3736a48a9b13735a
 created_at: 2026-07-31T19:44:34+00:00
 agent: claude_app
 instruction_source: project/work_items/proposed/WI-DEV-WORKFLOW-AUTOMATION-0001.md
@@ -98,8 +98,9 @@ neither-resolves failure behavior; added the six new commands to the
   directly outside any project.
 - `lrh validate`: 0 errors, 0 warnings.
 
+CHAIN-NOTE: cycles=1; stops=1; gates=[merge]; friction="review caught 3 real error-handling gaps: a malformed Tier 1 config silently fell through to Tier 2 instead of reporting the error (risking running the wrong command on a typo), and both shlex.split and subprocess.run failures could leak raw Python tracebacks instead of clean CLI errors -- all fixed with 5 new regression tests, independently reverified"; note="PR #100 merged 43f1bb4; taurworks dev clean/test/smoke/lint/format/build implemented (Tier 1 config + Tier 2 script delegation, project_root/work_directory_guess split correctly implemented per the planning PR's own review-caught design fix), 350 total tests; WI-DEV-WORKFLOW-AUTOMATION-0001 resolved at closeout, completing the taurworks dev workflow-automation v1 scope"
+
 # Follow-up
 
-- Next: open PR, wait for reviewer comments, run
-  `/lrh-review-response`/`/lrh-confirm-fixes`, then `/lrh-closeout` after
-  merge.
+- None outstanding. PR #100 merged (`43f1bb4`); review response and
+  confirm-fixes already landed against it before merge.
