@@ -5,7 +5,7 @@ work_item: AD_HOC
 status: in_progress
 rerun_of:
 pr: pending
-commit: pending
+commit: a013f638c9af66faa06571261d175d9e79342835
 created_at: 2026-07-31T03:42:25+00:00
 agent: claude_app
 instruction_source: conversational session — user asked "what's left on the roadmap now", I identified project/roadmap/roadmap.md and project/focus/current_focus.md as stale (both still described the 3 just-resolved packaging WIs as proposed/prompt-ready), showed the proposed diff, and the user confirmed applying it
