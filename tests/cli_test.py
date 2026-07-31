@@ -2896,6 +2896,153 @@ class DebugFlagCliTest(unittest.TestCase):
         self.assertIn("Skipping Conda environment creation", result.stdout)
 
 
+class DevWorkflowAutomationCliTest(unittest.TestCase):
+    """WI-DEV-WORKFLOW-AUTOMATION-0001: `taurworks dev` v1 delegation."""
+
+    def _write_executable_script(self, path: pathlib.Path, body: str) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+        path.chmod(path.stat().st_mode | 0o111)
+
+    def test_dev_test_delegates_to_project_local_script(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = pathlib.Path(temp_dir)
+            (project_root / ".taurworks").mkdir()
+            self._write_executable_script(
+                project_root / "scripts" / "test",
+                '#!/bin/sh\necho "delegated-test-output"\nexit 3\n',
+            )
+            result = _run_cli(["dev", "test"], project_root)
+
+        self.assertEqual(
+            result.returncode, 3, msg=_failure_message(["dev", "test"], result)
+        )
+        self.assertIn("delegated-test-output", result.stdout)
+
+    def test_dev_test_reports_clear_failure_when_neither_tier_resolves(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = pathlib.Path(temp_dir)
+            (project_root / ".taurworks").mkdir()
+            result = _run_cli(["dev", "test"], project_root)
+
+        self.assertEqual(
+            result.returncode, 1, msg=_failure_message(["dev", "test"], result)
+        )
+        self.assertIn("no delegation target found", result.stderr)
+        self.assertIn("[dev.commands].test", result.stderr)
+
+    def test_dev_test_malformed_config_fails_clearly_not_with_traceback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = pathlib.Path(temp_dir)
+            admin_dir = project_root / ".taurworks"
+            admin_dir.mkdir()
+            (admin_dir / "config.toml").write_text(
+                'schema_version = 1\n\n[dev]\ncommands = "not-a-table"\n',
+                encoding="utf-8",
+            )
+            self._write_executable_script(
+                project_root / "scripts" / "test", "#!/bin/sh\nexit 0\n"
+            )
+            result = _run_cli(["dev", "test"], project_root)
+
+        self.assertEqual(
+            result.returncode, 1, msg=_failure_message(["dev", "test"], result)
+        )
+        self.assertIn("could not be read", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_dev_test_launch_failure_reports_clean_message_not_traceback(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = pathlib.Path(temp_dir)
+            admin_dir = project_root / ".taurworks"
+            admin_dir.mkdir()
+            (admin_dir / "config.toml").write_text(
+                "schema_version = 1\n\n[dev.commands]\n"
+                'test = "/nonexistent/binary-does-not-exist"\n',
+                encoding="utf-8",
+            )
+            result = _run_cli(["dev", "test"], project_root)
+
+        self.assertEqual(
+            result.returncode, 1, msg=_failure_message(["dev", "test"], result)
+        )
+        self.assertIn("failed to run", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+
+    def test_dev_test_config_command_delegates_with_shlex_split(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = pathlib.Path(temp_dir)
+            admin_dir = project_root / ".taurworks"
+            admin_dir.mkdir()
+            bin_dir = project_root / "bin"
+            bin_dir.mkdir()
+            self._write_executable_script(
+                bin_dir / "fake-pytest",
+                '#!/bin/sh\necho "ran: $*"\nexit 0\n',
+            )
+            (admin_dir / "config.toml").write_text(
+                "schema_version = 1\n\n"
+                "[dev.commands]\n"
+                f'test = "{bin_dir / "fake-pytest"} -x --color=no"\n',
+                encoding="utf-8",
+            )
+            result = _run_cli(["dev", "test"], project_root)
+
+        self.assertEqual(
+            result.returncode, 0, msg=_failure_message(["dev", "test"], result)
+        )
+        self.assertIn("ran: -x --color=no", result.stdout)
+
+    def test_dev_command_runs_with_cwd_set_to_nested_working_dir(self):
+        # Regression test: the delegated subprocess must run with cwd set
+        # to the resolved work_directory_guess (the nested working_dir
+        # here), not wherever the invoking process's own cwd happens to
+        # be, and Tier 1 config must still be found at project_root even
+        # though work_directory_guess is a different, nested directory.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = pathlib.Path(temp_dir)
+            repo_dir = project_root / "repo"
+            repo_dir.mkdir()
+            (project_root / ".taurworks").mkdir()
+            (project_root / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[paths]\nworking_dir = "repo"\n',
+                encoding="utf-8",
+            )
+            self._write_executable_script(
+                repo_dir / "scripts" / "test",
+                "#!/bin/sh\npwd\nexit 0\n",
+            )
+            result = _run_cli(["dev", "test"], project_root)
+
+        self.assertEqual(
+            result.returncode, 0, msg=_failure_message(["dev", "test"], result)
+        )
+        assert_same_path(self, result.stdout.strip(), repo_dir)
+
+    def test_dev_test_config_at_project_root_resolves_despite_nested_working_dir(self):
+        # Regression test: Tier 1's [dev.commands] must be read from
+        # project_root's config.toml even when work_directory_guess
+        # resolves to a different, nested working_dir.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = pathlib.Path(temp_dir)
+            repo_dir = project_root / "repo"
+            repo_dir.mkdir()
+            admin_dir = project_root / ".taurworks"
+            admin_dir.mkdir()
+            (admin_dir / "config.toml").write_text(
+                'schema_version = 1\n\n[paths]\nworking_dir = "repo"\n\n'
+                "[dev.commands]\n"
+                'test = "echo configured-command-ran"\n',
+                encoding="utf-8",
+            )
+            result = _run_cli(["dev", "test"], project_root)
+
+        self.assertEqual(
+            result.returncode, 0, msg=_failure_message(["dev", "test"], result)
+        )
+        self.assertIn("configured-command-ran", result.stdout)
+
+
 class SetupCliTest(unittest.TestCase):
 
     def test_setup_creates_shell_helper_and_tl_source_at_default_path(self):

@@ -445,6 +445,30 @@ def set_activation_environment(
     return previous_name, name, repairs
 
 
+def dev_command_from_config(config: dict[str, Any], name: str) -> str | None:
+    """Return the configured Tier 1 `[dev.commands].<name>` string, if any."""
+    dev_table = config.get("dev")
+    if dev_table is None:
+        return None
+    if not isinstance(dev_table, dict):
+        raise ProjectConfigError("config [dev] value is not a TOML table")
+
+    commands_table = dev_table.get("commands")
+    if commands_table is None:
+        return None
+    if not isinstance(commands_table, dict):
+        raise ProjectConfigError("config [dev.commands] value is not a TOML table")
+
+    command = commands_table.get(name)
+    if command is None:
+        return None
+    if not isinstance(command, str) or not command.strip():
+        raise ProjectConfigError(
+            f"config dev.commands.{name} value must be a non-empty string"
+        )
+    return command
+
+
 def working_dir_from_config(config: dict[str, Any]) -> str | None:
     """Return configured working_dir if present and valid enough to display."""
     paths_table = config.get("paths")

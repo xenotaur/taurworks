@@ -271,6 +271,22 @@ def _handle_dev_command(args):
         print(dev.format_dev_status_output(diagnostics))
         return
 
+    if args.dev_command in dev.DEV_V1_COMMANDS:
+        resolution = dev.resolve_dev_command(args.dev_command)
+        if not resolution.resolved:
+            print(resolution.detail, file=sys.stderr)
+            raise SystemExit(1)
+        try:
+            exit_code = dev.execute_dev_command(resolution)
+        except OSError as error:
+            print(
+                f"taurworks dev {args.dev_command}: failed to run "
+                f"{resolution.argv[0]}: {error}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from error
+        raise SystemExit(exit_code)
+
     args.dev_parser.print_help()
 
 
@@ -1057,6 +1073,29 @@ def main(argv=None):
         ),
     )
     parser_dev_status.set_defaults(dev_parser=parser_dev)
+
+    for _dev_v1_name, _dev_v1_help in (
+        ("clean", "Delegate to a configured or project-local clean command."),
+        ("test", "Delegate to a configured or project-local test command."),
+        ("smoke", "Delegate to a configured or project-local smoke-test command."),
+        ("lint", "Delegate to a configured or project-local lint command."),
+        ("format", "Delegate to a configured or project-local format command."),
+        ("build", "Delegate to a configured or project-local build command."),
+    ):
+        _parser_dev_v1 = dev_subparsers.add_parser(
+            _dev_v1_name,
+            help=_dev_v1_help,
+            description=(
+                f"{_dev_v1_help} Resolves via an explicit "
+                f"[dev.commands].{_dev_v1_name} entry in the project root's "
+                f".taurworks/config.toml (Tier 1), then a project-local "
+                f"scripts/{_dev_v1_name} file relative to the resolved "
+                "working directory (Tier 2). Fails clearly if neither "
+                "resolves."
+            ),
+        )
+        _parser_dev_v1.set_defaults(dev_parser=parser_dev)
+
     parser_dev.set_defaults(dev_parser=parser_dev)
 
     # `shell` namespace
