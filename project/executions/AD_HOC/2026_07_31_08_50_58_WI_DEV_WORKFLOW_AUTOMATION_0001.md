@@ -2,10 +2,10 @@
 execution_id: 2026_07_31_08_50_58_WI_DEV_WORKFLOW_AUTOMATION_0001
 prompt_id: PROMPT(AD_HOC:WI_DEV_WORKFLOW_AUTOMATION_0001)[2026-07-31T08:48:31+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/99
-commit:
+commit: 5a613fa72eb7d86bbd506f0dca7a6a948a9f5b39
 created_at: 2026-07-31T08:50:58+00:00
 agent: claude_app
 instruction_source: project/work_items/proposed/WI-DEV-WORKFLOW-AUTOMATION-0001.md
