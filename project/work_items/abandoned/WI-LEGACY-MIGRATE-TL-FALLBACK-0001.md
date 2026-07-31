@@ -1,11 +1,11 @@
 ---
-resolution: null
+resolution: "Abandoned (not implemented): a direct audit of the real ~/Workspace on 2026-07-31 confirmed zero live Admin/project-setup.source files remain anywhere -- all 11 projects identified during the 2026-07-22 dogfooding that motivated this item (LCATS, EmbodiedAI, CentaursGuide, ImageWorks, LogicalRoboticsHarness, Narramorph, Novarc, ProsocialRobotics, PythonGames, Taxman, Taurcode) were already retired by hand (renamed to project-setup.source~ or .legacy, or removed entirely) before this item was ever picked up. This resolves the roadmap's 'held pending confirmation that legacy projects still exist needing it' condition as: no. Combined with this item's own Risk Notes -- the legacy migrate matcher's variable-indirection gap (explicitly out of scope to fix) means the completeness check would rarely pass for real scripts even if any remained unretired -- there is no remaining target for this automation and no work is planned against it without a new need being raised."
 blocked_reason: null
 blocked: false
 id: WI-LEGACY-MIGRATE-TL-FALLBACK-0001
 title: Automate `tl`-compatible retirement in `taurworks legacy migrate --apply`
 type: deliverable
-status: proposed
+status: abandoned
 owner: null
 contributors: []
 assigned_agents: []

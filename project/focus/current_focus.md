@@ -1,9 +1,9 @@
 ---
 id: FOCUS-CURRENT
-title: Packaging/install cleanup complete; legacy-migrate-tl-fallback deferred
+title: Packaging/install cleanup complete; legacy-migrate-tl-fallback abandoned
 status: active
-updated: 2026-07-30
-basis: packaging_and_install_series_resolved_legacy_migrate_deferred
+updated: 2026-07-31
+basis: packaging_and_install_series_resolved_legacy_migrate_abandoned
 confidence: high
 ---
 
@@ -20,10 +20,13 @@ being raised.
 
 `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` (automating
 `Admin/project-setup.source` retirement once a project is fully migrated to
-declarative `config.toml`) remains proposed rather than active. It is being
-deliberately held — possibly permanently — pending confirmation, now that
-the packaging work above has landed, that legacy `Admin/project-setup.source`
-projects still exist that would actually benefit from it.
+declarative `config.toml`) was deliberately held pending confirmation that
+legacy `Admin/project-setup.source` projects still existed needing it. A
+direct audit of the real workspace on 2026-07-31 answered that: no
+`Admin/project-setup.source` file remains anywhere — all 11 projects
+identified during the 2026-07-22 dogfooding were already retired by hand.
+The item is abandoned (`project/work_items/abandoned/`) rather than
+implemented.
 
 The two side-effect audit recommendations that were never captured as work
 items remain assessed-and-deferred in `project/design/backlog.md`
@@ -31,23 +34,19 @@ items remain assessed-and-deferred in `project/design/backlog.md`
 
 ## Active direction
 
-1. Confirm whether `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` is still needed,
-   now that the packaging/install work has landed — do not pick it up
-   without first confirming it's still needed.
-2. Deciding scope for `taurworks dev ...` workflow automation beyond `dev
+1. Deciding scope for `taurworks dev ...` workflow automation beyond `dev
    where`/`dev status` remains an open, undecided question.
-3. Keep `taurworks project activate --print` read-only and `tw activate`/
+2. Keep `taurworks project activate --print` read-only and `tw activate`/
    `tw shell refresh` as the only shell-mutating layers.
 
 ## In scope now
 
-- Confirming whether `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` is still needed.
 - Deciding `taurworks dev ...` workflow-automation scope.
 
 ## Out of scope now
 
-- Implementing `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` without first
-  confirming it's still needed.
+- Reviving `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` without a new, concrete
+  legacy `Admin/project-setup.source` project needing it.
 - Upgrading the `legacy migrate` matcher to handle variable indirection
   (explicitly not planned; zero external users; superseded by the
   one-time real-corpus batch migration).

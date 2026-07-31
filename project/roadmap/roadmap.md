@@ -11,7 +11,7 @@ confidence: medium
 
 This roadmap is phased and conservative. It prioritizes command-model alignment, safe incremental delivery, and explicit trust boundaries.
 
-## Current phase snapshot (2026-07-30)
+## Current phase snapshot (2026-07-31)
 
 Phases 1 through 5A below, and the entire dogfood recovery plan
 (`WI-INTERIM-TL-PIPX-0001`, `WI-LEGACY-BATCH-MIGRATION-0001`,
@@ -34,24 +34,23 @@ new need being raised.
 `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` — automating retirement of a
 now-redundant `Admin/project-setup.source` once a project is fully migrated
 to declarative `config.toml`, found during 2026-07-22 real-workspace
-dogfooding — remains proposed rather than active. It is deliberately held,
-possibly permanently, pending confirmation — now that the packaging work
-above has landed — that legacy `Admin/project-setup.source` projects still
-exist that would actually benefit from it. The two side-effect audit
-recommendations that were never captured as work items remain assessed and
-deferred to `project/design/backlog.md` (see below).
+dogfooding — was deliberately held pending confirmation that legacy
+`Admin/project-setup.source` projects still existed needing it. A direct
+audit of the real workspace on 2026-07-31 answered that: no
+`Admin/project-setup.source` file remains anywhere; all 11 projects
+identified during the 2026-07-22 dogfooding were already retired by hand.
+The item is abandoned (`project/work_items/abandoned/`) rather than
+implemented. The two side-effect audit recommendations that were never
+captured as work items remain assessed and deferred to
+`project/design/backlog.md` (see below).
 
 ### In scope now
 
-- Confirming whether `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` is still needed,
-  now that the packaging/install work above has landed.
 - Deciding scope for `taurworks dev ...` workflow automation beyond
   read-only diagnostics.
 
 ### Out of scope now
 
-- Implementing `WI-LEGACY-MIGRATE-TL-FALLBACK-0001` without first
-  confirming it's still needed.
 - Automatic (unconsented) fallback sourcing of `Admin/project-setup.source`.
 - General-purpose `legacy migrate` matcher upgrades to handle variable
   indirection (superseded by the one-time batch migration; still not
