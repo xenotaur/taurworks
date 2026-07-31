@@ -45,9 +45,9 @@ captured as work items remain assessed and deferred to
 `project/design/backlog.md` (see below).
 
 `taurworks dev ...` workflow-automation scope (Phase 6 below) is now
-decided: a delegate-only v1 (`clean`, `develop`, `test`, `smoke`, `lint`,
-`format`, `build`), with higher-risk commands deferred. Not yet
-implemented.
+decided: a delegate-only v1 (`clean`, `test`, `smoke`, `lint`, `format`,
+`build`), with higher-risk commands (including `develop`, which is
+dependency-mutating in this repo) deferred. Not yet implemented.
 
 ### In scope now
 

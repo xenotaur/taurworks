@@ -53,6 +53,14 @@ scoping), from `chatgpt-codex-connector` (2) and `copilot-pull-request-reviewer`
 
 No comments skipped.
 
+**Follow-up self-correction**: the cold confirm-fixes subagent dispatched
+after this round caught that my own fix for the `develop` comment was
+incomplete — `roadmap.md`'s "Current phase snapshot" summary paragraph
+(line 47-48, a different location from the Phase 6 section this pass
+already fixed) still listed `develop` in the v1 parenthetical, directly
+contradicting the Phase 6 detail 137 lines below in the same file. Fixed
+in a follow-up commit before merge.
+
 # Validation
 
 - `lrh validate`: 0 errors, 0 warnings.
