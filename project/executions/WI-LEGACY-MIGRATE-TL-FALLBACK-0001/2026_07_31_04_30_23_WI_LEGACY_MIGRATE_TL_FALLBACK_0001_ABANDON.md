@@ -4,8 +4,8 @@ prompt_id: PROMPT(WI-LEGACY-MIGRATE-TL-FALLBACK-0001:WI_LEGACY_MIGRATE_TL_FALLBA
 work_item: WI-LEGACY-MIGRATE-TL-FALLBACK-0001
 status: in_progress
 rerun_of:
-pr: pending
-commit: 55f4e7d3afd2adbff95a3d59e99ac69495a3da1b
+pr: https://github.com/xenotaur/taurworks/pull/97
+commit: 695e8883966af8cb3b7a27b41248b89dc98b28c9
 created_at: 2026-07-31T04:30:23+00:00
 agent: claude_app
 instruction_source: conversational session — user asked to decide WI-LEGACY-MIGRATE-TL-FALLBACK-0001's fate; I audited the real workspace, found zero remaining Admin/project-setup.source files, recommended abandoning the WI, and the user confirmed
