@@ -1,9 +1,9 @@
 ---
 id: FOCUS-CURRENT
-title: Packaging/install cleanup complete; legacy-migrate-tl-fallback abandoned
+title: Packaging/install complete; legacy-migrate-tl-fallback abandoned; dev workflow automation scoped
 status: active
 updated: 2026-07-31
-basis: packaging_and_install_series_resolved_legacy_migrate_abandoned
+basis: packaging_and_install_series_resolved_legacy_migrate_abandoned_dev_scoped
 confidence: high
 ---
 
@@ -32,16 +32,26 @@ The two side-effect audit recommendations that were never captured as work
 items remain assessed-and-deferred in `project/design/backlog.md`
 (unchanged since 2026-07-23).
 
+`taurworks dev ...` workflow-automation scope is now decided (2026-07-31,
+`project/roadmap/roadmap.md` Phase 6): a delegate-only v1 covering `clean`,
+`test`, `smoke`, `lint`, `format`, and `build` (explicit config override,
+then a project-local script such as `scripts/test`; no built-in
+per-project-type defaults yet). `init`, `develop`, `coverage`, `update`,
+`precommit`, `publish`, `sandbox`, `version`, and `validate` remain
+deferred as higher-risk (`develop` is grouped with the deferred set, not
+v1, since this repo's own `scripts/develop` runs `pip install` and is
+therefore dependency-mutating). Not yet implemented.
+
 ## Active direction
 
-1. Deciding scope for `taurworks dev ...` workflow automation beyond `dev
-   where`/`dev status` remains an open, undecided question.
+1. Implement Phase 6's v1 `taurworks dev ...` delegation scope.
 2. Keep `taurworks project activate --print` read-only and `tw activate`/
    `tw shell refresh` as the only shell-mutating layers.
 
 ## In scope now
 
-- Deciding `taurworks dev ...` workflow-automation scope.
+- Implementing `taurworks dev`'s v1 delegation scope (`clean`, `test`,
+  `smoke`, `lint`, `format`, `build`).
 
 ## Out of scope now
 
@@ -50,8 +60,10 @@ items remain assessed-and-deferred in `project/design/backlog.md`
 - Upgrading the `legacy migrate` matcher to handle variable indirection
   (explicitly not planned; zero external users; superseded by the
   one-time real-corpus batch migration).
-- Broad repo workflow automation under `taurworks dev ...` without further
-  design.
+- The higher-risk `dev` commands deferred in Phase 6 (`init`, `develop`,
+  `coverage`, `update`, `precommit`, `publish`, `sandbox`, `version`,
+  `validate`), and
+  any built-in per-project-type default before delegate-only v1 is proven.
 - Shell startup-file edits.
 - Multi-repo project management.
 - Breaking command renames or removals.

@@ -44,10 +44,14 @@ implemented. The two side-effect audit recommendations that were never
 captured as work items remain assessed and deferred to
 `project/design/backlog.md` (see below).
 
+`taurworks dev ...` workflow-automation scope (Phase 6 below) is now
+decided: a delegate-only v1 (`clean`, `test`, `smoke`, `lint`, `format`,
+`build`), with higher-risk commands (including `develop`, which is
+dependency-mutating in this repo) deferred. Not yet implemented.
+
 ### In scope now
 
-- Deciding scope for `taurworks dev ...` workflow automation beyond
-  read-only diagnostics.
+- Implementing Phase 6's v1 `taurworks dev ...` delegation scope.
 
 ### Out of scope now
 
@@ -56,7 +60,9 @@ captured as work items remain assessed and deferred to
   indirection (superseded by the one-time batch migration; still not
   planned, zero external users).
 - venv/Docker/devcontainer environment activation strategies.
-- Broad `taurworks dev ...` workflow automation without further design.
+- The higher-risk `dev` commands deferred in Phase 6, and any built-in
+  per-project-type default (Tier 3 of the resolution model) before
+  delegate-only v1 is proven.
 - Shell startup-file edits and automatic `conda init`.
 - Multi-repo project management.
 - Breaking removals or renames of compatibility commands.
@@ -168,9 +174,26 @@ captured as work items remain assessed and deferred to
   findings on how many projects genuinely need arbitrary shell after
   declarative migration.
 
-## Phase 6 — Defer higher-risk dev commands until stable (not started)
+## Phase 6 — `taurworks dev ...` workflow automation (scoped 2026-07-31, not yet implemented)
 
-- Defer `sandbox`, `precommit`, `publish`, `version`, `validate`, and `update` until core behavior and guardrails are proven.
+Scoped 2026-07-31, resolving the "deciding scope for `taurworks dev ...`
+workflow automation" question this roadmap had left open since Phase 4.
+`design.md`'s "Dev command resolution model" (explicit configured command
+→ project-local script, e.g. `scripts/test` → built-in default by project
+type) governs how each in-scope command resolves.
+
+- **v1 scope, delegate-only** (Tiers 1-2 only; no built-in per-project-type
+  defaults yet): `clean`, `test`, `smoke`, `lint`, `format`, `build`. Each
+  is a conventional, expected, reversible-or-regenerable operation, and
+  this repo's own `scripts/` already has a matching script to delegate to
+  for dogfooding.
+- **Deferred** (higher-risk: irreversible, packaging/release,
+  dependency-mutating, or not-yet-semantically-defined): `init`,
+  `develop`, `coverage`, `update`, `precommit`, `publish`, `sandbox`,
+  `version`, `validate` — until core `dev` delegation behavior and
+  guardrails are proven on the v1 set first. `develop` is grouped here,
+  not v1: this repo's own `scripts/develop` runs `pip install`, making it
+  dependency-mutating like `update`, not reversible like `clean`/`test`.
 
 ## Phase 7 — Define compatibility migration path (not started)
 
