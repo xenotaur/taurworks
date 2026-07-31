@@ -419,6 +419,7 @@ The currently implemented namespaced commands are:
 - `taurworks project activate [PATH_OR_NAME] --print` (implemented, read-only activation guidance output)
 - `taurworks dev where` (implemented, read-only repository/workspace diagnostics)
 - `taurworks dev status` (implemented, read-only summary that explicitly leaves detailed VCS automation for future work)
+- `taurworks dev clean/test/smoke/lint/format/build` (implemented, delegate-only: an explicit `[dev.commands]` config override, else a project-local `scripts/<name>` file)
 - `taurworks shell print` (implemented, prints the packaged sourceable `tw` shell helper)
 - `taurworks setup` (implemented, idempotently installs/refreshes the `tw` shell helper and `tl` source file at their resolved locations)
 - `tw root PROJECT` and `tw working PROJECT` after manually sourcing the printed helper (implemented, convenience aliases that delegate to the same path emitters)
@@ -474,6 +475,25 @@ The project registry is for projects that should be globally discoverable even w
 Registry entries differ from workspace discovery: workspace discovery remains direct and non-recursive in this phase, while the registry is an explicit allow-list of named roots. If a registry name matches a direct workspace child project name, registry commands and activation treat the explicit registry entry as authoritative. Broad project listing collapses duplicate registry/workspace roots into one row and marks the row as registered.
 
 `taurworks dev where` reports the current directory, detected Taurworks project root, configured working directory, repository/work-directory guess, whether the current directory is inside that configured working directory, and that no mutation was performed. `taurworks dev status` reports a smaller read-only summary and states that detailed VCS workflow automation is future work; it does not shell out to `git`.
+
+### `taurworks dev` workflow automation (v1)
+
+`taurworks dev clean`, `dev test`, `dev smoke`, `dev lint`, `dev format`, and `dev build` delegate to project-configured or project-local tooling — they never implement build/lint/test/package logic themselves. Each resolves in two steps:
+
+1. **Tier 1 — explicit config override.** If the project's `.taurworks/config.toml` has a `[dev.commands]` table with an entry for that command name (e.g. `test = "pytest -x"`), that string is split with `shlex.split` and run directly as an argv list (never through a shell). This is always read from the detected **project root** — the directory containing `.taurworks/` — never from a configured `working_dir`, since `.taurworks/config.toml` is project-root metadata even when `working_dir` points somewhere nested.
+2. **Tier 2 — project-local script.** Otherwise, Taurworks looks for a `scripts/<name>` file relative to the resolved working directory (the same `work_directory_guess` `dev where` reports: configured `working_dir`, else the nearest `.git` root, else the detected project root, else the current directory) and runs it directly.
+
+If neither resolves, `taurworks dev <name>` prints a message naming both locations it checked and exits non-zero — never a silent no-op. The delegated command's exit code becomes `taurworks dev <name>`'s own exit code, and its stdout/stderr stream live (not captured and reprinted). It always runs with its working directory set to the resolved `work_directory_guess`, regardless of the directory `taurworks dev <name>` itself was invoked from.
+
+```toml
+[dev.commands]
+test = "pytest -x"
+lint = "ruff check src"
+```
+
+Example: from this repo's own root, `taurworks dev test` delegates to `./scripts/test` (no `[dev.commands]` override is configured here), since Tier 2 resolves.
+
+Other `dev` commands (`init`, `develop`, `coverage`, `update`, `precommit`, `publish`, `sandbox`, `version`, `validate`) and a Tier 3 built-in-default fallback remain deferred — see `project/roadmap/roadmap.md` Phase 6.
 
 `taurworks project where` intentionally does not mutate files, environments, or shell state.
 `taurworks project list` is also non-mutating and reports discoverable projects plus discovery limitations.

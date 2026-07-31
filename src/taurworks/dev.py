@@ -1,7 +1,13 @@
+import dataclasses
+import os
 import pathlib
+import shlex
+import subprocess
 import tomllib
 
 from taurworks import project_internals
+
+DEV_V1_COMMANDS = ("clean", "test", "smoke", "lint", "format", "build")
 
 
 def _nearest_git_root(cwd: pathlib.Path) -> pathlib.Path | None:
@@ -160,3 +166,99 @@ def format_dev_status_output(diagnostics: dict[str, str | bool]) -> str:
         f"- future_work: {diagnostics['future_work']}",
     ]
     return "\n".join(lines)
+
+
+@dataclasses.dataclass(frozen=True)
+class DevCommandResolution:
+    """Result of resolving a v1 `taurworks dev <name>` delegation target.
+
+    `resolved` distinguishes success from failure; `detail` holds the
+    resolved source description on success, or the failure message when
+    `resolved` is False (checked by callers before ever reading `argv`).
+    """
+
+    resolved: bool
+    argv: list[str] | None
+    cwd: str
+    tier: str | None
+    detail: str
+
+
+def resolve_dev_command(name: str) -> DevCommandResolution:
+    """Resolve a v1 dev command to an executable argv, or a clear failure.
+
+    Tier 1 (`[dev.commands].<name>` in the detected project_root's
+    `.taurworks/config.toml`) takes precedence over Tier 2
+    (`<work_directory_guess>/scripts/<name>`). project_root and
+    work_directory_guess are resolved independently and may legitimately
+    differ whenever a nested `working_dir` is configured -- `.taurworks/config.toml`
+    is metadata owned by project_root, never by a possibly-nested working_dir.
+    """
+    cwd = pathlib.Path.cwd().resolve()
+    project_root = project_internals.find_project_root_candidate(cwd)
+    where = gather_dev_where_diagnostics()
+    work_dir = str(where["work_directory_guess"])
+
+    config_location = "no Taurworks project root detected"
+    if project_root is not None:
+        config_path = project_internals.project_config_path(project_root)
+        config_location = str(config_path)
+        if config_path.is_file():
+            try:
+                config = project_internals.read_project_config(project_root)
+                configured_command = project_internals.dev_command_from_config(
+                    config, name
+                )
+            except (
+                project_internals.ProjectConfigError,
+                OSError,
+                tomllib.TOMLDecodeError,
+            ):
+                configured_command = None
+            if configured_command:
+                return DevCommandResolution(
+                    resolved=True,
+                    argv=shlex.split(configured_command),
+                    cwd=work_dir,
+                    tier="config",
+                    detail=f"[dev.commands].{name} in {config_path}",
+                )
+
+    script_path = pathlib.Path(work_dir) / "scripts" / name
+    if script_path.is_file():
+        if not os.access(script_path, os.X_OK):
+            return DevCommandResolution(
+                resolved=False,
+                argv=None,
+                cwd=work_dir,
+                tier=None,
+                detail=(
+                    f"taurworks dev {name}: found {script_path} but it is not "
+                    f"executable. Run `chmod +x {script_path}`, or configure "
+                    f"[dev.commands].{name} in .taurworks/config.toml instead."
+                ),
+            )
+        return DevCommandResolution(
+            resolved=True,
+            argv=[str(script_path)],
+            cwd=work_dir,
+            tier="script",
+            detail=str(script_path),
+        )
+
+    return DevCommandResolution(
+        resolved=False,
+        argv=None,
+        cwd=work_dir,
+        tier=None,
+        detail=(
+            f"taurworks dev {name}: no delegation target found. Checked "
+            f"[dev.commands].{name} in {config_location} and {script_path}."
+        ),
+    )
+
+
+def execute_dev_command(resolution: DevCommandResolution) -> int:
+    """Run a resolved dev command with inherited stdio; return its exit code."""
+    result = subprocess.run(resolution.argv, cwd=resolution.cwd)
+    return result.returncode
