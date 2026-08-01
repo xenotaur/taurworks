@@ -20,15 +20,29 @@ if [ ! -f "$REPO_ROOT/src/taurworks/cli.py" ]; then
 fi
 REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 
-if [ -x /Users/centaur/anaconda3/envs/Taurworks/bin/python ]; then
+if [ -n "${DOGFOOD_PYTHON:-}" ]; then
+    PYTHON_BIN="$DOGFOOD_PYTHON"
+    PYTHON_ENV_NOTE="explicit \$DOGFOOD_PYTHON override"
+elif [ -x /Users/centaur/anaconda3/envs/Taurworks/bin/python ]; then
     PYTHON_BIN=/Users/centaur/anaconda3/envs/Taurworks/bin/python
     PYTHON_ENV_NOTE="Taurworks conda env (pinned tool versions)"
-else
-    PYTHON_BIN="$(command -v python3 || command -v python)"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python3)"
     PYTHON_ENV_NOTE="fallback python3 on \$PATH -- black/ruff versions may differ from what this session used"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python)"
+    PYTHON_ENV_NOTE="fallback python on \$PATH -- black/ruff versions may differ from what this session used"
+else
+    echo "error: no usable Python interpreter found (tried \$DOGFOOD_PYTHON, the Taurworks conda env, python3, and python on \$PATH)" >&2
+    echo "set \$DOGFOOD_PYTHON to an interpreter to use, then retry" >&2
+    exit 2
 fi
 
 DOGFOOD_HOME="$(mktemp -d)"
+if [ -z "$DOGFOOD_HOME" ] || [ ! -d "$DOGFOOD_HOME" ]; then
+    echo "error: mktemp -d failed to create an isolated working directory; aborting rather than risk operating on unexpected paths" >&2
+    exit 2
+fi
 cleanup() { rm -rf "$DOGFOOD_HOME"; }
 trap cleanup EXIT
 
@@ -65,7 +79,16 @@ echo "Isolated home: $DOGFOOD_HOME"
 export HOME="$DOGFOOD_HOME/home"
 export XDG_CONFIG_HOME="$DOGFOOD_HOME/xdg"
 export TAURWORKS_WORKSPACE="$DOGFOOD_HOME/workspace"
-mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$TAURWORKS_WORKSPACE"
+# Isolate pipx's own state too: changing $HOME alone does not stop
+# `pipx install --force` from touching a real installation if the
+# invoking shell already has PIPX_HOME/PIPX_BIN_DIR/PIPX_MAN_DIR set,
+# since pipx honors those directly rather than deriving them from $HOME
+# in that case.
+export PIPX_HOME="$DOGFOOD_HOME/pipx"
+export PIPX_BIN_DIR="$DOGFOOD_HOME/pipx-bin"
+export PIPX_MAN_DIR="$DOGFOOD_HOME/pipx-man"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$TAURWORKS_WORKSPACE" \
+    "$PIPX_HOME" "$PIPX_BIN_DIR" "$PIPX_MAN_DIR"
 unset TAURWORKS_SHELL_HELPER_PATH TAURWORKS_DEBUG CONDA_DEFAULT_ENV 2>/dev/null
 
 PYTHON_DIR="$(dirname "$PYTHON_BIN")"
@@ -130,10 +153,17 @@ else
 fi
 
 RERUN_OUTPUT="$(run_taurworks setup 2>&1)"
-if echo "$RERUN_OUTPUT" | grep -q "unchanged" && ! echo "$RERUN_OUTPUT" | grep -qi "error"; then
-    pass "taurworks setup is idempotent on rerun"
+# Require the overall "- changed: False" summary line AND both individual
+# targets explicitly listed under "unchanged:" -- a partial idempotency
+# regression (one file updated, the other unchanged) would still contain
+# the bare substring "unchanged" and must not slip past as a pass.
+if echo "$RERUN_OUTPUT" | grep -q "^- changed: False$" \
+    && echo "$RERUN_OUTPUT" | grep -q "shell helper:" \
+    && echo "$RERUN_OUTPUT" | grep -q "tl source:" \
+    && ! echo "$RERUN_OUTPUT" | grep -qi "error"; then
+    pass "taurworks setup is idempotent on rerun (both targets unchanged)"
 else
-    fail "taurworks setup rerun did not report unchanged (output: $RERUN_OUTPUT)"
+    fail "taurworks setup rerun did not report both targets unchanged (output: $RERUN_OUTPUT)"
 fi
 
 if [ -f "$SHELL_HELPER" ] && [ -f "$TL_SOURCE" ]; then
@@ -201,9 +231,15 @@ fi
 section "4a. taurworks dev v1 happy path (WI-DEV-WORKFLOW-AUTOMATION-0001)"
 # ---------------------------------------------------------------------
 
-(
-    cd "$REPO_ROOT" || exit 1
-
+# Deliberately NOT a `( ... )` subshell: pass/fail mutate PASS_COUNT/
+# FAIL_COUNT/FAILED_CHECKS in this shell's scope, and a subshell would
+# silently discard those mutations on exit, letting failures inside this
+# block vanish from the final summary and exit code. cd back to the
+# original directory explicitly afterward instead.
+DOGFOOD_ORIGINAL_CWD="$(pwd)"
+if ! cd "$REPO_ROOT"; then
+    fail "could not cd to $REPO_ROOT for taurworks dev checks"
+else
     LINT_OUT="$(run_taurworks dev lint 2>&1)"
     if [ $? -eq 0 ]; then
         pass "taurworks dev lint delegates and succeeds"
@@ -225,6 +261,13 @@ section "4a. taurworks dev v1 happy path (WI-DEV-WORKFLOW-AUTOMATION-0001)"
         fail "taurworks dev test failed: $TEST_OUT"
     fi
 
+    BUILD_OUT="$(run_taurworks dev build 2>&1)"
+    if [ $? -eq 0 ]; then
+        pass "taurworks dev build delegates and succeeds"
+    else
+        fail "taurworks dev build failed: $BUILD_OUT"
+    fi
+
     DRYRUN_TARGETS="$(./scripts/clean --dry-run 2>&1)"
     CLEAN_OUT="$(run_taurworks dev clean 2>&1)"
     if [ $? -eq 0 ]; then
@@ -232,7 +275,9 @@ section "4a. taurworks dev v1 happy path (WI-DEV-WORKFLOW-AUTOMATION-0001)"
     else
         fail "taurworks dev clean failed: $CLEAN_OUT"
     fi
-)
+
+    cd "$DOGFOOD_ORIGINAL_CWD" || exit 1
+fi
 
 # ---------------------------------------------------------------------
 section "4b. Review-caught design fixes: project_root vs work_directory_guess"

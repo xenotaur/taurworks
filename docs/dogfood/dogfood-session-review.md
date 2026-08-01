@@ -30,17 +30,24 @@ your real shell.
 ## 0. Setup
 
 ```bash
-cd /Users/centaur/Workspace/Taurworks/taurworks
+cd <path-to-your-taurworks-checkout>
 git checkout master && git pull
 ```
 
 The script creates its own isolated `$HOME`/`$XDG_CONFIG_HOME`/workspace
-under `mktemp -d` and cleans up on exit (including on failure, via a trap).
-It uses the `Taurworks` conda env's Python
-(`/Users/centaur/anaconda3/envs/Taurworks/bin/python`) if present, falling
-back to whatever `python3` is on `$PATH` otherwise — the fallback is noted
-in the script's output since some checks assume the pinned tool versions
-(`black`, `ruff`) this session used.
+(and isolated `pipx` directories — see section 1b) under `mktemp -d` and
+cleans up on exit (including on failure, via a trap). It aborts with a
+clear error if `mktemp -d` itself fails, rather than risk any later step
+operating against an unexpected path.
+
+Python resolution, in order: `$DOGFOOD_PYTHON` if set, then this
+machine's `Taurworks` conda env if present at its conventional path,
+then whatever `python3`/`python` is on `$PATH`. If none resolve, the
+script aborts with a clear error rather than silently proceeding with an
+empty interpreter path. The fallback tiers are noted in the script's
+output since some checks assume the pinned tool versions (`black`,
+`ruff`) this session used; set `$DOGFOOD_PYTHON` explicitly to pin a
+specific interpreter.
 
 ---
 
@@ -157,9 +164,11 @@ thorough check.
 ### 4a. Happy path — dogfooding against this repo's own `scripts/`
 
 ```bash
-cd /Users/centaur/Workspace/Taurworks/taurworks
+cd <path-to-your-taurworks-checkout>
 taurworks dev lint
 taurworks dev smoke
+taurworks dev test
+taurworks dev build
 taurworks dev clean
 ```
 
@@ -170,10 +179,10 @@ directories (never source files); the script double-checks this by
 comparing against `scripts/clean --dry-run`'s own preview before running
 it for real.
 
-`dev test` and `dev build` are included too but are slower/heavier
-(`test` runs the full ~350-test suite; `build` produces a real wheel/sdist,
-which the script cleans up afterward via `dev clean` again) — both are
-still fast enough to include unconditionally.
+`dev test` and `dev build` are included too, run in that order before the
+final `dev clean` — `test` runs the full ~350-test suite; `build`
+produces a real wheel/sdist, which the trailing `dev clean` call removes
+afterward. All six v1 commands run unconditionally; none are skipped.
 
 ### 4b. The two review-caught design fixes
 
@@ -288,7 +297,7 @@ that the v1 commands are implemented — none of them should say `dev`
 ## 6. Full automated suite
 
 ```bash
-cd /Users/centaur/Workspace/Taurworks/taurworks
+cd <path-to-your-taurworks-checkout>
 lrh validate
 python -m black --check src tests
 python -m ruff check src tests
