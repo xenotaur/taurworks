@@ -149,8 +149,11 @@ Phase 7 below, which has no active plan.
 
 - `taurworks dev ...` was introduced conservatively.
 - Safe diagnostics: `dev where` and `dev status`.
-- The scaffold remains read-only: it reports workspace context and future VCS automation boundaries without running workflow commands.
-- `dev test`, `dev clean`, and other workflow automation remain deferred until trust boundaries are clear (see "In scope now").
+- At this phase the scaffold was read-only: it reported workspace context
+  and future VCS automation boundaries without running workflow commands.
+- `dev test`, `dev clean`, and the rest of the v1 delegate-only slice were
+  deferred at this phase pending trust-boundary design; that design
+  landed in Phase 6 below, which implements them.
 
 ## Phase 5 — Design and implement declarative activation (message/exports/Conda done; venv/Docker/hooks deferred)
 
