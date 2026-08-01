@@ -1,9 +1,9 @@
 ---
 id: FOCUS-CURRENT
-title: Packaging/install complete; legacy-migrate-tl-fallback abandoned; dev workflow automation scoped
+title: Packaging/install complete; legacy-migrate-tl-fallback abandoned; dev workflow automation v1 done
 status: active
-updated: 2026-07-31
-basis: packaging_and_install_series_resolved_legacy_migrate_abandoned_dev_scoped
+updated: 2026-08-01
+basis: packaging_and_install_series_resolved_legacy_migrate_abandoned_dev_v1_done
 confidence: high
 ---
 
@@ -32,26 +32,27 @@ The two side-effect audit recommendations that were never captured as work
 items remain assessed-and-deferred in `project/design/backlog.md`
 (unchanged since 2026-07-23).
 
-`taurworks dev ...` workflow-automation scope is now decided (2026-07-31,
-`project/roadmap/roadmap.md` Phase 6): a delegate-only v1 covering `clean`,
-`test`, `smoke`, `lint`, `format`, and `build` (explicit config override,
-then a project-local script such as `scripts/test`; no built-in
-per-project-type defaults yet). `init`, `develop`, `coverage`, `update`,
-`precommit`, `publish`, `sandbox`, `version`, and `validate` remain
-deferred as higher-risk (`develop` is grouped with the deferred set, not
-v1, since this repo's own `scripts/develop` runs `pip install` and is
-therefore dependency-mutating). Not yet implemented.
+`taurworks dev ...` workflow-automation v1 is scoped and implemented
+(2026-07-31, `project/roadmap/roadmap.md` Phase 6,
+`WI-DEV-WORKFLOW-AUTOMATION-0001`, PR #100): a delegate-only slice
+covering `clean`, `test`, `smoke`, `lint`, `format`, and `build` (explicit
+config override, then a project-local script such as `scripts/test`; no
+built-in per-project-type defaults yet). `init`, `develop`, `coverage`,
+`update`, `precommit`, `publish`, `sandbox`, `version`, and `validate`
+remain deferred as higher-risk (`develop` is grouped with the deferred
+set, not v1, since this repo's own `scripts/develop` runs `pip install`
+and is therefore dependency-mutating). No further work is planned against
+this scope without a new need being raised.
 
 ## Active direction
 
-1. Implement Phase 6's v1 `taurworks dev ...` delegation scope.
-2. Keep `taurworks project activate --print` read-only and `tw activate`/
+1. Keep `taurworks project activate --print` read-only and `tw activate`/
    `tw shell refresh` as the only shell-mutating layers.
 
 ## In scope now
 
-- Implementing `taurworks dev`'s v1 delegation scope (`clean`, `test`,
-  `smoke`, `lint`, `format`, `build`).
+Nothing is actively planned right now; the only unstarted roadmap item is
+Phase 7 (compatibility migration path), which has no active plan.
 
 ## Out of scope now
 
@@ -104,6 +105,10 @@ therefore dependency-mutating). Not yet implemented.
   with `cli.py`'s formatter modules audited for debug-shaped output
   (`WI-TAURWORKS-DEBUG-FLAG-0001`).
 - Minimal read-only `taurworks dev where`/`dev status`.
+- `taurworks dev clean/test/smoke/lint/format/build` delegate-only v1
+  workflow automation, resolving via `[dev.commands]` config override
+  then a project-local `scripts/<name>` file
+  (`WI-DEV-WORKFLOW-AUTOMATION-0001`).
 - Contributors roster (`project/contributors/*.md`) replacing the
   previously-broken placeholder.
 
