@@ -4,7 +4,7 @@ prompt_id: PROMPT(AD_HOC:REFRESH_FOCUS_ROADMAP_DEV_V1_DONE)[2026-08-01T05:01:54+
 work_item: AD_HOC
 status: in_progress
 rerun_of:
-pr: pending
+pr: https://github.com/xenotaur/taurworks/pull/102
 commit:
 created_at: 2026-08-01T05:01:54+00:00
 agent: claude_app
