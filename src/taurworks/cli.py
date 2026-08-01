@@ -1043,9 +1043,10 @@ def main(argv=None):
         "dev",
         help="Repository/developer workflow commands and diagnostics.",
         description=(
-            "Repository/developer workflow namespace. This scaffold is minimal: "
-            "it currently provides read-only diagnostics and does not run "
-            "workflow automation."
+            "Repository/developer workflow namespace. Provides read-only "
+            "diagnostics (where, status) and a delegate-only v1 workflow-"
+            "automation slice (clean, test, smoke, lint, format, build); "
+            "broader automation remains future work."
         ),
     )
     dev_subparsers = parser_dev.add_subparsers(
