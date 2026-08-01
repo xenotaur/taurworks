@@ -2,10 +2,10 @@
 execution_id: 2026_08_01_16_10_55_ADD_DOGFOOD_SESSION_REVIEW_DOCS
 prompt_id: PROMPT(AD_HOC:ADD_DOGFOOD_SESSION_REVIEW_DOCS)[2026-08-01T16:10:55+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/103
-commit:
+commit: 10ca42fdd873d7feabb076637ec9a580162d5fff
 created_at: 2026-08-01T16:10:55+00:00
 agent: claude_app
 instruction_source: conversational session — user asked for a comprehensive dogfood plan validating this session's work (the packaging/install series, WI-TW-PATH-LOSS-DIAGNOSTIC-0001, WI-TAURWORKS-DEBUG-FLAG-0001, and WI-DEV-WORKFLOW-AUTOMATION-0001), as both a detailed markdown doc and a runnable companion script, then asked to commit both into a new docs/dogfood/ directory via a PR

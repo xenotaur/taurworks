@@ -2,10 +2,10 @@
 execution_id: 2026_08_01_16_27_32_ADD_DOGFOOD_SESSION_REVIEW_DOCS_REVIEW
 prompt_id: PROMPT(AD_HOC:ADD_DOGFOOD_SESSION_REVIEW_DOCS_REVIEW)[2026-08-01T16:27:32+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_08_01_16_10_55_ADD_DOGFOOD_SESSION_REVIEW_DOCS
 pr: https://github.com/xenotaur/taurworks/pull/103
-commit:
+commit: 10ca42fdd873d7feabb076637ec9a580162d5fff
 created_at: 2026-08-01T16:27:32+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/103
