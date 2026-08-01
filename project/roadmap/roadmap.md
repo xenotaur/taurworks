@@ -11,7 +11,7 @@ confidence: medium
 
 This roadmap is phased and conservative. It prioritizes command-model alignment, safe incremental delivery, and explicit trust boundaries.
 
-## Current phase snapshot (2026-07-31)
+## Current phase snapshot (2026-08-01)
 
 Phases 1 through 5A below, and the entire dogfood recovery plan
 (`WI-INTERIM-TL-PIPX-0001`, `WI-LEGACY-BATCH-MIGRATION-0001`,
@@ -44,14 +44,19 @@ implemented. The two side-effect audit recommendations that were never
 captured as work items remain assessed and deferred to
 `project/design/backlog.md` (see below).
 
-`taurworks dev ...` workflow-automation scope (Phase 6 below) is now
-decided: a delegate-only v1 (`clean`, `test`, `smoke`, `lint`, `format`,
-`build`), with higher-risk commands (including `develop`, which is
-dependency-mutating in this repo) deferred. Not yet implemented.
+`taurworks dev ...` workflow-automation v1 (Phase 6 below) is scoped and
+implemented: a delegate-only slice (`clean`, `test`, `smoke`, `lint`,
+`format`, `build`) resolving via explicit `[dev.commands]` config
+override then a project-local `scripts/<name>` file
+(`WI-DEV-WORKFLOW-AUTOMATION-0001`, PR #100). Higher-risk commands
+(including `develop`, which is dependency-mutating in this repo) remain
+deferred. No further work is planned against this scope without a new
+need being raised.
 
 ### In scope now
 
-- Implementing Phase 6's v1 `taurworks dev ...` delegation scope.
+Nothing is actively planned right now; the only unstarted roadmap item is
+Phase 7 below, which has no active plan.
 
 ### Out of scope now
 
@@ -144,8 +149,11 @@ dependency-mutating in this repo) deferred. Not yet implemented.
 
 - `taurworks dev ...` was introduced conservatively.
 - Safe diagnostics: `dev where` and `dev status`.
-- The scaffold remains read-only: it reports workspace context and future VCS automation boundaries without running workflow commands.
-- `dev test`, `dev clean`, and other workflow automation remain deferred until trust boundaries are clear (see "In scope now").
+- At this phase the scaffold was read-only: it reported workspace context
+  and future VCS automation boundaries without running workflow commands.
+- `dev test`, `dev clean`, and the rest of the v1 delegate-only slice were
+  deferred at this phase pending trust-boundary design; that design
+  landed in Phase 6 below, which implements them.
 
 ## Phase 5 — Design and implement declarative activation (message/exports/Conda done; venv/Docker/hooks deferred)
 
@@ -174,19 +182,20 @@ dependency-mutating in this repo) deferred. Not yet implemented.
   findings on how many projects genuinely need arbitrary shell after
   declarative migration.
 
-## Phase 6 — `taurworks dev ...` workflow automation (scoped 2026-07-31, not yet implemented)
+## Phase 6 — `taurworks dev ...` workflow automation (scoped 2026-07-31, v1 done)
 
 Scoped 2026-07-31, resolving the "deciding scope for `taurworks dev ...`
 workflow automation" question this roadmap had left open since Phase 4.
 `design.md`'s "Dev command resolution model" (explicit configured command
 → project-local script, e.g. `scripts/test` → built-in default by project
-type) governs how each in-scope command resolves.
+type) governs how each in-scope command resolves. Implemented and merged
+the same day (`WI-DEV-WORKFLOW-AUTOMATION-0001`, PR #100).
 
-- **v1 scope, delegate-only** (Tiers 1-2 only; no built-in per-project-type
-  defaults yet): `clean`, `test`, `smoke`, `lint`, `format`, `build`. Each
-  is a conventional, expected, reversible-or-regenerable operation, and
-  this repo's own `scripts/` already has a matching script to delegate to
-  for dogfooding.
+- **v1 scope, delegate-only, done** (Tiers 1-2 only; no built-in
+  per-project-type defaults yet): `clean`, `test`, `smoke`, `lint`,
+  `format`, `build`. Each is a conventional, expected, reversible-or-
+  regenerable operation, and this repo's own `scripts/` already has a
+  matching script to delegate to for dogfooding.
 - **Deferred** (higher-risk: irreversible, packaging/release,
   dependency-mutating, or not-yet-semantically-defined): `init`,
   `develop`, `coverage`, `update`, `precommit`, `publish`, `sandbox`,
