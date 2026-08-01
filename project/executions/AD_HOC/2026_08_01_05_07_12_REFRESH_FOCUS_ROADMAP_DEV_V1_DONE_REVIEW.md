@@ -2,10 +2,10 @@
 execution_id: 2026_08_01_05_07_12_REFRESH_FOCUS_ROADMAP_DEV_V1_DONE_REVIEW
 prompt_id: PROMPT(AD_HOC:REFRESH_FOCUS_ROADMAP_DEV_V1_DONE_REVIEW)[2026-08-01T05:07:12+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_08_01_05_01_54_REFRESH_FOCUS_ROADMAP_DEV_V1_DONE
 pr: https://github.com/xenotaur/taurworks/pull/102
-commit:
+commit: 77fdd0c1152a817183da488c44cb82d7102e5f20
 created_at: 2026-08-01T05:07:12+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/102
@@ -43,5 +43,5 @@ now"` across both touched docs) -- no other stale cross-references found.
 
 # Follow-up
 
-- Recommend `/lrh-confirm-fixes` before merge to verify the fix against
-  the current diff and resolve the review thread.
+- None outstanding. PR #102 merged (`77fdd0c`); confirm-fixes already
+  landed against it before merge.

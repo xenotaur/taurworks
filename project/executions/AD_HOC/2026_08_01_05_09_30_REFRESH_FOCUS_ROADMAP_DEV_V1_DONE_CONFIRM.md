@@ -2,10 +2,10 @@
 execution_id: 2026_08_01_05_09_30_REFRESH_FOCUS_ROADMAP_DEV_V1_DONE_CONFIRM
 prompt_id: PROMPT(AD_HOC:REFRESH_FOCUS_ROADMAP_DEV_V1_DONE_CONFIRM)[2026-08-01T05:09:30+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/102
-commit:
+commit: 77fdd0c1152a817183da488c44cb82d7102e5f20
 created_at: 2026-08-01T05:09:30+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/102
@@ -52,6 +52,5 @@ resolved, no exceptions remain open.
 
 # Follow-up
 
-- Merge-readiness verdict: contingent on CI going green (was pending as
-  of this record). Awaiting explicit user go-ahead before merging (hard
-  gate per the outer task's instructions), in addition to CI.
+- None outstanding. PR #102 merged (`77fdd0c`) after explicit user
+  approval.

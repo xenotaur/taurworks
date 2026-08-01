@@ -2,10 +2,10 @@
 execution_id: 2026_08_01_05_01_54_REFRESH_FOCUS_ROADMAP_DEV_V1_DONE
 prompt_id: PROMPT(AD_HOC:REFRESH_FOCUS_ROADMAP_DEV_V1_DONE)[2026-08-01T05:01:54+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/102
-commit:
+commit: 77fdd0c1152a817183da488c44cb82d7102e5f20
 created_at: 2026-08-01T05:01:54+00:00
 agent: claude_app
 instruction_source: conversational session — user asked "what's left on the roadmap now", I cross-checked the docs against actual WI/PR status, found both project/roadmap/roadmap.md and project/focus/current_focus.md still described taurworks dev v1 automation as "not yet implemented" despite WI-DEV-WORKFLOW-AUTOMATION-0001/PR #100 shipping it the same day these docs were last written, and the user confirmed refreshing both
