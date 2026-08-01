@@ -2,10 +2,10 @@
 execution_id: 2026_08_01_02_32_02_DOC_WORK_WI_DEV_WORKFLOW_AUTOMATION_0001_CONFIRM
 prompt_id: PROMPT(AD_HOC:DOC_WORK_WI_DEV_WORKFLOW_AUTOMATION_0001_CONFIRM)[2026-08-01T02:32:02+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/101
-commit:
+commit: 9377bdf18cb795afe8c923c79191bc3bf957378c
 created_at: 2026-08-01T02:32:02+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/101
@@ -51,5 +51,5 @@ resolved, no exceptions remain open.
 
 # Follow-up
 
-- Merge-readiness verdict: green. Awaiting explicit user go-ahead before
-  merging (hard gate per the outer task's instructions).
+- None outstanding. PR #101 merged (`9377bdf`) after explicit user
+  approval.
