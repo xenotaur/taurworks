@@ -340,10 +340,12 @@ def classify_project_entry(project_dir):
 
 def discover_workspace_projects(workspace):
     """Return classified direct child directories from an existing workspace."""
+    # ⚡ Bolt: Replace workspace.iterdir() with os.scandir() to avoid redundant stat calls
+    with os.scandir(workspace) as entries:
+        dirs = [pathlib.Path(entry.path) for entry in entries if entry.is_dir()]
     return [
         classify_project_entry(child)
-        for child in sorted(workspace.iterdir(), key=lambda path: path.name)
-        if child.is_dir()
+        for child in sorted(dirs, key=lambda path: path.name)
     ]
 
 
