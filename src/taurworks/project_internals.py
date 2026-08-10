@@ -81,14 +81,17 @@ def discover_projects_from_context(
             "Global registry/workspace scanning is not implemented yet; reporting current context.",
         )
 
-    discovered_projects = sorted(
-        (
-            child
-            for child in cwd.iterdir()
-            if child.is_dir() and (child / ".taurworks").is_dir()
-        ),
-        key=lambda path: path.name,
-    )
+    # Using os.scandir avoids redundant stat system calls when checking is_dir()
+    # which improves performance significantly for large directories.
+    with os.scandir(cwd) as entries:
+        discovered_projects = sorted(
+            (
+                pathlib.Path(child.path)
+                for child in entries
+                if child.is_dir() and (pathlib.Path(child.path) / ".taurworks").is_dir()
+            ),
+            key=lambda path: path.name,
+        )
     return (
         discovered_projects,
         "cwd child-directory scan for .taurworks metadata",
