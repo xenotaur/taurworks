@@ -42,8 +42,9 @@ session.
 - This was a remote GitHub-only documentation review response; local
   `scripts/version tools`, `scripts/format --check --diff`, `scripts/lint`,
   `scripts/test`, and `lrh validate` were not available in this session.
-- GitHub Python CI was triggered by the pushed proposal update; final CI status
-  should be confirmed before merge.
+- GitHub Python CI run #739 was triggered on the updated review-response head
+  and was `in_progress` when this record was finalized; confirm its conclusion
+  before merge.
 
 # Follow-up
 
