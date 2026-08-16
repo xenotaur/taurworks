@@ -163,26 +163,30 @@ These examples deliberately use words such as "typical" and "candidate."
 Actual placement remains a user/project decision informed by audit facts,
 backup requirements, reproducibility, cost, and workflow needs.
 
-### Decision 3: Storage class and link topology are independent concepts
+### Decision 3: Storage class, management ownership, and link topology are independent concepts
 
 Taurworks must not treat arbitrary symlinks as something it "permits" or
 "forbids." Projects may legitimately contain links to sibling projects,
 shared datasets, external volumes, or other resources.
 
-An audit therefore observes a separate link relationship such as:
+An audit therefore observes management ownership separately from link
+topology:
 
-- `none`
-- `managed`
-- `internal`
-- `external`
-- `broken`
+- `managed_by_taurworks`: whether Taurworks owns and may reconcile the logical
+  mapping;
+- `relationship`: one of `none`, `internal`, `external`, or `broken`, describing
+  the observed filesystem topology independently of ownership.
+
+These dimensions may coexist. For example, a normal mirrored mapping is both
+`managed_by_taurworks: true` and `relationship: external`; a missing or broken
+managed mapping may be both managed and `relationship: broken`.
 
 An unmanaged external symlink is informational by default, not an error. A
 broken link is a finding because it is broken. A Taurworks-managed link whose
 target disagrees with its declared storage mapping is a finding because the
 managed state is inconsistent.
 
-### Decision 4: Taurworks owns only explicitly managed mappings
+### Decision 4: Taurworks owns only explicitly managed, project-contained mappings
 
 Project-local storage declarations should distinguish between mappings
 Taurworks may reconcile and annotations Taurworks merely explains.
@@ -211,9 +215,21 @@ This avoids forcing arbitrary path syntax into Taurworks' deliberately small
 TOML writer contract.
 
 A `storage.entries.*` declaration grants Taurworks responsibility for that
-mapping. A `storage.annotations.*` declaration is descriptive only. An
-unannotated external link remains valid and is simply reported without a
-message.
+mapping. That grant is deliberately narrow: managed `path` values must be
+normalized relative paths within the selected project. Absolute paths and
+paths containing `..` are invalid. Existing parent components must not escape
+through an unmanaged symlink; a path whose traversal leaves the logical
+project root is not eligible for managed ownership. The derived physical
+destination must likewise remain beneath the configured root for its declared
+storage class.
+
+The initial design does not provide an outside-project opt-in for managed
+entries. Cross-project or external-volume relationships remain ordinary user
+filesystem structure and can be described with `storage.annotations.*`
+without granting Taurworks move/reconcile authority over them.
+
+A `storage.annotations.*` declaration is descriptive only. An unannotated
+external link remains valid and is simply reported without a message.
 
 ### Decision 5: Machine-specific storage roots live in global configuration
 
@@ -237,7 +253,10 @@ subdir = "Taurspace"
 
 The mirrored root is explicit. The transient root should be resolved through
 platform temporary-directory conventions rather than hard-coding `/tmp` or a
-macOS-specific path.
+macOS-specific path. The `Taurspace` name is intentionally reused as the
+Taurworks-owned namespace beneath either physical root: storage class is
+established by the containing mirrored or transient root, not by the basename
+of the namespace itself.
 
 For Workspace projects, managed destination paths should initially be derived
 deterministically from the project path relative to the Workspace plus the
@@ -325,7 +344,8 @@ symlink.
 The audit may collect inexpensive facts such as:
 
 - logical path and filesystem kind;
-- symlink target and internal/external/broken relationship;
+- `managed_by_taurworks` ownership state;
+- symlink target and `none`/`internal`/`external`/`broken` relationship;
 - managed declaration and expected target, if any;
 - Git-repository presence and configured remote metadata using offline Git
   inspection;
@@ -366,7 +386,8 @@ The audit should construct one deterministic internal result and render it as
 either human-readable Markdown/text or versioned JSON. The JSON output is a
 first-class contract for agents and scripts, not a parser over CLI prose.
 
-Initial JSON shape should include a schema version from the first release:
+Initial JSON shape should include a schema version from the first release and
+represent management ownership independently from topology:
 
 ```json
 {
@@ -379,7 +400,14 @@ Initial JSON shape should include a schema version from the first release:
     "mirrored_root": "...",
     "transient_root": "..."
   },
-  "entries": [],
+  "entries": [
+    {
+      "path": "Admin",
+      "storage_class": "mirrored",
+      "managed_by_taurworks": true,
+      "relationship": "external"
+    }
+  ],
   "findings": [],
   "summary": {}
 }
@@ -473,6 +501,7 @@ Implement:
 - `taurworks storage audit [PROJECT]`;
 - `--format md|json` with JSON `schema_version: "1.0"`;
 - typed/structured audit results;
+- separate managed-ownership and link-topology classification;
 - shallow non-following topology classification;
 - offline Git metadata inspection where useful; and
 - focused filesystem and CLI tests.
@@ -503,6 +532,9 @@ After the Stage 1 audit contract is dogfooded and stable:
 After audit evidence demonstrates correct topology understanding:
 
 - add project-local managed storage declarations and descriptive annotations;
+- validate managed paths as normalized project-relative paths, reject absolute
+  paths and `..`, reject escape through unmanaged symlink parents, and verify
+  each derived destination remains beneath its configured storage root;
 - add mirrored-root configuration setters as needed;
 - implement `taurworks storage plan`;
 - implement one-entry `taurworks storage move`; and
@@ -528,7 +560,8 @@ Only after demonstrated demand:
 
 Mitigation: distinguish observation from Taurworks-managed trust. Unmanaged
 external links are visible but do not automatically gain privileged path
-resolution semantics.
+resolution semantics, and managed entry paths may not escape the selected
+project through `..`, absolute paths, or unmanaged symlink parents.
 
 ### Risk: storage roots accidentally collapse lifecycle boundaries
 
