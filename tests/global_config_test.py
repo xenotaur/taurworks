@@ -1,10 +1,10 @@
 import os
 import pathlib
 import tempfile
-import tomllib
 import unittest
 from unittest import mock
 
+import tomllib
 from helpers import assert_same_path
 
 from taurworks import global_config
@@ -130,16 +130,7 @@ class GlobalConfigTest(unittest.TestCase):
             config_path = config_home / "taurworks" / "config.toml"
             config_path.parent.mkdir(parents=True)
             config_path.write_text(
-                "\n".join(
-                    [
-                        "schema_version = 1",
-                        "",
-                        "[projects.HiddenProject]",
-                        'root = "/tmp/hidden"',
-                        'conda_environment = "hidden-env"',
-                        "",
-                    ]
-                ),
+                'schema_version = 1\n\n[projects.HiddenProject]\nroot = "/tmp/hidden"\nconda_environment = "hidden-env"\n',
                 encoding="utf-8",
             )
             with mock.patch.dict(

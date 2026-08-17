@@ -3,10 +3,10 @@ import pathlib
 import subprocess
 import sys
 import tempfile
-import tomllib
 import unittest
 from unittest import mock
 
+import tomllib
 from helpers import assert_same_path, parse_cli_fields
 
 
@@ -200,9 +200,11 @@ class CliCommandTest(unittest.TestCase):
     def test_dev_where_outside_project_is_read_only(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_path = pathlib.Path(temp_dir)
-            before_entries = sorted(path.name for path in root_path.iterdir())
+            with os.scandir(root_path) as entries:
+                before_entries = sorted(entry.name for entry in entries)
             result = _run_cli(["dev", "where"], root_path)
-            after_entries = sorted(path.name for path in root_path.iterdir())
+            with os.scandir(root_path) as entries:
+                after_entries = sorted(entry.name for entry in entries)
         failure_message = _failure_message(["dev", "where"], result)
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertEqual(before_entries, after_entries)
@@ -265,9 +267,11 @@ class CliCommandTest(unittest.TestCase):
     def test_dev_status_reports_future_vcs_work_without_mutation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_path = pathlib.Path(temp_dir)
-            before_entries = sorted(path.name for path in root_path.iterdir())
+            with os.scandir(root_path) as entries:
+                before_entries = sorted(entry.name for entry in entries)
             result = _run_cli(["dev", "status"], root_path)
-            after_entries = sorted(path.name for path in root_path.iterdir())
+            with os.scandir(root_path) as entries:
+                after_entries = sorted(entry.name for entry in entries)
         failure_message = _failure_message(["dev", "status"], result)
         self.assertEqual(result.returncode, 0, msg=failure_message)
         self.assertEqual(before_entries, after_entries)

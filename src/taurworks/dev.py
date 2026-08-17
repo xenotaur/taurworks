@@ -3,6 +3,7 @@ import os
 import pathlib
 import shlex
 import subprocess
+
 import tomllib
 
 from taurworks import project_internals
@@ -296,5 +297,5 @@ def execute_dev_command(resolution: DevCommandResolution) -> int:
     `cwd` that no longer exists, etc.) -- callers should catch this and
     report a clean failure rather than let a raw traceback surface.
     """
-    result = subprocess.run(resolution.argv, cwd=resolution.cwd)
+    result = subprocess.run(resolution.argv, cwd=resolution.cwd, check=False)
     return result.returncode

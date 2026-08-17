@@ -1,11 +1,10 @@
 import hashlib
 import pathlib
 import shlex
+
 import tomllib
 
-from taurworks import global_config
-from taurworks import manager
-from taurworks import project_internals
+from taurworks import global_config, manager, project_internals
 
 
 def gather_project_where_diagnostics() -> dict[str, str | bool | None]:
@@ -925,8 +924,10 @@ def gather_project_create_diagnostics(
         ):
             diagnostics["warnings"] = [
                 *diagnostics["warnings"],
-                "created project is outside the configured workspace root; "
-                "it will not appear in global project discovery unless registered",
+                (
+                    "created project is outside the configured workspace root; "
+                    "it will not appear in global project discovery unless registered"
+                ),
             ]
             diagnostics["workspace_root"] = str(workspace_root)
             diagnostics["workspace_root_source"] = "configured"

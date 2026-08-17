@@ -1,6 +1,7 @@
 import pathlib
-import tomllib
 from typing import Any
+
+import tomllib
 
 from taurworks import global_config
 

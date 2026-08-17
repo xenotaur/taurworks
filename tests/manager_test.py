@@ -6,8 +6,7 @@ import tempfile
 import unittest
 import unittest.mock
 
-from taurworks import manager
-from taurworks import project_internals
+from taurworks import manager, project_internals
 
 
 class ManagerModuleTest(unittest.TestCase):
@@ -27,13 +26,15 @@ class ManagerModuleTest(unittest.TestCase):
 
     def test_get_conda_environments_returns_empty_set_on_timeout(self):
         stdout = io.StringIO()
-        with contextlib.redirect_stdout(stdout):
-            with unittest.mock.patch.object(
+        with (
+            contextlib.redirect_stdout(stdout),
+            unittest.mock.patch.object(
                 manager.subprocess,
                 "run",
                 side_effect=subprocess.TimeoutExpired(["conda", "env", "list"], 2),
-            ) as run_mock:
-                envs = manager.get_conda_environments()
+            ) as run_mock,
+        ):
+            envs = manager.get_conda_environments()
 
         self.assertEqual(envs, set())
         self.assertIn(
@@ -157,15 +158,15 @@ class ManagerModuleTest(unittest.TestCase):
         self.assertIn("To activate, run: tw activate Alpha", output)
 
     def test_refresh_project_create_env_creates_conda_environment(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with (
-                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
-                unittest.mock.patch.object(
-                    manager, "get_conda_environments", return_value=set()
-                ),
-                unittest.mock.patch.object(manager.subprocess, "run") as run_mock,
-            ):
-                manager.refresh_project("Alpha", create_env=True)
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+            unittest.mock.patch.object(
+                manager, "get_conda_environments", return_value=set()
+            ),
+            unittest.mock.patch.object(manager.subprocess, "run") as run_mock,
+        ):
+            manager.refresh_project("Alpha", create_env=True)
 
         run_mock.assert_called_once_with(
             ["conda", "create", "--name", "Alpha", "python=3.11", "-y"],
@@ -206,12 +207,12 @@ class ManagerModuleTest(unittest.TestCase):
         self.assertIn("To activate, run: tw activate Beta", output)
 
     def test_create_project_create_env_creates_conda_environment(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with (
-                unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
-                unittest.mock.patch.object(manager.subprocess, "run") as run_mock,
-            ):
-                manager.create_project("Beta", create_env=True)
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            unittest.mock.patch.object(manager, "TAURWORKS_WORKSPACE", temp_dir),
+            unittest.mock.patch.object(manager.subprocess, "run") as run_mock,
+        ):
+            manager.create_project("Beta", create_env=True)
 
         run_mock.assert_called_once_with(
             ["conda", "create", "--name", "Beta", "python=3.11", "-y"],

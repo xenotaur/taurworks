@@ -17,14 +17,7 @@ class TestHelpersTest(unittest.TestCase):
             assert_same_path(self, nested_reference, target)
 
     def test_parse_cli_fields_reads_bulleted_and_plain_diagnostics(self):
-        output = "\n".join(
-            [
-                "Taurworks diagnostics",
-                "- project_root: /tmp/example/project",
-                "resolved_working_dir: /tmp/example/project/repo",
-                "mutation_performed: False",
-            ]
-        )
+        output = "Taurworks diagnostics\n- project_root: /tmp/example/project\nresolved_working_dir: /tmp/example/project/repo\nmutation_performed: False"
 
         fields = parse_cli_fields(output)
 
