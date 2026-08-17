@@ -101,6 +101,11 @@ def create_conda_environment(
         ]
         if packages:
             package_list = packages.split(",")
+            for pkg in package_list:
+                if pkg.startswith("-"):
+                    raise ValueError(
+                        f"Invalid package name '{pkg}': package names cannot start with '-' to prevent argument injection."
+                    )
             conda_cmd.extend(package_list)
             if debug:
                 print(f"Installing additional packages: {package_list}")
@@ -579,6 +584,11 @@ def create_project(
             ]
             if packages:
                 package_list = packages.split(",")
+                for pkg in package_list:
+                    if pkg.startswith("-"):
+                        raise ValueError(
+                            f"Invalid package name '{pkg}': package names cannot start with '-' to prevent argument injection."
+                        )
                 conda_cmd.extend(package_list)
                 if debug:
                     print(f"Installing additional packages: {package_list}")
