@@ -7,8 +7,7 @@ from unittest import mock
 
 from helpers import assert_same_path
 
-from taurworks import global_config
-from taurworks import project_resolution
+from taurworks import global_config, project_resolution
 
 
 class ProjectResolutionModuleTest(unittest.TestCase):

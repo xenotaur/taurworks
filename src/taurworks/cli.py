@@ -2,14 +2,16 @@ import argparse
 import os
 import sys
 
-from taurworks import dev
-from taurworks import global_config
-from taurworks import legacy
-from taurworks import manager
-from taurworks import project_registry
-from taurworks import project_resolution
-from taurworks import setup_command
-from taurworks import shell_resources
+from taurworks import (
+    dev,
+    global_config,
+    legacy,
+    manager,
+    project_registry,
+    project_resolution,
+    setup_command,
+    shell_resources,
+)
 
 
 def _env_flag_truthy(value):
@@ -143,13 +145,12 @@ def _handle_project_command(args):
             raise SystemExit(1)
         return
 
-    if args.project_command == "registry":
-        if args.registry_command == "list":
-            diagnostics = project_registry.gather_project_registry_list_diagnostics()
-            print(project_registry.format_project_registry_list_output(diagnostics))
-            if not diagnostics["ok"]:
-                raise SystemExit(1)
-            return
+    if args.project_command == "registry" and args.registry_command == "list":
+        diagnostics = project_registry.gather_project_registry_list_diagnostics()
+        print(project_registry.format_project_registry_list_output(diagnostics))
+        if not diagnostics["ok"]:
+            raise SystemExit(1)
+        return
 
     if args.project_command == "refresh":
         diagnostics = project_resolution.gather_project_refresh_diagnostics(

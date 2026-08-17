@@ -1,12 +1,12 @@
 import os
 import pathlib
 import re
-import sys
 import subprocess
+import sys
+
 import tomllib
 
-from taurworks import global_config
-from taurworks import project_internals
+from taurworks import global_config, project_internals
 
 TAURWORKS_WORKSPACE = os.getenv(
     "TAURWORKS_WORKSPACE", os.path.expanduser("~/Workspace")
@@ -67,7 +67,7 @@ def get_conda_environments():
             f"`conda env list` timed out after {CONDA_ENV_LIST_TIMEOUT_SECONDS} seconds"
         )
         return set()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Warning: Could not fetch Conda environments: {e}")
         return set()
 
@@ -340,10 +340,17 @@ def classify_project_entry(project_dir):
 
 def discover_workspace_projects(workspace):
     """Return classified direct child directories from an existing workspace."""
+    # OPTIMIZATION: Use os.scandir instead of Path.iterdir() to leverage cached
+    # file attributes and avoid redundant stat() calls during discovery
+    with os.scandir(workspace) as entries:
+        children = [
+            pathlib.Path(entry.path)
+            for entry in entries
+            if entry.is_dir(follow_symlinks=True)
+        ]
     return [
         classify_project_entry(child)
-        for child in sorted(workspace.iterdir(), key=lambda path: path.name)
-        if child.is_dir()
+        for child in sorted(children, key=lambda path: path.name)
     ]
 
 

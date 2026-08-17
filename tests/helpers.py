@@ -28,8 +28,7 @@ def parse_cli_fields(output: str) -> dict[str, str]:
     fields: dict[str, str] = {}
     for raw_line in output.splitlines():
         line = raw_line.strip()
-        if line.startswith("- "):
-            line = line[2:]
+        line = line.removeprefix("- ")
         if ": " not in line:
             continue
         key, value = line.split(": ", 1)

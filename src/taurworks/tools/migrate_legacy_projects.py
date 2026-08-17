@@ -35,9 +35,7 @@ import re
 import sys
 import tempfile
 
-from taurworks import legacy
-from taurworks import manager
-from taurworks import project_internals
+from taurworks import legacy, manager, project_internals
 
 # A value we are willing to resolve contains only literal text, a leading
 # ``~``, and ``$VAR`` / ``${VAR}`` references. Anything else (command

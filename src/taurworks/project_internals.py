@@ -3,8 +3,9 @@ import enum
 import os
 import pathlib
 import re
-import tomllib
 from typing import Any
+
+import tomllib
 
 PROJECT_SCHEMA_VERSION = 1
 BARE_TOML_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -81,12 +82,17 @@ def discover_projects_from_context(
             "Global registry/workspace scanning is not implemented yet; reporting current context.",
         )
 
+    # OPTIMIZATION: Use os.scandir instead of Path.iterdir() to leverage cached
+    # file attributes and avoid redundant stat() calls during discovery
+    with os.scandir(cwd) as entries:
+        children = [
+            pathlib.Path(entry.path)
+            for entry in entries
+            if entry.is_dir(follow_symlinks=True)
+        ]
+
     discovered_projects = sorted(
-        (
-            child
-            for child in cwd.iterdir()
-            if child.is_dir() and (child / ".taurworks").is_dir()
-        ),
+        (child for child in children if (child / ".taurworks").is_dir()),
         key=lambda path: path.name,
     )
     return (

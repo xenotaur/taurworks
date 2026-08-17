@@ -3,8 +3,9 @@ import json
 import os
 import pathlib
 import re
-import tomllib
 from typing import Any
+
+import tomllib
 
 GLOBAL_CONFIG_SCHEMA_VERSION = 1
 BARE_TOML_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")

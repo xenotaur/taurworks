@@ -345,7 +345,7 @@ class ShellHelperTest(unittest.TestCase):
         self.assertIn("PATH", result.stderr)
         self.assertNotIn("Conda", result.stderr)
 
-    def test_tw_activate_prints_diagnostic_before_conda_activation_when_taurworks_not_on_path(  # noqa: E501
+    def test_tw_activate_prints_diagnostic_before_conda_activation_when_taurworks_not_on_path(
         self,
     ):
         # WI-TW-PATH-LOSS-DIAGNOSTIC-0001: tw activate's own
@@ -1751,7 +1751,7 @@ class LegacyTrustSourcingShellTest(unittest.TestCase):
         self.assertTrue(sentinel_exists)
         self.assertIn("[trust.Proj]", trust_text)
 
-    def test_offer_legacy_trust_prints_diagnostic_when_taurworks_lost_after_conda_activate(  # noqa: E501
+    def test_offer_legacy_trust_prints_diagnostic_when_taurworks_lost_after_conda_activate(
         self,
     ):
         # WI-TW-PATH-LOSS-DIAGNOSTIC-0001: `_tw_offer_legacy_trust` is only
