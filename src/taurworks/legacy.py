@@ -1,11 +1,11 @@
 import pathlib
 import re
 import shlex
-import tomllib
 from typing import Any
 
-from taurworks import project_internals
-from taurworks import project_resolution
+import tomllib
+
+from taurworks import project_internals, project_resolution
 
 CONDA_ACTIVATE_PATTERN = re.compile(r"^conda\s+activate\s+(\S.*)$")
 EXPORT_PATTERN = re.compile(r"^export\s+(\S+?)=(.*)$")

@@ -4,8 +4,7 @@ import stat
 import tempfile
 import unittest
 
-from taurworks import dev
-from taurworks import project_internals
+from taurworks import dev, project_internals
 
 
 def _write_project_config(project_root: pathlib.Path, body: str) -> None:

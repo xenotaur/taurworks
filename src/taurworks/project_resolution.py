@@ -1,11 +1,10 @@
 import hashlib
 import pathlib
 import shlex
+
 import tomllib
 
-from taurworks import global_config
-from taurworks import manager
-from taurworks import project_internals
+from taurworks import global_config, manager, project_internals
 
 
 def gather_project_where_diagnostics() -> dict[str, str | bool | None]:
