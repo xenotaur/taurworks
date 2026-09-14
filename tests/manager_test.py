@@ -26,11 +26,14 @@ class ManagerModuleTest(unittest.TestCase):
 
     def test_get_conda_environments_returns_empty_set_on_timeout(self):
         stdout = io.StringIO()
-        with contextlib.redirect_stdout(stdout), unittest.mock.patch.object(
-            manager.subprocess,
-            "run",
-            side_effect=subprocess.TimeoutExpired(["conda", "env", "list"], 2),
-        ) as run_mock:
+        with (
+            contextlib.redirect_stdout(stdout),
+            unittest.mock.patch.object(
+                manager.subprocess,
+                "run",
+                side_effect=subprocess.TimeoutExpired(["conda", "env", "list"], 2),
+            ) as run_mock,
+        ):
             envs = manager.get_conda_environments()
 
         self.assertEqual(envs, set())
