@@ -1,3 +1,3 @@
-## 2024-07-06 - Optimizing Directory Size Calculation
-**Learning:** Using `os.walk` in conjunction with `os.path.isfile` and `os.path.getsize` results in multiple redundant `stat` system calls for each file. This creates a significant performance bottleneck when computing total sizes for large project directories. `os.scandir` caches these attributes and speeds up the traversal and size calculation significantly.
-**Action:** Always prefer `os.scandir` over `os.walk` when calculating directory sizes or iterating through files where file types and attributes are needed.
+## 2024-09-14 - pathlib.Path.iterdir() vs os.scandir()
+**Learning:** `pathlib.Path.iterdir()` can be slower than `os.scandir()` for directory traversal because it does not cache directory entry metadata. Subsequent calls like `is_dir()` on `pathlib` objects trigger additional `stat` system calls, whereas `os.scandir()` yields `DirEntry` objects that cache this information.
+**Action:** Prefer `os.scandir()` over `pathlib.Path.iterdir()` for file and directory traversal, especially when checking properties like `is_dir()` or `is_file()`, to avoid redundant `stat` system calls and improve performance. Ensure `follow_symlinks=False` is NOT passed to `DirEntry.is_dir()` to maintain `pathlib`'s default symlink-following behavior and avoid regressions.

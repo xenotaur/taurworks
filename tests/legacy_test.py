@@ -4,8 +4,7 @@ import tempfile
 import unittest
 import unittest.mock
 
-from taurworks import legacy
-from taurworks import project_internals
+from taurworks import legacy, project_internals
 
 LEGACY_SCRIPT = """#!/bin/bash
 # Activate Conda environment

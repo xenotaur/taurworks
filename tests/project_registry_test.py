@@ -1,10 +1,10 @@
 import os
 import pathlib
 import tempfile
-import tomllib
 import unittest
 from unittest import mock
 
+import tomllib
 from helpers import assert_same_path
 
 from taurworks import project_registry

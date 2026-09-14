@@ -2,14 +2,16 @@ import argparse
 import os
 import sys
 
-from taurworks import dev
-from taurworks import global_config
-from taurworks import legacy
-from taurworks import manager
-from taurworks import project_registry
-from taurworks import project_resolution
-from taurworks import setup_command
-from taurworks import shell_resources
+from taurworks import (
+    dev,
+    global_config,
+    legacy,
+    manager,
+    project_registry,
+    project_resolution,
+    setup_command,
+    shell_resources,
+)
 
 
 def _env_flag_truthy(value):

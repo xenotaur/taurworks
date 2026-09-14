@@ -1,12 +1,12 @@
 import os
 import pathlib
 import re
-import sys
 import subprocess
+import sys
+
 import tomllib
 
-from taurworks import global_config
-from taurworks import project_internals
+from taurworks import global_config, project_internals
 
 TAURWORKS_WORKSPACE = os.getenv(
     "TAURWORKS_WORKSPACE", os.path.expanduser("~/Workspace")
@@ -340,11 +340,15 @@ def classify_project_entry(project_dir):
 
 def discover_workspace_projects(workspace):
     """Return classified direct child directories from an existing workspace."""
-    return [
-        classify_project_entry(child)
-        for child in sorted(workspace.iterdir(), key=lambda path: path.name)
-        if child.is_dir()
-    ]
+    # ⚡ Bolt Optimization: Use os.scandir instead of pathlib.Path.iterdir()
+    # to avoid redundant stat system calls for is_dir().
+    # Expected impact: Faster project discovery in large workspaces.
+    with os.scandir(workspace) as entries:
+        return [
+            classify_project_entry(pathlib.Path(child.path))
+            for child in sorted(entries, key=lambda entry: entry.name)
+            if child.is_dir()
+        ]
 
 
 def _registered_projects_from_config() -> list[dict[str, object]]:

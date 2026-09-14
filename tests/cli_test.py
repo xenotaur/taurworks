@@ -3,10 +3,10 @@ import pathlib
 import subprocess
 import sys
 import tempfile
-import tomllib
 import unittest
 from unittest import mock
 
+import tomllib
 from helpers import assert_same_path, parse_cli_fields
 
 
