@@ -6,6 +6,7 @@ import subprocess
 import tomllib
 
 from taurworks import project_internals
+from taurworks import environments
 
 DEV_V1_COMMANDS = ("clean", "test", "smoke", "lint", "format", "build")
 
@@ -99,6 +100,31 @@ def gather_dev_where_diagnostics() -> dict[str, str | bool]:
         work_directory_guess = str(cwd)
         guess_source = "current working directory fallback"
 
+    environment_provider = "host"
+    environment_message = "no project environment is configured"
+    if project_root is not None:
+        config_path = project_internals.project_config_path(project_root)
+        if config_path.is_file():
+            try:
+                config = project_internals.read_project_config(project_root)
+                environment = project_internals.activation_environment_from_config(
+                    config
+                )
+                if environment is not None:
+                    environment_provider = environment["type"]
+                    environment_message = "configured project environment"
+            except (
+                project_internals.ProjectConfigError,
+                OSError,
+                tomllib.TOMLDecodeError,
+            ) as error:
+                environment_provider = "invalid"
+                environment_message = f"environment metadata is invalid: {error}"
+
+    execution_environment = (
+        "container" if environment_provider == "devcontainer" else "host"
+    )
+
     return {
         "cwd": str(cwd),
         "project_root": str(project_root) if project_root is not None else "unresolved",
@@ -112,6 +138,9 @@ def gather_dev_where_diagnostics() -> dict[str, str | bool]:
         "work_directory_guess_source": guess_source,
         "git_root_guess": str(git_root) if git_root is not None else "unresolved",
         "working_dir_message": working_dir_message,
+        "environment_provider": environment_provider,
+        "execution_environment": execution_environment,
+        "environment_message": environment_message,
         "read_only": True,
         "mutation_performed": False,
     }
@@ -133,6 +162,9 @@ def format_dev_where_output(diagnostics: dict[str, str | bool]) -> str:
         f"- work_directory_guess_source: {diagnostics['work_directory_guess_source']}",
         f"- git_root_guess: {diagnostics['git_root_guess']}",
         f"- working_dir_message: {diagnostics['working_dir_message']}",
+        f"- environment_provider: {diagnostics['environment_provider']}",
+        f"- execution_environment: {diagnostics['execution_environment']}",
+        f"- environment_message: {diagnostics['environment_message']}",
         f"- read_only: {diagnostics['read_only']}",
         "- mutation_performed: False",
     ]
@@ -182,6 +214,44 @@ class DevCommandResolution:
     cwd: str
     tier: str | None
     detail: str
+    environment_context: environments.EnvironmentContext | None = None
+
+
+def _environment_context(
+    project_root: pathlib.Path | None,
+    work_dir: str,
+    config: dict | None,
+) -> environments.EnvironmentContext:
+    """Build provider context without changing existing command resolution."""
+    resolved_work_dir = pathlib.Path(work_dir).resolve()
+    if project_root is None:
+        return environments.EnvironmentContext(
+            project_name=resolved_work_dir.name,
+            project_root=resolved_work_dir,
+            host_working_dir=resolved_work_dir,
+            relative_working_dir=pathlib.Path("."),
+            environment=environments.EnvironmentSpec("host"),
+        )
+
+    resolved_root = project_root.resolve()
+    try:
+        relative_work_dir = resolved_work_dir.relative_to(resolved_root)
+    except ValueError:
+        # The established dev resolver may select an enclosing Git root when
+        # no working_dir is configured. Host/Conda retain that cwd; a future
+        # container execution still starts at its own workspace root.
+        relative_work_dir = pathlib.Path(".")
+    project_config = config or {}
+    metadata = project_internals.activation_environment_from_config(project_config)
+    exports = project_internals.activation_exports_from_config(project_config)
+    return environments.EnvironmentContext(
+        project_name=project_internals.project_name_from_config(resolved_root),
+        project_root=resolved_root,
+        host_working_dir=resolved_work_dir,
+        relative_working_dir=relative_work_dir,
+        environment=environments.spec_from_metadata(metadata),
+        exports=exports,
+    )
 
 
 def resolve_dev_command(name: str) -> DevCommandResolution:
@@ -200,6 +270,7 @@ def resolve_dev_command(name: str) -> DevCommandResolution:
     work_dir = str(where["work_directory_guess"])
 
     config_location = "no Taurworks project root detected"
+    config: dict | None = None
     if project_root is not None:
         config_path = project_internals.project_config_path(project_root)
         config_location = str(config_path)
@@ -252,6 +323,9 @@ def resolve_dev_command(name: str) -> DevCommandResolution:
                     cwd=work_dir,
                     tier="config",
                     detail=f"[dev.commands].{name} in {config_path}",
+                    environment_context=_environment_context(
+                        project_root, work_dir, config
+                    ),
                 )
 
     script_path = pathlib.Path(work_dir) / "scripts" / name
@@ -274,6 +348,7 @@ def resolve_dev_command(name: str) -> DevCommandResolution:
             cwd=work_dir,
             tier="script",
             detail=str(script_path),
+            environment_context=_environment_context(project_root, work_dir, config),
         )
 
     return DevCommandResolution(
@@ -296,5 +371,8 @@ def execute_dev_command(resolution: DevCommandResolution) -> int:
     `cwd` that no longer exists, etc.) -- callers should catch this and
     report a clean failure rather than let a raw traceback surface.
     """
-    result = subprocess.run(resolution.argv, cwd=resolution.cwd)
-    return result.returncode
+    if resolution.environment_context is None:
+        result = subprocess.run(resolution.argv, cwd=resolution.cwd)
+        return result.returncode
+    provider = environments.provider_for(resolution.environment_context.environment)
+    return provider.execute(resolution.environment_context, resolution.argv)

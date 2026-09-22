@@ -6,6 +6,7 @@ import tomllib
 from taurworks import global_config
 from taurworks import manager
 from taurworks import project_internals
+from taurworks import environments
 
 
 def gather_project_where_diagnostics() -> dict[str, str | bool | None]:
@@ -272,6 +273,8 @@ def _project_init_failure_diagnostics(
         "env_requested": env_requested,
         "previous_environment": "none",
         "environment_name": "none",
+        "environment_config": "none",
+        "environment_provider": "host",
         "environment_changed": False,
         "environment_message": (
             "Activation environment metadata was not evaluated because an "
@@ -1272,6 +1275,7 @@ def gather_project_env_show_diagnostics(
             "environment_configured": False,
             "environment_type": "",
             "environment_name": "",
+            "environment_config": "",
             "message": "No Taurworks project metadata found for the resolved target.",
         }
 
@@ -1294,6 +1298,7 @@ def gather_project_env_show_diagnostics(
             "environment_configured": False,
             "environment_type": "",
             "environment_name": "",
+            "environment_config": "",
             "message": f"Could not read project config: {error}",
         }
 
@@ -1308,6 +1313,7 @@ def gather_project_env_show_diagnostics(
             "environment_configured": False,
             "environment_type": "",
             "environment_name": "",
+            "environment_config": "",
             "message": "No activation environment is configured for this project.",
         }
 
@@ -1320,7 +1326,8 @@ def gather_project_env_show_diagnostics(
         "config_path": str(config_path),
         "environment_configured": True,
         "environment_type": environment["type"],
-        "environment_name": environment["name"],
+        "environment_name": environment.get("name", ""),
+        "environment_config": environment.get("config", ""),
         "message": "Configured activation environment found.",
     }
 
@@ -1338,10 +1345,16 @@ def format_project_env_show_output(diagnostics: dict[str, str | bool]) -> str:
     ]
     if diagnostics["environment_configured"]:
         lines.append(f"- environment_type: {diagnostics['environment_type']}")
-        lines.append(f"- environment_name: {diagnostics['environment_name']}")
+        lines.append(
+            f"- environment_name: {diagnostics.get('environment_name') or 'none'}"
+        )
+        lines.append(
+            f"- environment_config: {diagnostics.get('environment_config') or 'default discovery'}"
+        )
     else:
         lines.append("- environment_type: none")
         lines.append("- environment_name: none")
+        lines.append("- environment_config: none")
     lines.append(f"- message: {diagnostics['message']}")
     return "\n".join(lines)
 
@@ -1878,6 +1891,8 @@ def gather_project_activate_print_diagnostics(
         "environment_configured": False,
         "environment_type": "none",
         "environment_name": "none",
+        "environment_config": "none",
+        "environment_provider": "host",
         "legacy_sourcing_enabled": False,
         "legacy_trusted": False,
         "legacy_trust_stale": False,
@@ -1965,7 +1980,13 @@ def gather_project_activate_print_diagnostics(
         if activation_environment is not None:
             base_diagnostics["environment_configured"] = True
             base_diagnostics["environment_type"] = activation_environment["type"]
-            base_diagnostics["environment_name"] = activation_environment["name"]
+            base_diagnostics["environment_provider"] = activation_environment["type"]
+            base_diagnostics["environment_name"] = activation_environment.get(
+                "name", "none"
+            )
+            base_diagnostics["environment_config"] = activation_environment.get(
+                "config", "none"
+            )
         working_dir = project_internals.working_dir_from_config(config)
         if working_dir is None:
             return _activation_target_diagnostics(
@@ -2056,6 +2077,8 @@ def format_project_activate_print_output(
         f"- environment_configured: {diagnostics['environment_configured']}",
         f"- environment_type: {diagnostics['environment_type']}",
         f"- environment_name: {diagnostics['environment_name']}",
+        f"- environment_config: {diagnostics.get('environment_config', 'none')}",
+        f"- environment_provider: {diagnostics.get('environment_provider', diagnostics['environment_type'])}",
         "- environment_activation: not performed",
         "- shell_mutation: not performed",
         f"- guidance: {diagnostics['guidance']}",
@@ -2087,10 +2110,13 @@ def format_project_activate_shell_output(
         f"TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED={shlex.quote(str(diagnostics['activation_message_configured']))}",
         f"TAURWORKS_ACTIVATION_MESSAGE={shlex.quote(str(diagnostics['activation_message']))}",
         f"TAURWORKS_ACTIVATION_EXPORT_COUNT={shlex.quote(str(diagnostics['activation_export_count']))}",
+        f"TAURWORKS_ACTIVATION_EXPORT_NAMES={shlex.quote(str(diagnostics['activation_export_names']))}",
         f"TAURWORKS_ACTIVATION_EXPORT_COMMANDS={shlex.quote(chr(10).join(export_commands))}",
         f"TAURWORKS_ACTIVATION_ENVIRONMENT_CONFIGURED={shlex.quote(str(diagnostics['environment_configured']))}",
         f"TAURWORKS_ACTIVATION_ENVIRONMENT_TYPE={shlex.quote(str(diagnostics['environment_type']))}",
         f"TAURWORKS_ACTIVATION_ENVIRONMENT_NAME={shlex.quote(str(diagnostics['environment_name']))}",
+        f"TAURWORKS_ACTIVATION_ENVIRONMENT_CONFIG={shlex.quote(str(diagnostics.get('environment_config', 'none')))}",
+        f"TAURWORKS_ACTIVATION_ENVIRONMENT_PROVIDER={shlex.quote(str(diagnostics.get('environment_provider', diagnostics['environment_type'])))}",
         f"TAURWORKS_ACTIVATION_PROJECT_NAME={shlex.quote(str(diagnostics['project_name']))}",
         f"TAURWORKS_ACTIVATION_PROJECT_ROOT={shlex.quote(str(diagnostics['project_root']))}",
         f"TAURWORKS_ACTIVATION_LEGACY_SETUP_EXISTS={shlex.quote(str(diagnostics['legacy_setup_exists']))}",
@@ -2100,6 +2126,29 @@ def format_project_activate_shell_output(
         f"TAURWORKS_ACTIVATION_LEGACY_TRUST_STALE={shlex.quote(str(diagnostics['legacy_trust_stale']))}",
     ]
     return "\n".join(lines)
+
+
+def resolve_project_environment_context(
+    path_or_name: str | None,
+) -> environments.EnvironmentContext:
+    """Resolve validated activation data into provider execution context."""
+    diagnostics = gather_project_activate_print_diagnostics(path_or_name)
+    if not diagnostics["ok"]:
+        raise environments.EnvironmentError(str(diagnostics["guidance"]))
+
+    project_root = pathlib.Path(str(diagnostics["project_root"])).resolve()
+    host_working_dir = pathlib.Path(str(diagnostics["resolved_working_dir"])).resolve()
+    relative_working_dir = host_working_dir.relative_to(project_root)
+    config = project_internals.read_project_config(project_root)
+    metadata = project_internals.activation_environment_from_config(config)
+    return environments.EnvironmentContext(
+        project_name=str(diagnostics["project_name"]),
+        project_root=project_root,
+        host_working_dir=host_working_dir,
+        relative_working_dir=relative_working_dir,
+        environment=environments.spec_from_metadata(metadata),
+        exports=project_internals.activation_exports_from_config(config),
+    )
 
 
 def format_project_refresh_output(

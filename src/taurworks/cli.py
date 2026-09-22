@@ -3,6 +3,7 @@ import os
 import sys
 
 from taurworks import dev
+from taurworks import environments
 from taurworks import global_config
 from taurworks import legacy
 from taurworks import manager
@@ -278,7 +279,7 @@ def _handle_dev_command(args):
             raise SystemExit(1)
         try:
             exit_code = dev.execute_dev_command(resolution)
-        except OSError as error:
+        except (OSError, environments.EnvironmentError) as error:
             print(
                 f"taurworks dev {args.dev_command}: failed to run "
                 f"{resolution.argv[0]}: {error}",
@@ -288,6 +289,33 @@ def _handle_dev_command(args):
         raise SystemExit(exit_code)
 
     args.dev_parser.print_help()
+
+
+def _handle_environment_command(args):
+    """Run provider lifecycle operations from the host control plane."""
+    if args.environment_command in {"prepare", "enter"}:
+        try:
+            context = project_resolution.resolve_project_environment_context(
+                args.path_or_name
+            )
+            provider = environments.provider_for(context.environment)
+            if context.environment.type != "devcontainer":
+                raise environments.EnvironmentError(
+                    "interactive provider entry is only used for Dev Container "
+                    "projects; use sourced `tw activate` for host or Conda projects"
+                )
+            if args.environment_command == "prepare":
+                provider.prepare(context)
+                return
+            raise SystemExit(provider.enter(context))
+        except environments.EnvironmentError as error:
+            print(
+                f"taurworks environment {args.environment_command}: {error}",
+                file=sys.stderr,
+            )
+            raise SystemExit(1) from error
+
+    args.environment_parser.print_help()
 
 
 def _handle_legacy_command(args):
@@ -1099,6 +1127,38 @@ def main(argv=None):
 
     parser_dev.set_defaults(dev_parser=parser_dev)
 
+    # Host-side provider lifecycle operations. `tw activate` is the normal
+    # entry point; this namespace keeps container invocation out of shell code.
+    parser_environment = subparsers.add_parser(
+        "environment",
+        help="Run development-environment provider operations.",
+    )
+    environment_subparsers = parser_environment.add_subparsers(
+        dest="environment_command",
+        required=False,
+    )
+    parser_environment_enter = environment_subparsers.add_parser(
+        "enter",
+        help="Enter a project's interactive Dev Container from the host.",
+    )
+    parser_environment_enter.add_argument(
+        "path_or_name",
+        nargs="?",
+        help="Optional project path or name; defaults to the current project.",
+    )
+    parser_environment_enter.set_defaults(environment_parser=parser_environment)
+    parser_environment_prepare = environment_subparsers.add_parser(
+        "prepare",
+        help="Validate and start a project's reusable Dev Container.",
+    )
+    parser_environment_prepare.add_argument(
+        "path_or_name",
+        nargs="?",
+        help="Optional project path or name; defaults to the current project.",
+    )
+    parser_environment_prepare.set_defaults(environment_parser=parser_environment)
+    parser_environment.set_defaults(environment_parser=parser_environment)
+
     # `shell` namespace
     parser_shell = subparsers.add_parser(
         "shell",
@@ -1200,6 +1260,8 @@ def main(argv=None):
         _handle_workspace_command(args)
     elif args.command == "dev":
         _handle_dev_command(args)
+    elif args.command == "environment":
+        _handle_environment_command(args)
     elif args.command == "activate":
         manager.activate_project(args.project_name)
     elif args.command == "root":

@@ -2734,6 +2734,61 @@ class CliCommandTest(unittest.TestCase):
         self.assertIn("Working Dir Exists: False", result.stdout)
         self.assertIn("missing on disk", result.stdout)
 
+    def test_projects_details_show_only_provider_specific_fields(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = pathlib.Path(temp_dir)
+            conda_project = workspace / "CondaProject"
+            devcontainer_project = workspace / "ContainerProject"
+            for project in (conda_project, devcontainer_project):
+                (project / ".taurworks").mkdir(parents=True)
+
+            (conda_project / ".taurworks" / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "CondaProject"\n\n'
+                    '[paths]\nworking_dir = "."\n\n'
+                    '[activation.environment]\ntype = "conda"\nname = "conda-project"\n'
+                ),
+                encoding="utf-8",
+            )
+            (devcontainer_project / ".taurworks" / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "ContainerProject"\n\n'
+                    '[paths]\nworking_dir = "."\n\n'
+                    '[activation.environment]\ntype = "devcontainer"\n'
+                ),
+                encoding="utf-8",
+            )
+            devcontainer_config = (
+                devcontainer_project / ".devcontainer" / "devcontainer.json"
+            )
+            devcontainer_config.parent.mkdir()
+            devcontainer_config.write_text('{"image": "alpine:3.20"}\n', encoding="utf-8")
+
+            result = _run_cli(
+                ["projects", "--details"],
+                workspace,
+                {"TAURWORKS_WORKSPACE": str(workspace)},
+            )
+
+        failure_message = _failure_message(["projects", "--details"], result)
+        self.assertEqual(result.returncode, 0, msg=failure_message)
+        blocks = {
+            block.splitlines()[0].removeprefix("- "): block
+            for block in result.stdout.split("\n\n")
+            if block.startswith("-")
+        }
+        conda_block = blocks["CondaProject"]
+        container_block = blocks["ContainerProject"]
+        self.assertIn("Environment Type: conda", conda_block)
+        self.assertIn("Conda Environment: conda-project", conda_block)
+        self.assertNotIn("Dev Container", conda_block)
+        self.assertIn("Environment Type: devcontainer", container_block)
+        self.assertIn("Dev Container Config:", container_block)
+        self.assertIn("Dev Container Config Exists: ✔", container_block)
+        self.assertNotIn("Conda Env", container_block)
+
     def test_compat_activate_explains_non_initialized_project_status(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = pathlib.Path(temp_dir)
@@ -2908,6 +2963,7 @@ class DevWorkflowAutomationCliTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = pathlib.Path(temp_dir)
             (project_root / ".taurworks").mkdir()
+            (project_root / ".git").mkdir()
             self._write_executable_script(
                 project_root / "scripts" / "test",
                 '#!/bin/sh\necho "delegated-test-output"\nexit 3\n',
@@ -2923,6 +2979,7 @@ class DevWorkflowAutomationCliTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = pathlib.Path(temp_dir)
             (project_root / ".taurworks").mkdir()
+            (project_root / ".git").mkdir()
             result = _run_cli(["dev", "test"], project_root)
 
         self.assertEqual(

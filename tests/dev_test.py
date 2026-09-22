@@ -22,6 +22,7 @@ def _write_executable_script(path: pathlib.Path, body: str) -> None:
 
 class ResolveDevCommandTest(unittest.TestCase):
     def _chdir(self, target: pathlib.Path):
+        (target / ".git").mkdir(exist_ok=True)
         original_cwd = pathlib.Path.cwd()
         os.chdir(target)
         self.addCleanup(os.chdir, original_cwd)

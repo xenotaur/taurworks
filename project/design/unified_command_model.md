@@ -1,7 +1,7 @@
 # Unified Command Model
 
 ## Status note
-The command model below is implemented for the scope described here. The shipped CLI includes `taurworks project ...` discovery/scaffold commands, existing-root initialization, working-directory metadata, read-only `project activate --print` guidance, an explicitly sourced `taurworks-shell.sh` `tw activate` shell helper, XDG-style global config and workspace-root commands, a global project registry, workspace/registry-aware project listing and activation resolution, a minimal read-only `taurworks dev ...` scaffold (`dev where`, `dev status`), declarative activation (`[activation].message`, `[activation.exports]`, Conda environment activation), legacy `Admin/project-setup.source` inspect/migrate tooling, and trusted per-project startup hooks. Remaining work is broader `dev` workflow automation beyond read-only diagnostics, scoped 2026-07-31 (see "Remaining implementation sequence" below).
+The command model below is implemented for the scope described here. The shipped CLI includes `taurworks project ...` discovery/scaffold commands, existing-root initialization, working-directory metadata, read-only `project activate --print` guidance, an explicitly sourced `taurworks-shell.sh` `tw activate` shell helper, XDG-style global config and workspace-root commands, a global project registry, workspace/registry-aware project listing and activation resolution, a minimal read-only `taurworks dev ...` scaffold (`dev where`, `dev status`), declarative activation (`[activation].message`, `[activation.exports]`, Host, Conda, and Dev Container providers), legacy `Admin/project-setup.source` inspect/migrate tooling, and trusted per-project startup hooks. Remaining work is broader `dev` workflow automation beyond read-only diagnostics, scoped 2026-07-31 (see "Remaining implementation sequence" below).
 
 ## Why one primary executable: `taurworks`
 A single primary executable keeps command discovery simple, avoids duplicated initialization paths, and reduces user confusion around which binary owns workspace vs development behavior.
@@ -60,7 +60,7 @@ Do not document `alias tw=taurworks` as equivalent to the sourceable `taurworks-
 - `taurworks dev validate`
 
 ## Remaining implementation sequence
-Shell UX polish, project-list status classification, the read-only `dev` scaffold, and the first declarative-activation slices (message, exports, Conda) are implemented. It is intentionally still not broad repo workflow automation, not automatic legacy setup sourcing, and not multi-repo project management.
+Shell UX polish, project-list status classification, the read-only `dev` scaffold, and the declarative-activation slices (message, exports, Host, Conda, and Dev Container) are implemented. It is intentionally still not broad repo workflow automation, not automatic legacy setup sourcing, and not multi-repo project management.
 
 Legacy `Admin/project-setup.source` inspect/migrate tooling
 (`WI-ACTIVATION-CONFIG-0001`), trusted per-project startup hooks
