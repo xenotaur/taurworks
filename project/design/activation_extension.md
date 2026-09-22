@@ -4,11 +4,14 @@
 
 This document is a design note. Taurworks now implements the first three
 safe declarative activation slices (optional readiness messages, literal
-environment-variable exports, and Conda environment activation), all consumed
+environment-variable exports, Conda environment activation, and first-class
+Dev Container project environments), all consumed
 by the sourced `tw activate` helper, plus `taurworks legacy inspect`/`migrate`
 and the two-tier trust-gated legacy-script sourcing described below
 (`WI-TRUSTED-LEGACY-SOURCING-0001`). It still must not be used as permission
-to add venv/Docker activation without a separate implementation PR.
+to add arbitrary Docker or other environment providers without a separate
+implementation PR. See `environment_providers.md` for the implemented provider
+boundary and transition semantics.
 
 ## Purpose
 
@@ -18,11 +21,10 @@ Taurworks currently supports activation through an explicitly sourced helper:
 tw activate ProjectName
 ```
 
-The current implementation resolves a Taurworks project, activates a
-configured `[activation.environment] type = "conda"` environment, exports any
-validated literal `[activation.exports]`, changes the current shell directory
-to the configured working directory, and prints an optional
-`activation.message`.
+The current implementation resolves a Taurworks project and dispatches Host,
+Conda, or Dev Container semantics through an environment provider. Conda
+retains current-shell activation; Dev Containers use a child execution boundary
+owned by the reference CLI.
 Historical Taurworks-style project setup scripts, especially
 `Admin/project-setup.source`, could do more: source shared shell utilities,
 activate a Conda environment, change directory, and print a readiness message.
@@ -88,8 +90,9 @@ arbitrary hooks remain planned design only.
 Activation extensions are represented declaratively in `.taurworks/config.toml`
 before any imperative hook is considered. Phase 2 is the safe subset of legacy
 project setup behavior. The implemented slices cover readiness text, literal
-exported environment variables, and Conda activation. venv/Docker-style
-environment strategies and arbitrary shell scripts remain outside Phase 2.
+exported environment variables, Conda activation, and Dev Container entry.
+Virtualenv, arbitrary Docker orchestration, and arbitrary shell scripts remain
+outside Phase 2.
 
 A complete Phase 2 configuration may look like this:
 
@@ -164,13 +167,19 @@ with legacy readiness messages without executing additional code.
 
 ## Environment activation
 
-Implementation status: implemented. Conda is the only supported environment
-strategy:
+Implementation status: implemented. Conda and Dev Container are supported
+environment strategies:
 
 ```toml
 [activation.environment]
 type = "conda"
 name = "EnvName"
+```
+
+```toml
+[activation.environment]
+type = "devcontainer"
+config = ".devcontainer/devcontainer.json" # optional
 ```
 
 Implemented behavior:
@@ -202,9 +211,9 @@ Other environment systems are explicitly deferred:
 - Python virtual environments may later use a shape such as
   `[activation.environment] type = "venv"` plus a documented relative `path`, but
   venv is not part of the first Phase 2 implementation.
-- Docker, devcontainers, Nix, Pixi, and similar systems may be better modeled as
-  guidance or `taurworks dev ...` workflows rather than direct activation side
-  effects. They require separate design before implementation.
+- Nix, Pixi, and direct Docker strategies require separate design. Dev
+  Containers are implemented through the reference CLI rather than direct
+  Docker lifecycle code; see `environment_providers.md`.
 - If a setup cannot be represented declaratively, Taurworks should require a
   future trusted hook instead of guessing or sourcing scripts implicitly.
 
