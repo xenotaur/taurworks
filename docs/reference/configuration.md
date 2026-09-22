@@ -131,12 +131,17 @@ Set with `taurworks project working-dir set`, or `--working-dir` on
 
 ### `[activation.environment]`
 
-Optional. When present, `tw activate` runs `conda activate <name>` first.
+Optional. When present, `tw activate` activates the configured environment
+provider: Conda, or a Dev Container.
 
 | Key | Type | Meaning |
 |---|---|---|
-| `type` | string | Must be `"conda"`. No other type is supported. |
-| `name` | string | Conda environment name. Required. Must start with a letter or digit and contain only letters, digits, `_`, `.`, and `-`. |
+| `type` | string | `"conda"` or `"devcontainer"`. |
+| `name` | string | Conda only; required. Conda environment name. Must start with a letter or digit and contain only letters, digits, `_`, `.`, and `-`. |
+| `config` | string | Dev Container only; optional. Project-root-relative path to `devcontainer.json`. Default: `.devcontainer/devcontainer.json`, then `.devcontainer.json`. Must not escape the project root. |
+
+For `devcontainer`, see
+[Dev Container requirements](../how-to/activate-projects.md#dev-container-requirements).
 
 Set with `taurworks project env set`, or `--env` on `project create` /
 `project init`. Taurworks records the name only; it does not check that the

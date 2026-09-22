@@ -21,6 +21,9 @@ then, in this order:
    if no working directory is configured);
 4. prints the project's activation message, if it has one.
 
+For a Dev Container project (`type = "devcontainer"`), steps 1–3 differ: see
+[Dev Container requirements](#dev-container-requirements).
+
 If any step fails, `tw activate` stops there and returns non-zero. In
 particular, if Conda activation fails, nothing is exported and your directory
 does not change.
@@ -91,6 +94,45 @@ Taurworks runs `conda activate <name>` and nothing more. It does not run
 `conda init`, and `tw activate` never creates an environment. Your shell must
 already have a working `conda activate`, and the environment must already
 exist.
+
+### Dev Container requirements
+
+A project can run inside a Dev Container instead of using Conda:
+
+```toml
+[activation.environment]
+type = "devcontainer"
+# optional, project-root-relative; default discovery checks
+# .devcontainer/devcontainer.json and .devcontainer.json
+config = ".devcontainer/devcontainer.json"
+```
+
+You need a working container runtime and the reference `devcontainer` CLI
+(`@devcontainers/cli`) on the host. The project's `devcontainer.json` owns the
+image, Dockerfile, Features, mounts, ports, user, and lifecycle settings;
+Taurworks stores only the provider association. See
+[DEVCONTAINER_PROJECT.md](../../DEVCONTAINER_PROJECT.md) for per-language
+examples.
+
+`tw activate` runs `devcontainer up` (which reuses an existing container when
+possible), takes the returned `remoteWorkspaceFolder`, appends the validated
+relative `working_dir`, and opens an interactive shell there through
+`devcontainer exec`. Project exports and Taurworks context markers are passed
+with `--remote-env`; host Conda variables are not copied.
+
+- Exiting the container shell returns you to the host shell. Taurworks then
+  clears the project's exports, leaves any Taurworks-managed Conda activation,
+  and selects the project on the host so later `taurworks dev ...` commands
+  run in the container.
+- To switch projects, exit the container shell first, then run
+  `tw activate OTHER`. Nested activation from inside a Taurworks Dev Container
+  fails with an explicit diagnostic.
+- Containers are reused, never rebuilt, stopped, or removed merely because the
+  shell exits.
+- Diagnostics distinguish: missing CLI, missing or escaping config path, failed
+  `devcontainer up`, unreadable startup result, and missing container-side
+  working directory. Use `tw activate NAME --verbose`, or run
+  `devcontainer up --workspace-folder ...` directly for runtime logs.
 
 ## See why activation failed
 

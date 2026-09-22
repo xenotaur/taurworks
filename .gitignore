@@ -54,3 +54,6 @@ docs/_build/
 
 # Ignore temp files.
 tmp/
+
+# Ignore graphify outputs
+graphify-out/
