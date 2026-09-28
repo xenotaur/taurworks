@@ -81,11 +81,14 @@ def discover_projects_from_context(
             "Global registry/workspace scanning is not implemented yet; reporting current context.",
         )
 
+    # Performance optimization: Use os.scandir over pathlib.Path.iterdir to avoid redundant
+    # stat system calls, and apply the filter before sorting to minimize dataset processing overhead.
+    # We omit follow_symlinks=False in is_dir() to preserve pathlib's default symlink-following behavior.
     discovered_projects = sorted(
         (
-            child
-            for child in cwd.iterdir()
-            if child.is_dir() and (child / ".taurworks").is_dir()
+            pathlib.Path(entry.path)
+            for entry in os.scandir(cwd)
+            if entry.is_dir() and (pathlib.Path(entry.path) / ".taurworks").is_dir()
         ),
         key=lambda path: path.name,
     )
