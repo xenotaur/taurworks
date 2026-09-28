@@ -340,10 +340,14 @@ def classify_project_entry(project_dir):
 
 def discover_workspace_projects(workspace):
     """Return classified direct child directories from an existing workspace."""
+    # Performance optimization: Use os.scandir over pathlib.Path.iterdir to avoid redundant
+    # stat system calls, and apply the filter before sorting to minimize dataset processing overhead.
+    # We omit follow_symlinks=False in is_dir() to preserve pathlib's default symlink-following behavior.
     return [
-        classify_project_entry(child)
-        for child in sorted(workspace.iterdir(), key=lambda path: path.name)
-        if child.is_dir()
+        classify_project_entry(pathlib.Path(entry.path))
+        for entry in sorted(
+            (e for e in os.scandir(workspace) if e.is_dir()), key=lambda e: e.name
+        )
     ]
 
 
