@@ -1,9 +1,9 @@
 ---
 id: FOCUS-CURRENT
-title: Packaging/install complete; legacy-migrate-tl-fallback abandoned; dev workflow automation v1 done
+title: Packaging/install complete; legacy-migrate-tl-fallback abandoned; dev workflow automation v1 done; working_dir symlink escape proposed
 status: active
-updated: 2026-08-01
-basis: packaging_and_install_series_resolved_legacy_migrate_abandoned_dev_v1_done
+updated: 2026-10-26
+basis: packaging_and_install_series_resolved_legacy_migrate_abandoned_dev_v1_done_working_dir_symlink_escape_proposed
 confidence: high
 ---
 
@@ -44,15 +44,39 @@ set, not v1, since this repo's own `scripts/develop` runs `pip install`
 and is therefore dependency-mutating). No further work is planned against
 this scope without a new need being raised.
 
+A real dogfood layout (2026-10-26) surfaced a gap in `working_dir`
+containment: a project can keep `project_root` (and its non-code metadata —
+`.taurworks/`, archival material) on a Google-Drive-synced `Workspace`
+location while the actual Git-tracked work tree lives elsewhere (an
+SSD-local `Tempspace`, to avoid sync churn from active builds, tests, and
+growing `git worktree` usage), with `project_root/working_dir` as a
+same-named symlink into that external location. `tw activate` currently
+rejects this as an escape attempt because the containment check resolves
+symlinks before testing containment, rather than checking the literal
+config value lexically — and the error message's own suggested remedy
+(`taurworks project working-dir set [DIR]`) hits the identical check, so it
+is currently a dead end for this layout. `project/design/config_model.md`
+("Working-dir containment and symlinked work trees") and `design.md`
+record the decision: keep rejecting `..`/absolute values in the literal
+config string, but stop requiring the *resolved* path to stay under
+`project_root`. `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (proposed) tracks the
+`project_internals.py` implementation. No new config field, global
+allowlist, or trust-gate is part of this — see the work item's
+`forbidden_actions` for what is explicitly out of scope.
+
 ## Active direction
 
 1. Keep `taurworks project activate --print` read-only and `tw activate`/
    `tw shell refresh` as the only shell-mutating layers.
+2. Implement `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` as scoped: a lexical
+   containment check only, no trust-gate, allowlist, or name-matching
+   warning.
 
 ## In scope now
 
-Nothing is actively planned right now; the only unstarted roadmap item is
-Phase 7 (compatibility migration path), which has no active plan.
+`WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (proposed 2026-10-26) is the current
+active-direction item. The only other unstarted roadmap item is Phase 7
+(compatibility migration path), which has no active plan.
 
 ## Out of scope now
 

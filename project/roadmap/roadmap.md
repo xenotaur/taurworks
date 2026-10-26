@@ -53,9 +53,19 @@ override then a project-local `scripts/<name>` file
 deferred. No further work is planned against this scope without a new
 need being raised.
 
+A real dogfood layout (2026-10-26) found that `working_dir` containment
+(Phase 2A above) rejects a legitimate case it never anticipated: a project
+whose `project_root` stays on a Google-Drive-synced `Workspace` location
+while its actual Git-tracked work tree is a same-named symlink into an
+external, SSD-local `Tempspace` location (adopted to avoid Google-Drive
+sync churn from active builds, tests, and growing `git worktree` usage).
+Phase 9 below (proposed) tracks the fix: lexical, not resolved-path,
+containment.
+
 ### In scope now
 
-Nothing is actively planned right now; the only unstarted roadmap item is
+`WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (Phase 9 below, proposed) is the
+current active-direction item. The only other unstarted roadmap item is
 Phase 7 below, which has no active plan.
 
 ### Out of scope now
@@ -232,6 +242,29 @@ original author's. All four are resolved:
 
 No further work is planned against this design without a new need being
 raised.
+
+## Phase 9 — Allow `working_dir` to be a symlink outside `project_root` (proposed 2026-10-26)
+
+Prompted by a real dogfood layout where `project_root` stays on a
+Google-Drive-synced `Workspace` location while the actual Git-tracked work
+tree is a same-named symlink into an external, SSD-local `Tempspace`
+location, to avoid Google-Drive sync churn from active builds, tests, and
+growing `git worktree` usage. `tw activate`'s `working_dir` containment
+check currently rejects this: it resolves symlinks before testing
+containment, so a `working_dir` symlink pointing outside `project_root`
+always fails, and the error's own suggested remedy (`taurworks project
+working-dir set [DIR]`) hits the identical check.
+
+- Decision recorded in `project/design/config_model.md` ("Working-dir
+  containment and symlinked work trees") and `project/design/design.md`:
+  `working_dir` containment becomes a lexical check against the literal
+  config value (still rejecting `..` and absolute paths) rather than a
+  check against the fully resolved, symlink-followed path.
+- Tracked by `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (proposed).
+- Explicitly not part of this phase: a trust-gate or global allowlist for
+  external `working_dir` targets, a name-matching warning between a
+  symlink and its target, or a convenience command to create/verify the
+  symlink pair — see the work item's `forbidden_actions`.
 
 ## Design backlog
 

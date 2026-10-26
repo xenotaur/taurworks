@@ -6,8 +6,10 @@ status: proposed
 blocked: false
 blocked_reason: null
 resolution: null
-related_focus: []
-related_roadmap: []
+related_focus:
+  - FOCUS-CURRENT
+related_roadmap:
+  - ROADMAP-INIT
 related_workstreams: []
 depends_on: []
 blocked_by: []
@@ -110,13 +112,16 @@ discussion for full reasoning):
   is deliberately named differently from the project it belongs to (this is
   not a hypothetical — it matches an already-observed real directory shape).
 
-Prior art check: no existing work item, roadmap phase, or focus entry covers
-symlinked `working_dir` handling; `config_model.md`'s existing
-`working_dir` section (`paths.working_dir` relative/absolute rules) and
-`design.md:29`'s "Absolute working-directory paths are deferred unless a
-later design explicitly accepts them" are the only directly related prior
-decisions, both of which are being amended by this work item's paired design
-change rather than contradicted.
+Prior art check: at the time this was drafted, no existing work item,
+roadmap phase, or focus entry covered symlinked `working_dir` handling;
+`config_model.md`'s existing `working_dir` section (`paths.working_dir`
+relative/absolute rules) and `design.md:29`'s "Absolute working-directory
+paths are deferred unless a later design explicitly accepts them" were the
+only directly related prior decisions, both amended by this work item's
+paired design change rather than contradicted. `project/focus/current_focus.md`
+(`FOCUS-CURRENT`) and `project/roadmap/roadmap.md` (`ROADMAP-INIT` Phase 9)
+have since been updated to cover this; `related_focus`/`related_roadmap`
+above reflect that.
 
 ## Scope
 
