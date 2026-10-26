@@ -157,7 +157,7 @@ working_dir = "repo-or-work-dir"
 Accepted path and command rules for the dogfood-resolution slice:
 
 - `paths.working_dir` should be relative by default and interpreted from `project_root`.
-- Absolute `working_dir` values should be rejected or deferred until an explicit design covers them.
+- Absolute `working_dir` values should be rejected or deferred until an explicit design covers them. (This is about the literal config string; see "Working-dir containment and symlinked work trees" below for how a relative `working_dir` whose on-disk target is a symlink is handled.)
 - Empty project names in existing configs are legacy/underspecified metadata and are repaired to the project-root directory name when the config can be safely parsed and updated.
 - `taurworks project init [PATH] [--working-dir DIR] [--create-working-dir]` initializes the existing/current project root safely and idempotently, reusing refresh/config logic.
 - `taurworks project create NAME [--working-dir DIR] [--create-working-dir] [--nested]` creates a new project root, then delegates to init/refresh logic. It refuses accidental nested same-name creation when the current project/directory name already equals `NAME` unless `--nested` is supplied.
@@ -168,6 +168,58 @@ Accepted path and command rules for the dogfood-resolution slice:
 
 
 Shared target resolution should be centralized across `project init`, `project create`, `project working-dir show/set`, and `project activate --print`. It should report diagnostics such as `input`, selected `project_root`, and `resolved_by` so dogfood failures like resolving `TestProject` from inside `TestProject` to `TestProject/TestProject` are visible and preventable.
+
+### Working-dir containment and symlinked work trees
+
+Implementation status: not yet implemented; planned via `WI-WORKING-DIR-SYMLINK-ESCAPE-0001`.
+
+Some projects keep `project_root` (and the non-code metadata it owns —
+`.taurworks/`, archival material, other non-Git-tracked assets) on a
+Google-Drive-synced `Workspace` location, while the actual Git-tracked work
+tree that `working_dir` should point at lives elsewhere (for example an
+SSD-local `Tempspace`, to avoid sync churn from active builds, tests, and
+`git worktree` usage). The on-disk pattern is a same-named symlink:
+`project_root/working_dir` is a symlink whose target is an identically-named
+path under the external location, e.g.
+`~/Workspace/Project/working_dir -> ~/Tempspace/.../Project/working_dir`.
+
+`working_dir` containment must be a **lexical** check against the
+configured value, not a check against the fully resolved (symlink-followed)
+path:
+
+- `paths.working_dir` must still be relative and must not contain an
+  absolute path or a `..` component. This check is unchanged, and must be
+  evaluated against the literal, unresolved config value — a synced or
+  shared `.taurworks/config.toml` must never be able to redirect activation
+  via `..` or an absolute path.
+- The joined path (`project_root` + `working_dir`) is no longer required to
+  stay under `project_root` *after following symlinks*. A `working_dir`
+  component may itself be a symlink whose real target lies outside
+  `project_root` — that is accepted, because the risk this rule guards
+  against (a config value that lexically escapes the root) is unaffected:
+  the config still only ever names a plain relative child path.
+- Existence is still checked with the ordinary directory check, which
+  already follows symlinks transparently; no new existence semantics are
+  needed.
+- A resolved target that is a symlink loop, does not exist, or is not a
+  directory remains an error, unchanged from today (already surfaced via
+  existing `OSError`/`ProjectConfigError` handling in callers).
+
+This preserves the original portability/safety intent of this section —
+`paths.working_dir` can never redirect activation outside `project_root`
+through the config value itself — while letting the symlink, which is a
+machine-local filesystem detail never written into the committed config
+value, point anywhere. No new config field, global allowlist, or trust-gate
+is introduced for this: the risk this project's existing Tier 1/Tier 2
+legacy-script trust model (`taurworks config legacy-sourcing`, `taurworks
+project trust`) guards against is arbitrary code execution
+(`project-setup.source` sourcing); a `working_dir` symlink only changes a
+`cd` target, a materially smaller blast radius that doesn't warrant
+equivalent gating. A name-mismatch warning (e.g. the symlink's name not
+matching its target's basename) was considered and rejected as a check tied
+to this change: it would be noisy for legitimate git-worktree layouts where
+a workstream/worktree directory is deliberately named differently from the
+project it belongs to.
 
 ## Repo-local workflow configuration
 Use `taurdev.toml` as the primary repo-local workflow configuration surface.
