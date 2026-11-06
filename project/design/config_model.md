@@ -188,10 +188,26 @@ configured value, not a check against the fully resolved (symlink-followed)
 path:
 
 - `paths.working_dir` must still be relative and must not contain an
-  absolute path or a `..` component. This check is unchanged, and must be
-  evaluated against the literal, unresolved config value — a synced or
-  shared `.taurworks/config.toml` must never be able to redirect activation
-  via `..` or an absolute path.
+  absolute path or **any** `..` component, evaluated against the literal,
+  unresolved config value — a synced or shared `.taurworks/config.toml`
+  must never be able to redirect activation via `..` or an absolute path.
+  This is a deliberate **tightening**, not unchanged behavior: today both
+  helpers resolve first and then check containment, so an in-root value
+  such as `repo/../repo` is accepted. Under lexical containment it must be
+  rejected, because once components are no longer resolved, a `..` that
+  follows a symlink (`link/..`) would refer to the parent of the symlink's
+  *target* — potentially outside `project_root` — while still looking
+  lexically in-root. Rejecting every `..` is the simplest rule that stays
+  safe; an existing config whose `working_dir` contains `..` will need to
+  be rewritten to its plain relative form (the error message should say
+  so). The rule applies to the stored `paths.working_dir` value and to the
+  project-root-relative `--working-dir` argument of `project init`/`project
+  create`. For `taurworks project working-dir set [DIR]`, whose `DIR` is
+  interpreted relative to the current directory, the rule applies to the
+  *derived stored value*; how a cwd-relative `DIR` (including a leading
+  `..`, or a cwd that is itself inside a symlinked work tree) maps to that
+  stored value without resolving through symlinks is an open
+  implementation question owned by `WI-WORKING-DIR-SYMLINK-ESCAPE-0001`.
 - The joined path (`project_root` + `working_dir`) is no longer required to
   stay under `project_root` *after following symlinks*. A `working_dir`
   component may itself be a symlink whose real target lies outside
@@ -199,13 +215,23 @@ path:
   against (a config value that lexically escapes the root) is unaffected:
   the config still only ever names a plain relative child path.
 - Existence is still checked with the ordinary directory check, which
-  already follows symlinks transparently; no new existence semantics are
-  needed.
-- A resolved target that is a symlink loop, does not exist, or is not a
-  directory remains an error, unchanged from today (already surfaced via
-  existing `OSError`/`ProjectConfigError` handling in callers).
+  already follows symlinks transparently. Per-command missing-directory
+  policy is unchanged: `project working-dir set` still requires an existing
+  directory, while metadata-only paths (`project create`/`project init
+  --working-dir` without `--create-working-dir`, `project working-dir
+  show`, `project activate --print`) still accept an ordinary missing path
+  and report `working_dir_exists: False`, and `--create-working-dir` still
+  creates an ordinary missing directory.
+- An **invalid symlink** is distinguished from an ordinary missing path and
+  is a hard error at every call site: if any component of the lexical
+  `project_root`/`working_dir` path is a symlink that is dangling or loops,
+  validation fails rather than reporting `working_dir_exists: False`. In
+  particular, `--create-working-dir` must never create a directory through
+  such a symlink — `mkdir(parents=True)` on a resolved dangling link would
+  otherwise silently create the external target, a case today's
+  resolved-path containment check only blocks incidentally.
 
-This preserves the original portability/safety intent of this section —
+This keeps the original portability/safety intent of this section (tightened, per the `..` note above) —
 `paths.working_dir` can never redirect activation outside `project_root`
 through the config value itself — while letting the symlink, which is a
 machine-local filesystem detail never written into the committed config

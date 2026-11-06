@@ -23,12 +23,14 @@ forbidden_actions:
   - accept_absolute_or_dotdot_working_dir_values
   - change_project_root_registration_semantics
 acceptance:
-  - "`paths.working_dir` continues to reject absolute paths and any path containing a `..` component, evaluated against the literal, unresolved config value — unchanged from today"
+  - "`paths.working_dir` rejects absolute paths and any path containing a `..` component, evaluated against the literal, unresolved config value — a deliberate tightening: in-root values such as `repo/../repo`, accepted today because the helpers resolve before checking containment, are now rejected, with an error that tells the user to rewrite the value in plain relative form"
   - "`paths.working_dir` is accepted when it names a path that is lexically a (possibly nested) child of `project_root`, even when that path is a symlink whose fully resolved target lies outside `project_root`"
-  - "existence/is-directory checks continue to follow symlinks transparently (no change to that behavior), and a dangling symlink, symlink loop, or non-directory target still produces the existing error path"
+  - "existence/is-directory checks continue to follow symlinks transparently, and per-command missing-directory policy is unchanged: `working-dir set` still requires an existing directory; metadata-only `project create`/`project init --working-dir`, `working-dir show`, and `project activate --print` still accept an ordinary missing path and report `working_dir_exists: False`"
+  - "a dangling or looping symlink anywhere in the lexical `project_root`/`working_dir` path is a hard validation error at every call site (distinguished from an ordinary missing path), and `--create-working-dir` never creates a directory through such a symlink while still creating an ordinary missing directory"
   - "all four current call sites share the fix: `tw activate` / `taurworks project activate --print` (via `resolve_configured_working_dir`), `taurworks project working-dir show`, `taurworks project working-dir set`, and `taurworks project init`/`project create --working-dir`"
-  - "the five existing tests that assert escape-rejection (`tests/project_internals_test.py::test_relative_working_dir_rejects_paths_outside_project_root`, and the four `\"may not escape\"` assertions in `tests/cli_test.py`) still pass unchanged for `..`/absolute inputs"
-  - "new tests cover: a working_dir that is a symlink to a directory outside project_root (accepted), a working_dir containing `..` that also happens to traverse a symlink (still rejected), and a working_dir symlink that is dangling or loops (still an error)"
+  - "the five existing tests that assert escape-rejection (`tests/project_internals_test.py::test_relative_working_dir_rejects_paths_outside_project_root`, and the four `\"may not escape\"` assertions in `tests/cli_test.py`) still pass for `..`/absolute inputs"
+  - "new tests cover: a working_dir that is a symlink to a directory outside project_root (accepted); an in-root `..` value such as `repo/../repo` (now rejected); a working_dir containing `..` that also traverses a symlink (rejected); a dangling or looping working_dir symlink (error, not `working_dir_exists: False`); `project init ROOT --working-dir link --create-working-dir` with a dangling `link` (rejected, external target not created); and an ordinary missing working_dir (still reported missing by metadata paths and still created by `--create-working-dir`)"
+  - "the cwd-relative `working-dir set DIR` mapping question (see Open Questions) is decided and documented in `config_model.md` before or with the implementation"
   - "no new config field, global allowlist, or trust-gate is introduced; `config_model.md`'s Tier 1/Tier 2 legacy-script trust model is untouched"
 artifacts_expected:
   - src/taurworks/project_internals.py
@@ -45,8 +47,10 @@ artifacts_expected:
 Change `working_dir` containment validation from a check against the fully
 resolved (symlink-followed) path to a check against the literal, unresolved
 config value. This lets `paths.working_dir` name a path that is itself a
-symlink whose real target lies outside `project_root`, while continuing to
-reject any config value that is absolute or contains a `..` component. This
+symlink whose real target lies outside `project_root`, while rejecting any
+config value that is absolute or contains a `..` component (a tightening for
+in-root `..` values, which are accepted today), and rejecting dangling or
+looping symlinks explicitly instead of treating them as missing paths. This
 implements the design decision recorded in `project/design/config_model.md`
 ("Working-dir containment and symlinked work trees") and
 `project/design/design.md` (amending the "deferred unless a later design
@@ -127,7 +131,9 @@ above reflect that.
 
 - Change the containment check in `relative_working_dir` and
   `relative_working_dir_metadata` from resolved-path containment to lexical
-  containment (reject absolute/`..` in the literal value; otherwise accept).
+  containment (reject absolute/`..` in the literal value; otherwise accept),
+  and add an explicit dangling/looping-symlink check, enforced before any
+  `--create-working-dir` `mkdir`.
 - Verify the fix propagates correctly to every caller of those two
   functions, without needing its own separate fix:
   - `resolve_configured_working_dir` (`project_internals.py:568-577`) — used
@@ -149,36 +155,59 @@ above reflect that.
 
 1. In `relative_working_dir` (`project_internals.py:483-514`): stop calling
    `.resolve()` on the joined `cwd`/`raw_path` target before the containment
-   check. Keep `cwd.resolve()` (trusted base), reject `raw_path.is_absolute()`
-   and any `".."` in `raw_path.parts` exactly as today, then build the
-   lexical target as `cwd_resolved / raw_path` without resolving `raw_path`'s
-   own components. Use `.is_dir()` (which already follows symlinks) for the
-   existence check; use `.resolve()` only when producing a path for display
-   (e.g. the final `cd` target string), never for the containment gate.
+   check. Reject `raw_path.is_absolute()` as today, and add a new rejection
+   of any `".."` in the *derived stored value*'s parts (today's code has no
+   such literal check — it only rejects a resolved target outside the root,
+   so in-root `..` is currently accepted; this is the deliberate tightening).
+   How the cwd-relative `DIR` is mapped to that stored value is the open
+   question below; whatever is chosen must not resolve through a symlink
+   component of the configured path. Use `.is_dir()` (which already follows
+   symlinks) for the existence check; use `.resolve()` only when producing a
+   path for display (e.g. the final `cd` target string), never for the
+   containment gate.
 2. Apply the equivalent change to `relative_working_dir_metadata`
    (`project_internals.py:539-565`), used by the no-cwd-context metadata
-   path (`working-dir set`, `project init`/`create --working-dir`).
-3. Confirm (via the new tests in step 5) that a symlink loop or a target
-   that doesn't resolve still raises — this should fall out of existing
-   `except (ProjectConfigError, OSError, tomllib.TOMLDecodeError)` handling
-   in callers (`project_resolution.py:1753-1761,1983-1987`) without new
-   exception plumbing, since `Path.resolve()`/`.is_dir()` already raise
-   `OSError` on a loop.
-4. Do not add any new config field, CLI flag, global allowlist, or
+   path (`working-dir set`, `project init`/`create --working-dir`): reject
+   absolute values and any `..` component in the literal value, then check
+   containment lexically. Keep returning `(relative_path, is_dir)` for an
+   ordinary missing path so metadata-only callers keep reporting
+   `working_dir_exists: False`.
+3. Add an explicit invalid-symlink check shared by both helpers: walk each
+   prefix of the lexical `project_root`/`working_dir` path and raise
+   `ProjectConfigError` when a component `is_symlink()` but does not resolve
+   to an existing target (dangling) or loops. Do not rely on incidental
+   `OSError` behavior for this: on Python 3.11, `Path.is_dir()` returns
+   `False` (it does not raise) for both a dangling link and a loop, which
+   would otherwise be indistinguishable from an ordinary missing directory,
+   and non-strict `Path.resolve()` raises `RuntimeError` (not `OSError`) on a
+   loop — which the callers' existing `except (ProjectConfigError, OSError,
+   tomllib.TOMLDecodeError)` handling (`project_resolution.py:1753-1761,
+   1983-1987`) would not catch.
+4. In `create_working_dir_metadata_target` (`project_internals.py:580-596`):
+   the step 3 check must run before `mkdir(parents=True, exist_ok=True)`, so
+   `project init ROOT --working-dir link --create-working-dir` with a
+   dangling `link` is rejected instead of creating the link's external
+   target. Ordinary missing-directory creation (no symlink component) is
+   unchanged.
+5. Do not add any new config field, CLI flag, global allowlist, or
    trust-gate. Do not add a name-matching warning (see Problem/Context for
    why both were rejected as part of this change's design decision).
-5. Update `tests/project_internals_test.py:156-161`
+6. Update `tests/project_internals_test.py:156-161`
    (`test_relative_working_dir_rejects_paths_outside_project_root`) and the
    four `"may not escape"` assertions in `tests/cli_test.py` (around lines
    1427-1449, 1742, 2219-2250, 2544) to confirm they still exercise `..`
    specifically. Add new tests: (a) a `working_dir` that is a symlink to an
    external directory is accepted by both `relative_working_dir` and
    `relative_working_dir_metadata`, and by `tw activate`/`working-dir set`
-   end-to-end; (b) a `working_dir` value containing `..` is still rejected
-   even if a component along the way is a symlink; (c) a dangling or
-   self-looping `working_dir` symlink still produces the existing
-   "must be an existing directory" / error path, not a crash.
-6. No change needed to `src/taurworks/resources/shell/taurworks-shell.sh` or
+   end-to-end; (b) an in-root `..` value such as `repo/../repo` is now
+   rejected; (c) a `working_dir` value containing `..` is rejected even if a
+   component along the way is a symlink; (d) a dangling or self-looping
+   `working_dir` symlink produces a validation error at every call site, not
+   `working_dir_exists: False` and not a crash; (e) `--create-working-dir`
+   with a dangling symlink is rejected and the external target is not
+   created; (f) an ordinary missing `working_dir` is still reported as
+   missing by metadata paths and still created by `--create-working-dir`.
+7. No change needed to `src/taurworks/resources/shell/taurworks-shell.sh` or
    to `tl` (`src/taurworks/resources/sourceme/aliases.source`) — confirm
    this remains true rather than assuming it.
 
@@ -200,18 +229,35 @@ above reflect that.
 
 See frontmatter `acceptance` list above; restated in prose:
 
-- `paths.working_dir` still rejects absolute paths and `..` components,
-  checked against the literal config value.
+- `paths.working_dir` rejects absolute paths and every `..` component,
+  checked against the literal config value — including in-root `..` values
+  that are accepted today (a documented tightening).
 - `paths.working_dir` is accepted when it is a symlink whose resolved target
   lies outside `project_root`, at all four call sites (`tw activate`/
   `project activate --print`, `working-dir show`, `working-dir set`, `project
   init`/`create --working-dir`).
-- Existence/is-directory checks keep following symlinks transparently;
-  dangling symlinks, symlink loops, and non-directory targets still error.
-- All five existing escape-rejection tests pass unchanged in intent (still
-  guarding `..`/absolute); new tests cover the symlink-accepted and
-  symlink-failure-mode cases.
+- Existence/is-directory checks keep following symlinks transparently, and
+  each command's ordinary missing-directory policy is unchanged; a dangling
+  or looping symlink component is a hard error everywhere, and
+  `--create-working-dir` never creates through one.
+- All five existing escape-rejection tests still pass (still guarding
+  `..`/absolute); new tests cover the in-root `..` tightening, the
+  symlink-accepted case, the invalid-symlink failure modes (including with
+  `--create-working-dir`), and preserved ordinary-missing-directory behavior.
 - No new config surface, allowlist, or trust-gate is introduced.
+
+## Open Questions
+
+- **cwd-relative `working-dir set DIR`.** `DIR` is interpreted relative to
+  the current directory, not `project_root`, and today it is resolved
+  (`(cwd / DIR).resolve()`). Under lexical containment the implementation
+  must decide how `DIR` becomes the stored, `..`-free `paths.working_dir`
+  value without resolving through a symlink component — e.g. whether a
+  leading `..` in `DIR` is applied to the physical (resolved) cwd, and how
+  `working-dir set` with no argument behaves when the user's cwd is inside
+  the symlinked external work tree (its physical path is then outside
+  `project_root`; the logical `$PWD` may still be inside it). Decide this
+  and record it in `config_model.md` as part of implementing this item.
 
 ## Validation
 
