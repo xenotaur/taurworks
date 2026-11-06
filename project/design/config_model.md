@@ -215,15 +215,21 @@ path:
   against (a config value that lexically escapes the root) is unaffected:
   the config still only ever names a plain relative child path.
 - Existence is still checked with the ordinary directory check, which
-  already follows symlinks transparently. Per-command missing-directory
-  policy is unchanged: `project working-dir set` still requires an existing
-  directory, while metadata-only paths (`project create`/`project init
-  --working-dir` without `--create-working-dir`, `project working-dir
-  show`, `project activate --print`) still accept an ordinary missing path
-  and report `working_dir_exists: False`, and `--create-working-dir` still
-  creates an ordinary missing directory.
+  already follows symlinks transparently. Each caller's ordinary
+  missing-directory policy is unchanged: `project working-dir set` still
+  requires an existing directory; `project create`/`project init
+  --working-dir` still record a missing path, and `--create-working-dir`
+  still creates it; `project activate --print` and `dev where`/`status`
+  still report `working_dir_exists: False` without failing; `taurworks
+  project working`/`taurworks working` still fail; project classification
+  still marks the project not eligible for `tw activate`; legacy migration
+  still sends it to manual review. (`project working-dir show` echoes the
+  raw config value and performs no working_dir validation at all, so this
+  design does not change it.) The work item carries the full call-site
+  inventory.
 - An **invalid symlink** is distinguished from an ordinary missing path and
-  is a hard error at every call site: if any component of the lexical
+  is a hard error from both validation helpers, and so at every command that
+  validates `working_dir`: if any component of the lexical
   `project_root`/`working_dir` path is a symlink that is dangling or loops,
   validation fails rather than reporting `working_dir_exists: False`. In
   particular, `--create-working-dir` must never create a directory through
