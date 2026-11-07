@@ -217,9 +217,10 @@ path:
 - Existence is still checked with the ordinary directory check, which
   already follows symlinks transparently. Each caller's ordinary
   missing-directory policy is unchanged: `project working-dir set` still
-  requires an existing directory; `project create`/`project init
-  --working-dir` still record a missing path, and `--create-working-dir`
-  still creates it; `project activate --print` and `dev where`/`status`
+  requires an existing directory; `project create --working-dir` still
+  records a missing path, while `project init --working-dir` still rejects
+  one unless `--create-working-dir` is supplied; `--create-working-dir`
+  still creates it for either command; `project activate --print` and `dev where`/`status`
   still report `working_dir_exists: False` without failing; `taurworks
   project working`/`taurworks working` still fail; project classification
   still marks the project not eligible for `tw activate`; legacy migration

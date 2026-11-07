@@ -25,7 +25,7 @@ forbidden_actions:
 acceptance:
   - "`paths.working_dir` rejects absolute paths and any path containing a `..` component, evaluated against the literal, unresolved config value — a deliberate tightening: in-root values such as `repo/../repo`, accepted today because the helpers resolve before checking containment, are now rejected, with an error that tells the user to rewrite the value in plain relative form"
   - "`paths.working_dir` is accepted when it names a path that is lexically a (possibly nested) child of `project_root`, even when that path is a symlink whose fully resolved target lies outside `project_root`"
-  - "existence/is-directory checks continue to follow symlinks transparently, and each caller's existing ordinary-missing-directory policy is unchanged (see the Scope inventory): `working-dir set` still requires an existing directory; `project init`/`create --working-dir` still record a missing path (and `--create-working-dir` still creates it); `project activate --print` and `dev where`/`status` still report it without failing; `taurworks project working`/`taurworks working` still fail; project classification still marks it not activation-eligible; legacy migration still sends it to manual review"
+  - "existence/is-directory checks continue to follow symlinks transparently, and each caller's existing ordinary-missing-directory policy is unchanged (see the Scope inventory): `working-dir set` still requires an existing directory; `project create --working-dir` still records a missing path while `project init --working-dir` still rejects it unless `--create-working-dir` is supplied (which still creates it for either command); `project activate --print` and `dev where`/`status` still report it without failing; `taurworks project working`/`taurworks working` still fail; project classification still marks it not activation-eligible; legacy migration still sends it to manual review"
   - "a dangling or looping symlink anywhere in the lexical `project_root`/`working_dir` path is a hard validation error from both helpers, and therefore at every caller in the Scope inventory (distinguished from an ordinary missing path), and `--create-working-dir` never creates a directory through such a symlink while still creating an ordinary missing directory; `project working-dir show`, which performs no validation, is unchanged"
   - "every caller of the two helpers in the Scope inventory gets the fix through the shared helpers, with no per-caller containment logic: `project working-dir set`, `project init`/`project create --working-dir`, `project activate --print`/`tw activate`, `taurworks project working`/`taurworks working`, `dev where`/`dev status`, project classification (`manager.classify_project_entry`), and legacy migration"
   - "the five existing tests that assert escape-rejection (`tests/project_internals_test.py::test_relative_working_dir_rejects_paths_outside_project_root`, and the four `\"may not escape\"` assertions in `tests/cli_test.py`) still pass for `..`/absolute inputs"
@@ -146,8 +146,11 @@ above reflect that.
     `set_working_dir_metadata` (`project_internals.py:599-635`) /
     `create_working_dir_metadata_target` (`project_internals.py:580-596`)
     → `taurworks project init`/`project create --working-dir
-    [--create-working-dir]`. Records an ordinary missing path; the creation
-    flag creates it.
+    [--create-working-dir]`. For an ordinary missing path, `project create`
+    records it, while `project init` rejects it ("must be an existing
+    directory unless --create-working-dir is supplied",
+    `project_resolution.py:386-392`); the creation flag creates it for
+    either command.
   - `relative_working_dir_metadata`, directly → legacy migration
     (`legacy.py:408`, `_merge_legacy_matches_into_config`). A missing target
     goes to manual review.

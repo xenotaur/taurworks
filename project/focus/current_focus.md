@@ -57,8 +57,9 @@ config value lexically — and the error message's own suggested remedy
 (`taurworks project working-dir set [DIR]`) hits the identical check, so it
 is currently a dead end for this layout. `project/design/config_model.md`
 ("Working-dir containment and symlinked work trees") and `design.md`
-record the decision: keep rejecting `..`/absolute values in the literal
-config string, but stop requiring the *resolved* path to stay under
+record the decision: reject absolute values and every `..` component in the
+literal config string (a tightening for in-root `..` values, accepted
+today), but stop requiring the *resolved* path to stay under
 `project_root`. `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (proposed) tracks the
 `project_internals.py` implementation. No new config field, global
 allowlist, or trust-gate is part of this — see the work item's

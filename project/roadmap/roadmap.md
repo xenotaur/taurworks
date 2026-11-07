@@ -258,7 +258,8 @@ working-dir set [DIR]`) hits the identical check.
 - Decision recorded in `project/design/config_model.md` ("Working-dir
   containment and symlinked work trees") and `project/design/design.md`:
   `working_dir` containment becomes a lexical check against the literal
-  config value (still rejecting `..` and absolute paths) rather than a
+  config value (rejecting absolute paths and every `..` component — a
+  tightening for in-root `..` values, accepted today) rather than a
   check against the fully resolved, symlink-followed path.
 - Tracked by `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (proposed).
 - Explicitly not part of this phase: a trust-gate or global allowlist for
