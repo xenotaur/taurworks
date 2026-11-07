@@ -300,6 +300,35 @@ See frontmatter `acceptance` list above; restated in prose:
   `project_root`; the logical `$PWD` may still be inside it). Decide this
   and record it in `config_model.md` as part of implementing this item.
 
+## Implementer notes from review
+
+Non-blocking points raised by the PR #115 review and substitute review,
+recorded here so they are settled during implementation rather than lost:
+
+- **Error text vs existing tests.** The new `..` error should tell the user
+  to rewrite the value in plain relative form, while the four
+  `tests/cli_test.py` assertions match the substring `"may not escape"`.
+  Either keep that substring in the new message or update those assertions
+  deliberately; "still pass" (acceptance) and "Update" (Required Change 6)
+  both refer to this choice.
+- **Messages that become misleading.** `dev.py:61` ("configured working_dir
+  resolved safely inside the project root") and the `--create-working-dir`
+  help text (`cli.py:757`, "stays inside the project root") will be wrong
+  once a symlinked `working_dir` resolves outside the root. Reword them;
+  this adds `src/taurworks/dev.py` and `src/taurworks/cli.py` to the
+  touched files.
+- **Python versions.** Required Change 3's reasoning is Python-3.11
+  behavior; nothing pins `requires-python`, and on 3.13+ non-strict
+  `resolve()` returns instead of raising `RuntimeError` on a loop. The
+  explicit symlink check must not depend on either behavior.
+- **Same error *type*.** "The same `ProjectConfigError`" means the same
+  exception type, not the same message; give dangling/looping symlinks
+  their own message rather than reusing the "may not escape" text.
+- **Valid link, missing tail.** With a valid external symlink component
+  followed by a missing tail (`link/missing`), `--create-working-dir`
+  creates the directory inside the external target. The design implies
+  this is allowed; confirm and document it, and test it under (f).
+
 ## Validation
 
 - ./scripts/format --check --diff

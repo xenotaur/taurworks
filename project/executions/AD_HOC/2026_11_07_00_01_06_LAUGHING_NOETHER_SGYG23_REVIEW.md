@@ -2,10 +2,10 @@
 execution_id: 2026_11_07_00_01_06_LAUGHING_NOETHER_SGYG23_REVIEW
 prompt_id: PROMPT(AD_HOC:LAUGHING_NOETHER_SGYG23_REVIEW)[2026-11-06T23:59:59+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_11_06_23_55_54_LAUGHING_NOETHER_SGYG23_REVIEW
 pr: https://github.com/xenotaur/taurworks/pull/115
-commit: e0faddfe52419147f1b5eee5ca79b08c5dbf8f84
+commit: 436489d11b8a06f969d1d6defdae552b1243a853
 created_at: 2026-11-07T00:01:06+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/115

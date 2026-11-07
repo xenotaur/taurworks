@@ -2,10 +2,10 @@
 execution_id: 2026_11_07_08_55_07_LAUGHING_NOETHER_SGYG23_CONFIRM
 prompt_id: PROMPT(AD_HOC:LAUGHING_NOETHER_SGYG23_CONFIRM)[2026-11-07T08:55:02+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/115
-commit: 7d81f22214da02b0bd0a5ca0faa2ce94e388370c
+commit: 436489d11b8a06f969d1d6defdae552b1243a853
 created_at: 2026-11-07T08:55:07+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/115
@@ -51,7 +51,11 @@ type) is left for the WI's implementation.
 - `scripts/test`: 350 tests, OK
 - `lrh validate`: 3 errors, 10 warnings — unchanged pre-existing baseline
   (identical on `origin/master`; none in files this PR touches)
-- CI and REVIEW-LANDED re-checked against the commit that adds this record.
+- CI on `2afcbb7` (the commit adding this record): 4/4 `lint-and-test`
+  checks passed (verified after push, at closeout).
+- REVIEW-LANDED on `2afcbb7`: no hosted bot review; a substitute
+  cold-context `/lrh-self-review --pr` found nothing blocking (verified
+  after push, at closeout).
 
 # Follow-up
 

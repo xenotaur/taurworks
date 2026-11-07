@@ -2,10 +2,10 @@
 execution_id: 2026_11_07_06_31_38_LAUGHING_NOETHER_SGYG23_REVIEW
 prompt_id: PROMPT(AD_HOC:LAUGHING_NOETHER_SGYG23_REVIEW)[2026-11-07T06:30:19+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_11_07_00_01_06_LAUGHING_NOETHER_SGYG23_REVIEW
 pr: https://github.com/xenotaur/taurworks/pull/115
-commit: 8a1f90e200d8aa58b4e30933fdd6c2766f22c768
+commit: 436489d11b8a06f969d1d6defdae552b1243a853
 created_at: 2026-11-07T06:31:38+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/115
@@ -40,7 +40,8 @@ record (authored earlier in this session, `in_progress`).
   legacy targets get the lexical rule.
 - Nit — `current_focus.md` Active direction 2 now includes the
   dangling/looping-symlink check.
-- Post-verification nits (same round, committed with this record update):
+- Post-verification nits (same round; main fixes in `8a1f90e`, these in
+  `7d81f22` together with this record update):
   a fresh cold verifier rated all three threads Clear-satisfied and flagged
   that `tw activate` runs `activate --shell` (not `--print`; same
   diagnostics function) and that roadmap.md's "Phase 2A above" should read

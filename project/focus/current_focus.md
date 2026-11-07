@@ -2,7 +2,7 @@
 id: FOCUS-CURRENT
 title: Packaging/install complete; legacy-migrate-tl-fallback abandoned; dev workflow automation v1 done; working_dir symlink escape proposed
 status: active
-updated: 2026-10-26
+updated: 2026-11-07
 basis: packaging_and_install_series_resolved_legacy_migrate_abandoned_dev_v1_done_working_dir_symlink_escape_proposed
 confidence: high
 ---
