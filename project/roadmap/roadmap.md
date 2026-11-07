@@ -54,7 +54,7 @@ deferred. No further work is planned against this scope without a new
 need being raised.
 
 A real dogfood layout (2026-10-26) found that `working_dir` containment
-(Phase 2A above) rejects a legitimate case it never anticipated: a project
+(Phase 2A below) rejects a legitimate case it never anticipated: a project
 whose `project_root` stays on a Google-Drive-synced `Workspace` location
 while its actual Git-tracked work tree is a same-named symlink into an
 external, SSD-local `Tempspace` location (adopted to avoid Google-Drive

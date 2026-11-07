@@ -222,7 +222,7 @@ path:
   one unless `--create-working-dir` is supplied; `--create-working-dir`
   still creates it for either command; `project activate --print` and `dev where`/`status`
   still report `working_dir_exists: False` without failing (`tw activate`,
-  which consumes `--print`'s output, still refuses to `cd`); `taurworks
+  which runs the same diagnostics via `activate --shell`, still refuses to `cd`); `taurworks
   project working`/`taurworks working` still fail; project classification
   still marks the project not eligible for `tw activate`; legacy migration
   still sends it to manual review. (`project working-dir show` echoes the

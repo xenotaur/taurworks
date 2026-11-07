@@ -162,7 +162,7 @@ above reflect that.
     (`project_internals.py:568-577`) →
     - `taurworks project activate --print` (`project_resolution.py:1982`):
       reports `working_dir_exists: False` successfully for an ordinary
-      missing path; `tw activate`, which consumes that output, then fails at
+      missing path; `tw activate`, which runs the same diagnostics via `activate --shell`, then fails at
       the shell layer (`taurworks-shell.sh:334-337`);
     - `taurworks project working` / `taurworks working`
       (`gather_project_path_diagnostics`, `project_resolution.py:1752`):

@@ -40,6 +40,12 @@ record (authored earlier in this session, `in_progress`).
   legacy targets get the lexical rule.
 - Nit — `current_focus.md` Active direction 2 now includes the
   dangling/looping-symlink check.
+- Post-verification nits (same round, committed with this record update):
+  a fresh cold verifier rated all three threads Clear-satisfied and flagged
+  that `tw activate` runs `activate --shell` (not `--print`; same
+  diagnostics function) and that roadmap.md's "Phase 2A above" should read
+  "below". Both wordings corrected in `config_model.md`, the WI, and
+  `roadmap.md`.
 
 # Validation
 
