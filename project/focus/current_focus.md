@@ -70,8 +70,8 @@ allowlist, or trust-gate is part of this — see the work item's
 1. Keep `taurworks project activate --print` read-only and `tw activate`/
    `tw shell refresh` as the only shell-mutating layers.
 2. Implement `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` as scoped: a lexical
-   containment check only, no trust-gate, allowlist, or name-matching
-   warning.
+   containment check plus explicit rejection of dangling/looping symlinks,
+   and nothing more — no trust-gate, allowlist, or name-matching warning.
 
 ## In scope now
 

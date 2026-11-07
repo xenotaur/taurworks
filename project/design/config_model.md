@@ -221,22 +221,35 @@ path:
   records a missing path, while `project init --working-dir` still rejects
   one unless `--create-working-dir` is supplied; `--create-working-dir`
   still creates it for either command; `project activate --print` and `dev where`/`status`
-  still report `working_dir_exists: False` without failing; `taurworks
+  still report `working_dir_exists: False` without failing (`tw activate`,
+  which consumes `--print`'s output, still refuses to `cd`); `taurworks
   project working`/`taurworks working` still fail; project classification
   still marks the project not eligible for `tw activate`; legacy migration
   still sends it to manual review. (`project working-dir show` echoes the
   raw config value and performs no working_dir validation at all, so this
   design does not change it.) The work item carries the full call-site
   inventory.
-- An **invalid symlink** is distinguished from an ordinary missing path and
-  is a hard error from both validation helpers, and so at every command that
-  validates `working_dir`: if any component of the lexical
-  `project_root`/`working_dir` path is a symlink that is dangling or loops,
-  validation fails rather than reporting `working_dir_exists: False`. In
-  particular, `--create-working-dir` must never create a directory through
-  such a symlink — `mkdir(parents=True)` on a resolved dangling link would
-  otherwise silently create the external target, a case today's
-  resolved-path containment check only blocks incidentally.
+- An **invalid symlink** is distinguished from an ordinary missing path: if
+  any component of the lexical `project_root`/`working_dir` path is a
+  symlink that is dangling or loops, both validation helpers raise the same
+  `ProjectConfigError` they already raise for an absolute or escaping
+  value, instead of reporting the path as missing. This rule is stated at
+  the helper level deliberately: every caller keeps its existing handling of
+  that error, unchanged. A command that fails on an escaping value today
+  fails the same way on an invalid symlink, and a caller that already
+  degrades gracefully on invalid metadata keeps doing so (for example `dev
+  where`/`status` reports the configured working dir as unreadable and falls
+  back to its git-root guess). In particular, `--create-working-dir` must
+  never create a directory through such a symlink — `mkdir(parents=True)` on
+  a resolved dangling link would otherwise silently create the external
+  target, a case today's resolved-path containment check only blocks
+  incidentally.
+- Legacy migration's normalization of an *absolute* legacy `cd` target to a
+  project-root-relative value is a separate, resolved-path check
+  (`legacy._normalize_cd_target`) that this design does not change: an
+  absolute legacy `cd` target reached through the symlink still resolves
+  outside `project_root` and goes to manual review. Relative legacy `cd`
+  targets go through the shared helpers and get the lexical rule.
 
 This keeps the original portability/safety intent of this section (tightened, per the `..` note above) —
 `paths.working_dir` can never redirect activation outside `project_root`

@@ -25,9 +25,9 @@ forbidden_actions:
 acceptance:
   - "`paths.working_dir` rejects absolute paths and any path containing a `..` component, evaluated against the literal, unresolved config value — a deliberate tightening: in-root values such as `repo/../repo`, accepted today because the helpers resolve before checking containment, are now rejected, with an error that tells the user to rewrite the value in plain relative form"
   - "`paths.working_dir` is accepted when it names a path that is lexically a (possibly nested) child of `project_root`, even when that path is a symlink whose fully resolved target lies outside `project_root`"
-  - "existence/is-directory checks continue to follow symlinks transparently, and each caller's existing ordinary-missing-directory policy is unchanged (see the Scope inventory): `working-dir set` still requires an existing directory; `project create --working-dir` still records a missing path while `project init --working-dir` still rejects it unless `--create-working-dir` is supplied (which still creates it for either command); `project activate --print` and `dev where`/`status` still report it without failing; `taurworks project working`/`taurworks working` still fail; project classification still marks it not activation-eligible; legacy migration still sends it to manual review"
-  - "a dangling or looping symlink anywhere in the lexical `project_root`/`working_dir` path is a hard validation error from both helpers, and therefore at every caller in the Scope inventory (distinguished from an ordinary missing path), and `--create-working-dir` never creates a directory through such a symlink while still creating an ordinary missing directory; `project working-dir show`, which performs no validation, is unchanged"
-  - "every caller of the two helpers in the Scope inventory gets the fix through the shared helpers, with no per-caller containment logic: `project working-dir set`, `project init`/`project create --working-dir`, `project activate --print`/`tw activate`, `taurworks project working`/`taurworks working`, `dev where`/`dev status`, project classification (`manager.classify_project_entry`), and legacy migration"
+  - "existence/is-directory checks continue to follow symlinks transparently, and each caller's existing ordinary-missing-directory policy is unchanged (see the Scope inventory): `working-dir set` still requires an existing directory; `project create --working-dir` still records a missing path while `project init --working-dir` still rejects it unless `--create-working-dir` is supplied (which still creates it for either command); `project activate --print` and `dev where`/`status` still report it without failing (`tw activate` still refuses to `cd`); `taurworks project working`/`taurworks working` still fail; project classification still marks it not activation-eligible; legacy migration still sends it to manual review"
+  - "a dangling or looping symlink anywhere in the lexical `project_root`/`working_dir` path makes both helpers raise `ProjectConfigError` (the same error they raise for an absolute or escaping value), distinguished from an ordinary missing path; each caller keeps its existing handling of that error unchanged (no per-caller changes, so e.g. `dev where`/`status` still degrades gracefully); and `--create-working-dir` never creates a directory through such a symlink while still creating an ordinary missing directory"
+  - "every caller of the two helpers in the Scope inventory gets the fix through the shared helpers, with no per-caller containment logic: `project working-dir set`, `project init`/`project create --working-dir`, `project activate --print`/`tw activate`, `taurworks project working`/`taurworks working`, `dev where`/`dev status`, project classification (`manager.classify_project_entry`), and legacy migration of relative `cd` targets; legacy migration's separate resolved-path normalization of absolute `cd` targets (`legacy._normalize_cd_target`) is unchanged; `project working-dir show`, which performs no validation, is unaffected"
   - "the five existing tests that assert escape-rejection (`tests/project_internals_test.py::test_relative_working_dir_rejects_paths_outside_project_root`, and the four `\"may not escape\"` assertions in `tests/cli_test.py`) still pass for `..`/absolute inputs"
   - "new tests cover: a working_dir that is a symlink to a directory outside project_root (accepted); an in-root `..` value such as `repo/../repo` (now rejected); a working_dir containing `..` that also traverses a symlink (rejected); a dangling or looping working_dir symlink (error, not `working_dir_exists: False`); `project init ROOT --working-dir link --create-working-dir` with a dangling `link` (rejected, external target not created); and an ordinary missing working_dir (still reported missing by metadata paths and still created by `--create-working-dir`)"
   - "the cwd-relative `working-dir set DIR` mapping question (see Open Questions) is decided and documented in `config_model.md` before or with the implementation"
@@ -153,12 +153,17 @@ above reflect that.
     either command.
   - `relative_working_dir_metadata`, directly → legacy migration
     (`legacy.py:408`, `_merge_legacy_matches_into_config`). A missing target
-    goes to manual review.
+    goes to manual review. An *absolute* legacy `cd` target is first
+    normalized by `legacy._normalize_cd_target` (`legacy.py:266-280`), which
+    has its own resolved-path containment check; this WI leaves it
+    unchanged, so an absolute target reached through the symlink still goes
+    to manual review. Only relative targets get the lexical rule.
   - `relative_working_dir_metadata` via `resolve_configured_working_dir`
     (`project_internals.py:568-577`) →
-    - `taurworks project activate --print` / `tw activate`
-      (`project_resolution.py:1982`): reports `working_dir_exists: False`
-      successfully for an ordinary missing path;
+    - `taurworks project activate --print` (`project_resolution.py:1982`):
+      reports `working_dir_exists: False` successfully for an ordinary
+      missing path; `tw activate`, which consumes that output, then fails at
+      the shell layer (`taurworks-shell.sh:334-337`);
     - `taurworks project working` / `taurworks working`
       (`gather_project_path_diagnostics`, `project_resolution.py:1752`):
       fails (`ok=False`) for an ordinary missing path;
@@ -171,6 +176,12 @@ above reflect that.
     (`gather_project_working_dir_show_diagnostics`,
     `project_resolution.py:1078-1146`) echoes the raw config string and
     performs no working_dir validation; it is unaffected by this WI.
+
+  Every caller above already catches `ProjectConfigError` from these
+  helpers (it is how an absolute or escaping value is rejected today). The
+  invalid-symlink rule (Required Change 3) raises that same error, so each
+  caller handles an invalid symlink exactly as it handles an escaping value
+  now; no caller's error handling changes.
 - Update the five existing tests that assert today's escape-rejection
   behavior so they keep asserting it for `..`/absolute inputs specifically
   (not for symlinks), and add new tests for the symlink-permitted case and
@@ -230,9 +241,10 @@ above reflect that.
    end-to-end; (b) an in-root `..` value such as `repo/../repo` is now
    rejected; (c) a `working_dir` value containing `..` is rejected even if a
    component along the way is a symlink; (d) a dangling or self-looping
-   `working_dir` symlink produces a validation error from both helpers (so at
-   every caller in the Scope inventory), not
-   `working_dir_exists: False` and not a crash; (e) `--create-working-dir`
+   `working_dir` symlink makes both helpers raise `ProjectConfigError` (not
+   `RuntimeError`, and not a `working_dir_exists: False` result), and,
+   end-to-end, `project activate --print` fails with its invalid-working_dir
+   guidance rather than reporting the directory as missing; (e) `--create-working-dir`
    with a dangling symlink is rejected and the external target is not
    created; (f) an ordinary missing `working_dir` is still reported as
    missing by metadata paths and still created by `--create-working-dir`.
@@ -266,7 +278,8 @@ See frontmatter `acceptance` list above; restated in prose:
   inventory); `working-dir show` performs no validation and is unaffected.
 - Existence/is-directory checks keep following symlinks transparently, and
   each caller's ordinary missing-directory policy is unchanged; a dangling
-  or looping symlink component is a hard error from both helpers, and
+  or looping symlink component makes both helpers raise `ProjectConfigError`,
+  which each caller handles as it already handles an escaping value, and
   `--create-working-dir` never creates through one.
 - All five existing escape-rejection tests still pass (still guarding
   `..`/absolute); new tests cover the in-root `..` tightening, the
