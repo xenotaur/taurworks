@@ -19,6 +19,7 @@ Key documents:
 - `unified_command_model.md` for command namespace intent;
 - `config_model.md` for configuration, global workspace/registry plans, and path semantics;
 - `activation_extension.md` for the Phase 2 declarative activation config design, Conda-only initial environment plan, export safety rules, legacy migration path, and deferred explicit trusted-hook design topics.
+- `proposals/proposed/taurworks-storage-model/00_proposal.md` for the proposed Workspace/Taurspace storage-class model, read-only-first `taurworks storage` namespace, and `taurworks-storage-audit` Agent Skill direction. This document is proposed and does not govern behavior until adopted.
 - `shell_helper_refresh.md` for the proposed `tw shell refresh` command and passive staleness-detection design that fixes the stale-shell-helper problem (sourced `tw` silently running behavior from before the last package upgrade).
 - `packaging_and_install.md` for the public-release packaging/install design (fully delivered): the `taurworks setup` command, splitting `bin/`'s unrelated legacy dotfile material out of the repo, a Conda PATH-loss diagnostic in `tw`, and gating `manager.py`'s unconditional progress narration behind a `--debug`/`TAURWORKS_DEBUG` flag.
 - `backlog.md` for lightweight, deferred design ideas that aren't yet ready for a formal work item — check it during prior-art/demand checks before proposing new work.
