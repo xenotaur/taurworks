@@ -157,8 +157,228 @@ class ProjectInternalsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_dir = pathlib.Path(temp_dir) / "proj"
             project_dir.mkdir()
-            with self.assertRaises(project_internals.ProjectConfigError):
+            with self.assertRaises(project_internals.ProjectConfigError) as context:
                 project_internals.relative_working_dir(project_dir, project_dir, "..")
+            self.assertIn("may not escape", str(context.exception))
+            with self.assertRaises(project_internals.ProjectConfigError) as context:
+                project_internals.relative_working_dir_metadata(
+                    project_dir, "../outside"
+                )
+            self.assertIn("may not escape", str(context.exception))
+
+    def _make_symlinked_project(
+        self, temp_dir: str
+    ) -> tuple[pathlib.Path, pathlib.Path, pathlib.Path]:
+        """Return (project_dir, link, external) with project_dir/link -> external."""
+        root_dir = pathlib.Path(temp_dir).resolve()
+        project_dir = root_dir / "Workspace" / "proj"
+        project_dir.mkdir(parents=True)
+        external = root_dir / "Tempspace" / "proj" / "working_dir"
+        external.mkdir(parents=True)
+        link = project_dir / "working_dir"
+        link.symlink_to(external, target_is_directory=True)
+        return project_dir, link, external
+
+    def test_working_dir_symlink_to_external_directory_is_accepted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir, _link, external = self._make_symlinked_project(temp_dir)
+
+            relative = project_internals.relative_working_dir(
+                project_dir, project_dir, "working_dir"
+            )
+            self.assertEqual(pathlib.Path("working_dir"), relative)
+
+            relative, exists = project_internals.relative_working_dir_metadata(
+                project_dir, "working_dir"
+            )
+            self.assertEqual(pathlib.Path("working_dir"), relative)
+            self.assertTrue(exists)
+
+            relative, resolved, exists = (
+                project_internals.resolve_configured_working_dir(
+                    project_dir, "working_dir"
+                )
+            )
+            self.assertEqual(pathlib.Path("working_dir"), relative)
+            self.assertEqual(external, resolved)
+            self.assertTrue(exists)
+
+    def test_working_dir_set_stores_symlink_path_and_nested_child(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir, _link, external = self._make_symlinked_project(temp_dir)
+            (external / "sub").mkdir()
+            (project_dir / ".taurworks").mkdir()
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                'schema_version = 1\n\n[project]\nname = "proj"\n',
+                encoding="utf-8",
+            )
+            _previous, stored, _repairs = project_internals.set_working_dir(
+                project_dir, project_dir, "working_dir/sub"
+            )
+            self.assertEqual("working_dir/sub", stored)
+            config = project_internals.read_project_config(project_dir)
+            self.assertEqual("working_dir/sub", config["paths"]["working_dir"])
+
+    def test_relative_working_dir_leading_dotdot_steps_up_physical_cwd(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir).resolve() / "proj"
+            (project_dir / "docs").mkdir(parents=True)
+            (project_dir / "repo").mkdir()
+            relative = project_internals.relative_working_dir(
+                project_dir, project_dir / "docs", "../repo"
+            )
+            self.assertEqual(pathlib.Path("repo"), relative)
+            relative = project_internals.relative_working_dir(
+                project_dir, project_dir / "docs", ".."
+            )
+            self.assertEqual(pathlib.Path("."), relative)
+            relative = project_internals.relative_working_dir(
+                project_dir, project_dir / "repo", None
+            )
+            self.assertEqual(pathlib.Path("repo"), relative)
+            with self.assertRaises(project_internals.ProjectConfigError) as context:
+                project_internals.relative_working_dir(
+                    project_dir, project_dir / "docs", "../.."
+                )
+            self.assertIn("may not escape", str(context.exception))
+
+    def test_in_root_dotdot_working_dir_value_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir).resolve() / "proj"
+            (project_dir / "repo").mkdir(parents=True)
+            with self.assertRaises(project_internals.ProjectConfigError) as context:
+                project_internals.relative_working_dir_metadata(
+                    project_dir, "repo/../repo"
+                )
+            self.assertIn("may not escape", str(context.exception))
+            self.assertIn("plain relative path", str(context.exception))
+            with self.assertRaises(project_internals.ProjectConfigError) as context:
+                project_internals.relative_working_dir(
+                    project_dir, project_dir, "repo/../repo"
+                )
+            self.assertIn("plain relative path", str(context.exception))
+
+    def test_dotdot_through_symlink_component_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir, _link, external = self._make_symlinked_project(temp_dir)
+            (external.parent / "sibling").mkdir()
+            for value in ("working_dir/..", "working_dir/../sibling"):
+                with self.subTest(value=value):
+                    with self.assertRaises(project_internals.ProjectConfigError):
+                        project_internals.relative_working_dir_metadata(
+                            project_dir, value
+                        )
+                    with self.assertRaises(project_internals.ProjectConfigError):
+                        project_internals.relative_working_dir(
+                            project_dir, project_dir, value
+                        )
+
+    def _assert_invalid_symlink_rejected(
+        self, project_dir: pathlib.Path, value: str, expected_text: str
+    ) -> None:
+        with self.assertRaises(project_internals.ProjectConfigError) as context:
+            project_internals.relative_working_dir_metadata(project_dir, value)
+        self.assertIn(expected_text, str(context.exception))
+        self.assertNotIn("may not escape", str(context.exception))
+        with self.assertRaises(project_internals.ProjectConfigError) as context:
+            project_internals.relative_working_dir(project_dir, project_dir, value)
+        self.assertIn(expected_text, str(context.exception))
+        with self.assertRaises(project_internals.ProjectConfigError):
+            project_internals.resolve_configured_working_dir(project_dir, value)
+
+    def test_dangling_working_dir_symlink_raises_config_error(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir).resolve() / "proj"
+            project_dir.mkdir()
+            missing_target = pathlib.Path(temp_dir).resolve() / "gone" / "working_dir"
+            (project_dir / "working_dir").symlink_to(
+                missing_target, target_is_directory=True
+            )
+            self._assert_invalid_symlink_rejected(
+                project_dir, "working_dir", "dangling symlink"
+            )
+            self._assert_invalid_symlink_rejected(
+                project_dir, "working_dir/sub", "dangling symlink"
+            )
+
+    def test_looping_working_dir_symlink_raises_config_error(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir).resolve() / "proj"
+            project_dir.mkdir()
+            (project_dir / "self").symlink_to(project_dir / "self")
+            (project_dir / "a").symlink_to(project_dir / "b")
+            (project_dir / "b").symlink_to(project_dir / "a")
+            for value in ("self", "self/sub", "a"):
+                with self.subTest(value=value):
+                    self._assert_invalid_symlink_rejected(
+                        project_dir, value, "symlink loop"
+                    )
+
+    def test_dangling_symlink_inside_external_target_raises_config_error(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir, _link, external = self._make_symlinked_project(temp_dir)
+            (external / "inner").symlink_to(
+                external / "missing", target_is_directory=True
+            )
+            self._assert_invalid_symlink_rejected(
+                project_dir, "working_dir/inner", "dangling symlink"
+            )
+
+    def test_ordinary_missing_working_dir_is_reported_missing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir).resolve() / "proj"
+            project_dir.mkdir()
+            relative, exists = project_internals.relative_working_dir_metadata(
+                project_dir, "repo/nested"
+            )
+            self.assertEqual(pathlib.Path("repo/nested"), relative)
+            self.assertFalse(exists)
+            with self.assertRaises(project_internals.ProjectConfigError) as context:
+                project_internals.relative_working_dir(project_dir, project_dir, "repo")
+            self.assertIn("must be an existing directory", str(context.exception))
+
+    def test_create_working_dir_creates_ordinary_missing_directory(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir).resolve() / "proj"
+            project_dir.mkdir()
+            relative, resolved, created = (
+                project_internals.create_working_dir_metadata_target(
+                    project_dir, "repo/nested"
+                )
+            )
+            self.assertEqual("repo/nested", relative)
+            self.assertTrue(created)
+            self.assertTrue((project_dir / "repo" / "nested").is_dir())
+            self.assertEqual(project_dir / "repo" / "nested", resolved)
+
+    def test_create_working_dir_creates_missing_tail_inside_valid_symlink(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir, _link, external = self._make_symlinked_project(temp_dir)
+            relative, resolved, created = (
+                project_internals.create_working_dir_metadata_target(
+                    project_dir, "working_dir/missing"
+                )
+            )
+            self.assertEqual("working_dir/missing", relative)
+            self.assertTrue(created)
+            self.assertEqual(external / "missing", resolved)
+            self.assertTrue((external / "missing").is_dir())
+
+    def test_create_working_dir_refuses_dangling_symlink(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_dir = pathlib.Path(temp_dir).resolve() / "proj"
+            project_dir.mkdir()
+            missing_target = pathlib.Path(temp_dir).resolve() / "gone" / "working_dir"
+            (project_dir / "working_dir").symlink_to(
+                missing_target, target_is_directory=True
+            )
+            with self.assertRaises(project_internals.ProjectConfigError) as context:
+                project_internals.create_working_dir_metadata_target(
+                    project_dir, "working_dir"
+                )
+            self.assertIn("dangling symlink", str(context.exception))
+            self.assertFalse(missing_target.exists())
+            self.assertFalse(missing_target.parent.exists())
 
     def test_write_project_config_rejects_symlinked_metadata_dir(self):
         with tempfile.TemporaryDirectory() as temp_dir:

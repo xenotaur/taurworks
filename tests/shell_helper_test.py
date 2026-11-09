@@ -454,6 +454,55 @@ class ShellHelperTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=result.stderr)
         assert_same_path(self, result.stdout.strip(), expected_dir)
 
+    def test_tw_activate_follows_working_dir_symlink_outside_project_root(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = pathlib.Path(temp_dir).resolve()
+            bin_dir = temp_path / "bin"
+            workspace = temp_path / "Workspace"
+            bin_dir.mkdir()
+            project_dir = workspace / "TestProject"
+            (project_dir / ".taurworks").mkdir(parents=True)
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "TestProject"\n\n'
+                    '[paths]\nworking_dir = "working_dir"\n'
+                ),
+                encoding="utf-8",
+            )
+            external = temp_path / "Tempspace" / "TestProject" / "working_dir"
+            external.mkdir(parents=True)
+            (project_dir / "working_dir").symlink_to(external, target_is_directory=True)
+            _write_taurworks_module_shim(bin_dir)
+
+            env = _subprocess_env()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["TAURWORKS_WORKSPACE"] = str(workspace)
+            cmd = [
+                "bash",
+                "-c",
+                (
+                    'source "$1" && '
+                    'cd "$2" && '
+                    "tw activate TestProject >/dev/null && "
+                    "pwd -P"
+                ),
+                "bash",
+                str(SHELL_HELPER),
+                str(workspace),
+            ]
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+                env=env,
+            )
+
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        assert_same_path(self, result.stdout.strip(), external)
+
     def test_tw_activate_without_working_dir_changes_to_root_with_warning(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = pathlib.Path(temp_dir)

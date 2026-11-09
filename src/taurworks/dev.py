@@ -58,7 +58,7 @@ def _configured_working_dir(
         relative_working_dir.as_posix(),
         str(resolved_working_dir),
         working_dir_exists,
-        "configured working_dir resolved safely inside the project root",
+        "configured working_dir validated as a project-root-relative path",
     )
 
 

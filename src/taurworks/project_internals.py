@@ -1,8 +1,10 @@
 import dataclasses
 import enum
+import errno
 import os
 import pathlib
 import re
+import stat
 import tomllib
 from typing import Any
 
@@ -480,37 +482,118 @@ def working_dir_from_config(config: dict[str, Any]) -> str | None:
     return working_dir
 
 
+WORKING_DIR_ABSOLUTE_MESSAGE = "working_dir must be relative to the project root; absolute paths are not supported yet"
+WORKING_DIR_ESCAPE_MESSAGE = (
+    "working_dir must stay inside the project root and may not escape with '..'"
+)
+WORKING_DIR_DOTDOT_MESSAGE = (
+    "working_dir may not escape the project root or contain '..' components; "
+    "rewrite it as a plain relative path under the project root "
+    "(for example `repo` instead of `repo/../repo`)"
+)
+
+
+def check_working_dir_symlinks(
+    project_root: pathlib.Path,
+    relative_path: pathlib.Path,
+) -> None:
+    """Reject a dangling or looping symlink along the lexical working_dir path.
+
+    Walks `project_root` and then each prefix of `project_root / relative_path`
+    without resolving it. A component that is a symlink must resolve to an
+    existing target; a dangling or looping link raises `ProjectConfigError`
+    instead of being reported as an ordinary missing directory. The walk stops
+    at the first component that does not exist at all (an ordinary missing
+    tail). This uses explicit `lstat`/`stat` calls rather than relying on
+    `Path.is_dir()` or `Path.resolve()`, whose behavior for dangling and
+    looping links differs across Python versions.
+    """
+    candidates = [project_root]
+    for part in relative_path.parts:
+        candidates.append(candidates[-1] / part)
+
+    for candidate in candidates:
+        try:
+            link_status = os.lstat(candidate)
+        except OSError:
+            # Missing (or unreadable) component: an ordinary missing tail that
+            # each caller's existing missing-directory policy handles.
+            return
+        if not stat.S_ISLNK(link_status.st_mode):
+            continue
+        try:
+            os.stat(candidate)
+        except OSError as error:
+            if error.errno == errno.ELOOP:
+                raise ProjectConfigError(
+                    f"working_dir path component is a symlink loop: {candidate}"
+                ) from error
+            if error.errno in (errno.ENOENT, errno.ENOTDIR):
+                raise ProjectConfigError(
+                    "working_dir path component is a dangling symlink: "
+                    f"{candidate} -> {_readlink_for_display(candidate)}"
+                ) from error
+            raise ProjectConfigError(
+                "working_dir path component is a symlink that cannot be followed: "
+                f"{candidate} ({error.strerror})"
+            ) from error
+
+
+def _readlink_for_display(path: pathlib.Path) -> str:
+    """Return a symlink's literal target for error messages, best effort."""
+    try:
+        return os.readlink(path)
+    except OSError:
+        return "(unreadable target)"
+
+
 def relative_working_dir(
     project_root: pathlib.Path,
     cwd: pathlib.Path,
     user_path: str | None,
 ) -> pathlib.Path:
-    """Validate and return a working directory path relative to project root."""
+    """Validate and return a working directory path relative to project root.
+
+    `user_path` is interpreted relative to `cwd`. The physical (resolved) `cwd`
+    contains no symlinks, so its position under the resolved project root is
+    a plain relative prefix. Leading `..` components of `user_path` step up
+    within that prefix and may not climb above the project root; a `..` after
+    any ordinary component is rejected, because it could follow a symlink. The
+    resulting stored value is checked lexically, never by resolving it, so a
+    component that is a symlink to a directory outside the project root is
+    accepted.
+    """
     resolved_project_root = project_root.resolve()
-    if user_path is None:
-        target_path = cwd.resolve()
-    else:
+    try:
+        cwd_relative = cwd.resolve().relative_to(resolved_project_root)
+    except ValueError as error:
+        raise ProjectConfigError(WORKING_DIR_ESCAPE_MESSAGE) from error
+    parts = list(cwd_relative.parts)
+
+    if user_path is not None:
         raw_path = pathlib.Path(user_path).expanduser()
         if raw_path.is_absolute():
-            raise ProjectConfigError(
-                "working_dir must be relative to the project root; absolute paths are not supported yet"
-            )
-        target_path = (cwd / raw_path).resolve()
+            raise ProjectConfigError(WORKING_DIR_ABSOLUTE_MESSAGE)
+        seen_component = False
+        for part in raw_path.parts:
+            if part == "..":
+                if seen_component:
+                    raise ProjectConfigError(WORKING_DIR_DOTDOT_MESSAGE)
+                if not parts:
+                    raise ProjectConfigError(WORKING_DIR_ESCAPE_MESSAGE)
+                parts.pop()
+            else:
+                seen_component = True
+                parts.append(part)
 
-    try:
-        relative_path = target_path.relative_to(resolved_project_root)
-    except ValueError as error:
-        raise ProjectConfigError(
-            "working_dir must stay inside the project root and may not escape with '..'"
-        ) from error
+    relative_path = pathlib.Path(*parts) if parts else pathlib.Path(".")
+    check_working_dir_symlinks(resolved_project_root, relative_path)
 
+    target_path = resolved_project_root / relative_path
     if not target_path.is_dir():
         raise ProjectConfigError(
             f"working_dir target must be an existing directory: {target_path}"
         )
-
-    if str(relative_path) == ".":
-        return pathlib.Path(".")
     return relative_path
 
 
@@ -540,29 +623,30 @@ def relative_working_dir_metadata(
     project_root: pathlib.Path,
     user_path: str,
 ) -> tuple[pathlib.Path, bool]:
-    """Validate working-dir metadata for create without requiring existence."""
+    """Validate working-dir metadata lexically without requiring existence.
+
+    The literal value must be relative and contain no `..` component. It is
+    not resolved for the containment check, so a component that is a symlink
+    to a directory outside the project root is accepted; a dangling or looping
+    symlink component raises `ProjectConfigError`. Returns the normalized
+    relative path and whether it currently names a directory (following
+    symlinks).
+    """
     if not user_path.strip():
         raise ProjectConfigError("working_dir must not be empty")
 
     raw_path = pathlib.Path(user_path).expanduser()
     if raw_path.is_absolute():
-        raise ProjectConfigError(
-            "working_dir must be relative to the project root; absolute paths are not supported yet"
-        )
+        raise ProjectConfigError(WORKING_DIR_ABSOLUTE_MESSAGE)
+    if ".." in raw_path.parts:
+        raise ProjectConfigError(WORKING_DIR_DOTDOT_MESSAGE)
 
     resolved_project_root = project_root.resolve()
-    target_path = (resolved_project_root / raw_path).resolve()
-
-    try:
-        relative_path = target_path.relative_to(resolved_project_root)
-    except ValueError as error:
-        raise ProjectConfigError(
-            "working_dir must stay inside the project root and may not escape with '..'"
-        ) from error
-
-    if str(relative_path) == ".":
-        return pathlib.Path("."), target_path.is_dir()
-    return relative_path, target_path.is_dir()
+    check_working_dir_symlinks(resolved_project_root, raw_path)
+    relative_path = (
+        pathlib.Path(*raw_path.parts) if raw_path.parts else pathlib.Path(".")
+    )
+    return relative_path, (resolved_project_root / relative_path).is_dir()
 
 
 def resolve_configured_working_dir(

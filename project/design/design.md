@@ -26,7 +26,7 @@ name = "ExampleProject"
 working_dir = "repo-or-work-dir"
 ```
 
-Absolute `working_dir` *values* (the literal config string) remain deferred unless a later design explicitly accepts them. `working_dir` containment is designed to be lexical, not resolved-path based (not yet implemented; today's code still checks the resolved path): a relative `working_dir` whose on-disk target is a symlink pointing outside `project_root` will be accepted, since the committed config value itself still can't escape via `..` or an absolute path — see `config_model.md`'s "Working-dir containment and symlinked work trees" (`WI-WORKING-DIR-SYMLINK-ESCAPE-0001`). Empty legacy project names should be repaired by future implementation work.
+Absolute `working_dir` *values* (the literal config string) remain deferred unless a later design explicitly accepts them. `working_dir` containment is lexical, not resolved-path based (implemented by `WI-WORKING-DIR-SYMLINK-ESCAPE-0001`): a relative `working_dir` whose on-disk target is a symlink pointing outside `project_root` is accepted, since the committed config value itself still can't escape via `..` or an absolute path (any `..` component in the value is rejected), and a dangling or looping symlink component is reported as invalid metadata rather than a missing directory — see `config_model.md`'s "Working-dir containment and symlinked work trees" (`WI-WORKING-DIR-SYMLINK-ESCAPE-0001`). Empty legacy project names should be repaired by future implementation work.
 
 ## CLI namespace model
 
