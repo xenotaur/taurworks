@@ -164,14 +164,14 @@ Accepted path and command rules for the dogfood-resolution slice:
 - `taurworks project working-dir show [PATH_OR_NAME]` displays the configured relative `paths.working_dir` or a clear unconfigured message for the selected project.
 - `taurworks project working-dir set DIR --project PATH_OR_NAME` is the preferred mutation shape because it avoids ambiguous positional overloads. A no-target form may continue to mean the current project.
 - `taurworks project create NAME --working-dir repo --create-working-dir` and `taurworks project working-dir set repo --create` are the explicit opt-ins for creating a missing working directory. Missing work directories should not be created silently.
-- `taurworks project activate [PATH_OR_NAME] --print` reads configured `paths.working_dir`, validates that it is relative and resolves inside `project_root`, prints the absolute target path and a manual `cd` guidance command, uses the shared target resolver, and still performs no shell mutation.
+- `taurworks project activate [PATH_OR_NAME] --print` reads configured `paths.working_dir`, validates it lexically (relative, no `..`; see "Working-dir containment and symlinked work trees" below), prints the absolute target path and a manual `cd` guidance command, uses the shared target resolver, and still performs no shell mutation.
 
 
 Shared target resolution should be centralized across `project init`, `project create`, `project working-dir show/set`, and `project activate --print`. It should report diagnostics such as `input`, selected `project_root`, and `resolved_by` so dogfood failures like resolving `TestProject` from inside `TestProject` to `TestProject/TestProject` are visible and preventable.
 
 ### Working-dir containment and symlinked work trees
 
-Implementation status: not yet implemented; planned via `WI-WORKING-DIR-SYMLINK-ESCAPE-0001`.
+Implementation status: implemented via `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (`project_internals.relative_working_dir`, `relative_working_dir_metadata`, and the shared `check_working_dir_symlinks`).
 
 Some projects keep `project_root` (and the non-code metadata it owns —
 `.taurworks/`, archival material, other non-Git-tracked assets) on a
@@ -204,10 +204,30 @@ path:
   project-root-relative `--working-dir` argument of `project init`/`project
   create`. For `taurworks project working-dir set [DIR]`, whose `DIR` is
   interpreted relative to the current directory, the rule applies to the
-  *derived stored value*; how a cwd-relative `DIR` (including a leading
-  `..`, or a cwd that is itself inside a symlinked work tree) maps to that
-  stored value without resolving through symlinks is an open
-  implementation question owned by `WI-WORKING-DIR-SYMLINK-ESCAPE-0001`.
+  *derived stored value*, mapped as follows (decided with
+  `WI-WORKING-DIR-SYMLINK-ESCAPE-0001`):
+  - The current directory is the **physical** (resolved) cwd, as for every
+    other `taurworks project` command — project discovery already uses it.
+    A resolved path contains no symlinks, so the cwd's position under the
+    resolved `project_root` is a plain, symlink-free relative prefix.
+  - Leading `..` components of `DIR` step up within that prefix (safe,
+    because popping a component of a symlink-free path is the same lexically
+    and physically). Stepping above `project_root` is rejected as an escape,
+    so `working-dir set ../sibling` from `project_root/docs` still stores
+    `sibling`.
+  - A `..` that follows any ordinary component of `DIR` (e.g. `link/..`,
+    `repo/../repo`) is rejected, because that component might be a symlink
+    and the `..` would then refer to the parent of its target.
+  - The remaining components are appended unresolved, so `working-dir set
+    working_dir` run from `project_root` stores `working_dir` even when that
+    entry is a symlink to an external work tree.
+  - With no `DIR`, the stored value is the physical cwd relative to the
+    resolved `project_root`. When the shell's cwd is *inside* the external
+    work tree, the physical cwd is outside `project_root`, so project
+    discovery does not find the project at all (unchanged behavior). The
+    logical `$PWD` is deliberately not consulted, since honoring it would
+    change project discovery semantics; run `taurworks project working-dir
+    set working_dir` from `project_root` instead.
 - The joined path (`project_root` + `working_dir`) is no longer required to
   stay under `project_root` *after following symlinks*. A `working_dir`
   component may itself be a symlink whose real target lies outside
@@ -243,7 +263,12 @@ path:
   never create a directory through such a symlink — `mkdir(parents=True)` on
   a resolved dangling link would otherwise silently create the external
   target, a case today's resolved-path containment check only blocks
-  incidentally.
+  incidentally. A *valid* symlink component followed by a missing tail
+  (`working_dir/missing`, where `working_dir` links to an existing external
+  directory) is not invalid: `--create-working-dir` creates the missing
+  tail inside the link's external target. That is consistent with the
+  rest of this design — the external target is where the work tree lives —
+  and the config value still names only a plain relative child path.
 - Legacy migration's normalization of an *absolute* legacy `cd` target to a
   project-root-relative value is a separate, resolved-path check
   (`legacy._normalize_cd_target`) that this design does not change: an

@@ -754,7 +754,9 @@ def main(argv=None):
         action="store_true",
         help=(
             "Create a missing --working-dir directory after validating that it "
-            "stays inside the project root."
+            "is a plain project-root-relative path (no absolute path or '..'). "
+            "A symlinked path component may point outside the project root, "
+            "but a dangling or looping symlink is rejected, never created through."
         ),
     )
     parser_project_init.add_argument(

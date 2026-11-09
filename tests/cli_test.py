@@ -2250,6 +2250,143 @@ class CliCommandTest(unittest.TestCase):
         self.assertIn("may not escape", result.stdout)
         self.assertNotIn("Traceback", result.stderr)
 
+    def _write_symlinked_working_dir_project(
+        self, root_path: pathlib.Path, working_dir: str | None
+    ) -> tuple[pathlib.Path, pathlib.Path]:
+        """Create Workspace/proj with proj/working_dir -> Tempspace/proj/working_dir."""
+        project_dir = root_path / "Workspace" / "proj"
+        (project_dir / ".taurworks").mkdir(parents=True)
+        config_text = 'schema_version = 1\n\n[project]\nname = "proj"\n'
+        if working_dir is not None:
+            config_text += f'\n[paths]\nworking_dir = "{working_dir}"\n'
+        (project_dir / ".taurworks" / "config.toml").write_text(
+            config_text, encoding="utf-8"
+        )
+        external = root_path / "Tempspace" / "proj" / "working_dir"
+        external.mkdir(parents=True)
+        (project_dir / "working_dir").symlink_to(external, target_is_directory=True)
+        return project_dir, external
+
+    def test_project_working_dir_set_accepts_symlink_outside_project_root(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir).resolve()
+            project_dir, external = self._write_symlinked_working_dir_project(
+                root_path, None
+            )
+            set_args = ["project", "working-dir", "set", "working_dir"]
+            set_result = _run_cli(set_args, cwd=project_dir)
+            set_message = _failure_message(set_args, set_result)
+            config_text = (project_dir / ".taurworks" / "config.toml").read_text(
+                encoding="utf-8"
+            )
+            activate_args = ["project", "activate", str(project_dir), "--print"]
+            activate = _run_cli(activate_args, cwd=root_path)
+            activate_message = _failure_message(activate_args, activate)
+
+        self.assertEqual(set_result.returncode, 0, msg=set_message)
+        self.assertNotIn("may not escape", set_result.stdout, msg=set_message)
+        self.assertIn('working_dir = "working_dir"', config_text, msg=set_message)
+        self.assertEqual(activate.returncode, 0, msg=activate_message)
+        fields = parse_cli_fields(activate.stdout)
+        assert_same_path(
+            self, fields["resolved_working_dir"], external, msg=activate_message
+        )
+        self.assertIn("working_dir_exists: True", activate.stdout, msg=activate_message)
+        assert_same_path(
+            self,
+            _activation_command_path(activate.stdout),
+            external,
+            msg=activate_message,
+        )
+
+    def test_project_create_rejects_in_root_dotdot_working_dir(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir)
+            target_dir = root_path / "dotdot-project"
+            args = [
+                "project",
+                "create",
+                str(target_dir),
+                "--working-dir",
+                "repo/../repo",
+                "--create-working-dir",
+            ]
+            result = _run_cli(args, cwd=root_path)
+            target_exists = target_dir.exists()
+        message = _failure_message(args, result)
+        self.assertNotEqual(result.returncode, 0, msg=message)
+        self.assertFalse(target_exists, msg=message)
+        self.assertIn("plain relative path", result.stdout, msg=message)
+        self.assertNotIn("Traceback", result.stderr, msg=message)
+
+    def test_project_activate_print_rejects_dangling_working_dir_symlink(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir).resolve()
+            project_dir, external = self._write_symlinked_working_dir_project(
+                root_path, "working_dir"
+            )
+            external.rmdir()
+            args = ["project", "activate", str(project_dir), "--print"]
+            result = _run_cli(args, cwd=root_path)
+        message = _failure_message(args, result)
+        self.assertNotEqual(result.returncode, 0, msg=message)
+        self.assertIn("working_dir is invalid", result.stdout, msg=message)
+        self.assertIn("dangling symlink", result.stdout, msg=message)
+        # Invalid metadata, not the ordinary missing-directory success path.
+        self.assertNotIn("directory does not exist", result.stdout, msg=message)
+        self.assertIn("activation_command: none", result.stdout, msg=message)
+        self.assertNotIn("Traceback", result.stderr, msg=message)
+
+    def test_dev_where_degrades_gracefully_on_looping_working_dir_symlink(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir).resolve()
+            project_dir = root_path / "proj"
+            (project_dir / ".taurworks").mkdir(parents=True)
+            (project_dir / ".taurworks" / "config.toml").write_text(
+                (
+                    "schema_version = 1\n\n"
+                    '[project]\nname = "proj"\n\n'
+                    '[paths]\nworking_dir = "loop"\n'
+                ),
+                encoding="utf-8",
+            )
+            (project_dir / "loop").symlink_to(project_dir / "loop")
+            args = ["dev", "where"]
+            result = _run_cli(args, cwd=project_dir)
+        message = _failure_message(args, result)
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertIn("symlink loop", result.stdout, msg=message)
+        self.assertNotIn("Traceback", result.stderr, msg=message)
+
+    def test_project_init_create_working_dir_refuses_dangling_symlink(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root_path = pathlib.Path(temp_dir).resolve()
+            project_dir = root_path / "proj"
+            project_dir.mkdir()
+            missing_target = root_path / "Tempspace" / "proj" / "working_dir"
+            (project_dir / "working_dir").symlink_to(
+                missing_target, target_is_directory=True
+            )
+            args = [
+                "project",
+                "init",
+                str(project_dir),
+                "--working-dir",
+                "working_dir",
+                "--create-working-dir",
+            ]
+            result = _run_cli(args, cwd=root_path)
+            target_created = missing_target.exists()
+            tempspace_created = (root_path / "Tempspace").exists()
+            metadata_created = (project_dir / ".taurworks").exists()
+        message = _failure_message(args, result)
+        self.assertNotEqual(result.returncode, 0, msg=message)
+        self.assertIn("dangling symlink", result.stdout, msg=message)
+        self.assertFalse(target_created, msg=message)
+        self.assertFalse(tempspace_created, msg=message)
+        self.assertFalse(metadata_created, msg=message)
+        self.assertNotIn("Traceback", result.stderr, msg=message)
+
     def test_project_working_dir_set_rejects_symlinked_metadata_dir(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root_path = pathlib.Path(temp_dir)

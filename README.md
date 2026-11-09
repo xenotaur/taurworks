@@ -811,7 +811,7 @@ Command intent is deliberately split:
 Behavior:
 
 - `project create NAME` creates `./NAME` when it is missing and initializes `./NAME/.taurworks/` without overwriting unrelated files. Existing project roots are safely refreshed.
-- `--working-dir DIR` records `paths.working_dir = "DIR"` after validating that `DIR` is relative and stays inside the project root. It does not create `DIR` by default.
+- `--working-dir DIR` records `paths.working_dir = "DIR"` after validating that `DIR` is a plain project-root-relative path (no absolute path, no `..`). A component of `DIR` may be a symlink to a directory outside the project root (for example a work tree kept on local disk), but a dangling or looping symlink is rejected. It does not create `DIR` by default.
 - `--working-dir DIR --create-working-dir` creates the missing working directory inside the new project root after validation, then records the same metadata.
 - `--create-working-dir` is rejected unless `--working-dir` is also supplied.
 - absolute working-directory paths and paths that escape `project_root` are rejected.
@@ -834,7 +834,7 @@ Behavior:
 - with no argument, resolves from the current working directory
 - with an argument, resolves the path/name using the same shared project-resolution internals as other `project` lifecycle commands
 - reads `.taurworks/config.toml` and uses `[paths].working_dir` when it is configured
-- validates that configured `working_dir` metadata is relative and resolves safely inside `project_root`
+- validates that configured `working_dir` metadata is a plain relative path under `project_root` (no absolute path, no `..`); a symlinked `working_dir` may resolve outside `project_root`, while a dangling or looping symlink is reported as invalid metadata
 - prints `project_root`, configured `working_dir`, resolved absolute working-directory path, whether that path exists, and `shell_mutation: not performed`
 - prints an inspectable command such as `cd /absolute/path/to/working_dir` only as guidance; Taurworks does not execute it
 - reports a clear unconfigured diagnostic and suggests `taurworks project working-dir set [DIR]` when no `working_dir` is configured
