@@ -8,7 +8,7 @@ pr: https://github.com/xenotaur/taurworks/pull/102
 commit: 77fdd0c1152a817183da488c44cb82d7102e5f20
 created_at: 2026-08-01T05:01:54+00:00
 agent: claude_app
-instruction_source: conversational session — user asked "what's left on the roadmap now", I cross-checked the docs against actual WI/PR status, found both project/roadmap/roadmap.md and project/focus/current_focus.md still described taurworks dev v1 automation as "not yet implemented" despite WI-DEV-WORKFLOW-AUTOMATION-0001/PR #100 shipping it the same day these docs were last written, and the user confirmed refreshing both
+instruction_source: "conversational session — user asked \"what's left on the roadmap now\", I cross-checked the docs against actual WI/PR status, found both project/roadmap/roadmap.md and project/focus/current_focus.md still described taurworks dev v1 automation as \"not yet implemented\" despite WI-DEV-WORKFLOW-AUTOMATION-0001/PR #100 shipping it the same day these docs were last written, and the user confirmed refreshing both"
 session_transcript: claude-app:43689ae3-1b8e-45ff-b3b8-75e8997239fb
 ---
 

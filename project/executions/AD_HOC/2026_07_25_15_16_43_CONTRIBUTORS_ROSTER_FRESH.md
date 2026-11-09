@@ -7,7 +7,7 @@ rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/89
 commit: 39b9aad169dfffdd3c5ad39deaaa2c7d5673a086
 agent: claude_app
-instruction_source: conversational session — user asked to fill in project/contributors/contributors.md (which failed lrh validate: missing display_name/roles/type) with real contributor data, then confirmed proceeding
+instruction_source: "conversational session — user asked to fill in project/contributors/contributors.md (which failed lrh validate: missing display_name/roles/type) with real contributor data, then confirmed proceeding"
 session_transcript: claude-app:94d9d00e-f45f-42fc-90c0-53050ac3470c
 created_at: 2026-07-25T15:16:43-04:00
 ---
