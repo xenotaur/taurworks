@@ -8,7 +8,7 @@ pr: https://github.com/xenotaur/taurworks/pull/101
 commit: 9377bdf18cb795afe8c923c79191bc3bf957378c
 created_at: 2026-08-01T01:53:04+00:00
 agent: claude_app
-instruction_source: WI-DEV-WORKFLOW-AUTOMATION-0001 (PR #100, merged)
+instruction_source: "WI-DEV-WORKFLOW-AUTOMATION-0001 (PR #100, merged)"
 session_transcript: claude-app:43689ae3-1b8e-45ff-b3b8-75e8997239fb
 ---
 

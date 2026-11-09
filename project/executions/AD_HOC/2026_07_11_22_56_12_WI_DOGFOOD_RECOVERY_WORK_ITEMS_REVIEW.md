@@ -5,7 +5,7 @@ work_item: AD_HOC
 status: landed
 rerun_of: 
 pr: https://github.com/xenotaur/taurworks/pull/66
-commit: 6512983
+commit: "6512983"
 created_at: 2026-07-11T22:56:12-04:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/66

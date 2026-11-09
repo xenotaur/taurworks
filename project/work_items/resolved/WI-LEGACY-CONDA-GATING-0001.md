@@ -1,5 +1,5 @@
 ---
-resolution: Legacy `taurworks refresh`/`create` Conda environment creation gated behind explicit `--create-env` opt-in; misleading activation guidance and help text fixed per review. Side-effect audit follow-up #2 resolved, #1 partially addressed. Implemented and merged in PR #63 (commit e9c9bf6).
+resolution: "Legacy `taurworks refresh`/`create` Conda environment creation gated behind explicit `--create-env` opt-in; misleading activation guidance and help text fixed per review. Side-effect audit follow-up #2 resolved, #1 partially addressed. Implemented and merged in PR #63 (commit e9c9bf6)."
 blocked_reason: null
 blocked: false
 id: WI-LEGACY-CONDA-GATING-0001
@@ -31,9 +31,9 @@ acceptance:
   - Legacy top-level `taurworks refresh NAME` and `taurworks create NAME` (and therefore `tw refresh`/`tw create`) no longer create a Conda environment by default; creation requires an explicit command or flag.
   - The explicit Conda-creation path is covered by unit tests distinguishing it from the default no-Conda path.
   - Repository-directory creation and the `.taurworks/project-setup.source` write in legacy `refresh`/`create` are explicitly unchanged by this item, not silently removed alongside Conda gating.
-  - `tw activate`'s `eval` surface in `taurworks-shell.sh` is reviewed; either reduced or the decision to keep it is documented with rationale.
-  - `project/audits/side_effects.md` is updated to mark follow-up #2 resolved and follow-up #1 as only partially addressed (Conda gating only).
-  - `lrh validate` passes with 0 errors.
+  - "`tw activate`'s `eval` surface in `taurworks-shell.sh` is reviewed; either reduced or the decision to keep it is documented with rationale."
+  - "`project/audits/side_effects.md` is updated to mark follow-up #2 resolved and follow-up #1 as only partially addressed (Conda gating only)."
+  - "`lrh validate` passes with 0 errors."
 required_evidence:
   - manual_review
   - lrh_validate
