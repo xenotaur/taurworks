@@ -2,10 +2,10 @@
 id: WI-WORKING-DIR-SYMLINK-ESCAPE-0001
 title: Allow working_dir to be a symlink outside project_root (lexical containment)
 type: deliverable
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: 'Implemented and merged in PR #117 (commit 6cb00f2): lexical working_dir containment; a working_dir symlink to a work tree outside project_root is accepted, while absolute or ".." values and dangling or looping symlinks are rejected.'
 related_focus:
   - FOCUS-CURRENT
 related_roadmap:

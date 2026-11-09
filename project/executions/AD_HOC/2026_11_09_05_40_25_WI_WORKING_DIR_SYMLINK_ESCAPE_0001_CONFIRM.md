@@ -2,14 +2,14 @@
 execution_id: 2026_11_09_05_40_25_WI_WORKING_DIR_SYMLINK_ESCAPE_0001_CONFIRM
 prompt_id: PROMPT(AD_HOC:WI_WORKING_DIR_SYMLINK_ESCAPE_0001_CONFIRM)[2026-11-09T05:39:47+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_11_09_05_36_39_WI_WORKING_DIR_SYMLINK_ESCAPE_0001
 pr: https://github.com/xenotaur/taurworks/pull/117
-commit:
+commit: 6cb00f2ff66fa1cdde3d1efd2a54220d056ee6ad
 created_at: 2026-11-09T05:40:25+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/117
-session_transcript: pending
+session_transcript: claude-app:1b69806b-4260-4637-95d0-46434a8c5576
 ---
 
 # Summary
