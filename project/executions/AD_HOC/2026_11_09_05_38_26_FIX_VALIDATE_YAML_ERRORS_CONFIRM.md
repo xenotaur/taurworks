@@ -2,10 +2,10 @@
 execution_id: 2026_11_09_05_38_26_FIX_VALIDATE_YAML_ERRORS_CONFIRM
 prompt_id: PROMPT(AD_HOC:FIX_VALIDATE_YAML_ERRORS_CONFIRM)[2026-11-09T05:35:45+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/116
-commit: 83a8d54c973821bf239227b4b93c9e2ae5370cff
+commit: 01c5cd7af4d4cdc886ed3d3726b747ee08dcaf1e
 created_at: 2026-11-09T05:38:26+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/116
@@ -30,8 +30,11 @@ case. The human approved the chain gate and this empty-thread gate together.
 
 - PR CI on `83a8d54`: 4/4 `lint-and-test` checks passed.
 - `lrh validate`: 0 errors, 0 warnings.
-- CI and review coverage re-checked against the commit adding this record
-  before the merge gate.
+- CI on `2c1b8ce` (the commit adding this record): 4/4 `lint-and-test`
+  checks passed (verified after push, at closeout).
+- REVIEW-LANDED on `2c1b8ce`: no hosted bot review of that commit; a
+  substitute cold-context `/lrh-self-review --pr` found nothing blocking
+  and no nits (verified after push, at closeout).
 
 # Follow-up
 
