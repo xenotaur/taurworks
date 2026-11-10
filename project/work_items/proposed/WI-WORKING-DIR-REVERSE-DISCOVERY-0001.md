@@ -25,10 +25,10 @@ forbidden_actions:
   - change_physical_walk_precedence
 acceptance:
   - "When no `.taurworks/` exists in the physical cwd or its physical parents, cwd-based discovery selects the known project (registered, or an immediate child of the workspace root) whose resolved `paths.working_dir` contains the physical cwd; the physical walk still runs first and still wins whenever it finds a project"
-  - "`taurworks dev where`, `dev status`, `dev` workflow commands, `project working`, `project activate --print` with no target, `project where`, and `project working-dir show`/`set` with no explicit target all find the project from inside the external work tree, through one shared discovery function rather than per-caller logic"
-  - "When the physical cwd lies inside the resolved working_dir of more than one known project, the deepest (longest) resolved working_dir wins; an exact tie is reported as ambiguous with every candidate listed, and discovery stays unresolved instead of guessing"
+  - "`taurworks dev where`, `dev status`, `dev` workflow commands, `project where`, `project activate --print` with no target, and `project working-dir show`/`set` with no explicit target all find the project from inside the external work tree; so do explicit existing-directory targets resolved with `prefer_project_root` (e.g. `taurworks project working .`, `project activate . --print`) — all through one shared discovery function rather than per-caller logic"
+  - "When the physical cwd lies inside the resolved working_dir of more than one known project, the deepest (longest) resolved working_dir wins; an exact tie is reported as ambiguous with every candidate listed and command-specific recovery guidance (pass a project target where the command accepts one; otherwise rerun from the chosen project_root, with a project-root-relative DIR for `working-dir set`), and discovery stays unresolved instead of guessing"
   - "Diagnostics say how discovery resolved: a `resolved_by`/discovery-source value distinguishes the physical walk from the working_dir reverse lookup (naming the matched project) in `dev where`/`dev status`, `project where`, and `project activate --print`"
-  - "`taurworks project working-dir set [DIR]` run from inside the external work tree stores the configured `working_dir` value joined with the cwd's path relative to the resolved working_dir target (e.g. `working_dir/sub`), never resolving through the link; a leading `..` in DIR may only remove components below the link boundary, and a `..` that would cross it is rejected"
+  - "`taurworks project working-dir set [DIR]` run from inside the external work tree stores the configured `working_dir` value joined with the cwd's path relative to the resolved working_dir target (e.g. `working_dir/sub`), never resolving through the link; the boundary is the last symlink component of the lexical `project_root`/`working_dir` path (e.g. `working_dir` when the configured value is `working_dir/sub` and only `working_dir` is a link): a leading `..` in DIR may only remove components after that symlink component, and a `..` that would remove the symlink component itself is rejected"
   - "A known project whose working_dir is invalid (absolute, `..`, dangling, or looping), missing, or unconfigured is skipped by the reverse lookup without failing discovery; non-symlinked layouts behave exactly as before, and the reverse lookup only runs when the physical walk finds nothing"
   - "`config_model.md`'s \"Working-dir containment and symlinked work trees\" section is updated to describe the reverse lookup and the revised `working-dir set` mapping, replacing the \"run it from project_root instead\" guidance"
 artifacts_expected:
@@ -81,8 +81,13 @@ Call sites that discover from the cwd (re-grep before implementing):
 - `project_resolution.py:775` and the `working-dir set` diagnostics
   (`:1172-1173`)
 - `project_internals.resolve_project_target`'s no-target `CURRENT_PROJECT`
-  branch (`:132-147`), reached by `project activate`, `working-dir show`,
-  `project working` and others through `project_resolution.py:127,209,1083,1668`
+  branch (`:132-147`), reached by `project activate`, `working-dir show`
+  and others through `project_resolution.py:127,209,1083,1668`
+- `resolve_project_target`'s explicit existing-path branch with
+  `prefer_project_root` (`:165-181`), which walks only the physical parents
+  of the target. `taurworks project working` takes a required PROJECT
+  argument (`cli.py:614-618`), so `project working .` from inside the
+  external tree reaches this branch, not the no-target one.
 - `manager.find_current_project` (`:464-475`)
 
 Options considered (see the design section for full reasoning):
@@ -113,10 +118,12 @@ Prior art check:
 
 ## Scope
 
-- A single shared cwd-discovery function returning the project root, a
-  stable `resolved_by` value, and any ambiguity candidates. It applies the
-  physical walk first and the working_dir reverse lookup second.
-- All cwd-based discovery call sites listed above use it.
+- A single shared discovery function, starting from the cwd or from an
+  explicit existing-directory target. It returns the project root, a stable
+  `resolved_by` value, and any ambiguity candidates, applying the physical
+  walk first and the working_dir reverse lookup second.
+- All cwd-based call sites listed above use it, and so does the explicit
+  existing-path branch.
 - `resolved_by` / discovery-source diagnostics in `dev where`/`dev status`,
   `project where` and `project activate --print`.
 - The `working-dir set` mapping through the link when discovery resolved by
@@ -125,17 +132,19 @@ Prior art check:
 
 ## Required Changes
 
-1. **Shared function.** Add a cwd-discovery function, for example
-   `find_project_root_for_cwd(cwd) -> CwdDiscovery(root, resolved_by,
-   candidates)`, at a layer that can see the registry and workspace without
-   an import cycle. `manager.py` works, or a new `project_discovery.py`.
-   `project_internals` must not import `manager`.
-   - Step 1: `find_project_root_candidate(cwd.resolve())`, unchanged. If it
-     finds a root, return it with `resolved_by` set to the physical walk.
+1. **Shared function.** Add a discovery function that takes a starting
+   directory, for example `find_project_root_for_path(start) ->
+   PathDiscovery(root, resolved_by, candidates)`. Callers pass the cwd, or
+   the resolved explicit target. Put it at a layer that can see the
+   registry and workspace without an import cycle: `manager.py` works, or
+   a new `project_discovery.py`. `project_internals` must not import
+   `manager`.
+   - Step 1: `find_project_root_candidate(start.resolve())`, unchanged. If
+     it finds a root, return it with `resolved_by` set to the physical walk.
    - Step 2: only if step 1 found nothing, iterate
      `manager.gather_global_projects()`. Consider only rows with a configured,
      existing, valid `resolved_working_dir`, and select those whose resolved
-     working_dir equals or is an ancestor of the physical cwd. Compare
+     working_dir equals or is an ancestor of the resolved start. Compare
      resolved paths component-wise, not by string prefix.
    - Choose the deepest match. On an exact tie (the same resolved
      working_dir), return no root, `resolved_by` set to ambiguous, and the
@@ -146,25 +155,43 @@ Prior art check:
    the shared function. For `resolve_project_target`'s no-target branch,
    pass in the discovered root, or add a hook, so `project_internals` stays
    free of a registry dependency. Add a new `ResolutionReason` value (for
-   example `WORKING_DIR_REVERSE_LOOKUP`). Explicit targets (a path, name, or
-   `--project`) keep their current precedence, unchanged.
+   example `WORKING_DIR_REVERSE_LOOKUP`).
+   - The explicit existing-path branch with `prefer_project_root` changes
+     too. When the existing target has no physical `.taurworks/` ancestor,
+     apply the reverse lookup to the resolved target before falling back to
+     today's `EXISTING_PATH` result. This makes `taurworks project working .`
+     and `project activate . --print` work from inside the external tree.
+   - Name targets, registry and workspace resolution, and `--project` keep
+     their current precedence, unchanged.
 3. **Diagnostics.**
    - `dev where`/`dev status` gain a `resolved_by` (or `discovery_source`)
      field.
    - `project where` reports the reverse lookup as a discovery source and
      names the matched project.
    - `project activate --print` keeps reporting `resolved_by`.
-   - An ambiguous result lists the candidate project roots and says to pass
-     an explicit target.
+   - An ambiguous result lists the candidate project roots, with guidance
+     specific to the command. Commands that accept a project target
+     (`project activate`, `project working`, `working-dir show`) say to pass
+     one. Commands that don't (`dev ...`, `working-dir set`, whose argument
+     is DIR, not a project) say to rerun from the chosen `project_root`,
+     with a project-root-relative DIR for `set`.
 4. **`working-dir set` mapping.** In `relative_working_dir`, or a wrapper
    used by the `set` diagnostics: when the physical cwd is not under the
    resolved `project_root` but is inside the project's resolved configured
    working_dir target, compute the stored value lexically. The prefix is the
    configured working_dir value plus the cwd's path relative to the resolved
    target. Apply `DIR` to that prefix with the same rules as PR #117.
-   - A leading `..` may only remove components of the tail below the
-     resolved target. A `..` that would remove the configured working_dir
-     component itself is rejected with an escape-style error.
+   - The boundary is the last symlink component of the lexical
+     `project_root`/prefix path. With configured `working_dir/sub`, where
+     only `working_dir` is a link, the boundary is `working_dir`.
+   - Every component after the boundary is symlink-free: the configured
+     components below the link, plus the tail from the resolved cwd. So a
+     lexical step up equals a physical one there.
+   - A leading `..` may remove any of those components. A `..` that would
+     remove the symlink component itself, or anything before it, is
+     rejected with an escape-style error.
+   - So from `<external>/sub` with configured `working_dir/sub`, `set ..`
+     stores `working_dir`, and `set ../..` is rejected.
    - A `..` after any ordinary component is still rejected.
    - The usual lexical, symlink, and existence checks then run on the
      result.
@@ -178,9 +205,13 @@ Prior art check:
      reverse lookup.
    - (b) `project activate --print` with no target, run from the external
      target, resolves the project.
-   - (c) `working-dir set` from inside the external target stores
-     `working_dir` (no argument) and `working_dir/sub` (from `sub`); a
-     leading `..` that would cross the link is rejected.
+   - (c) `working-dir set` from inside the external target:
+     - With configured `working_dir`, no argument stores `working_dir`, and
+       running it from `sub` stores `working_dir/sub`.
+     - A leading `..` that would cross the link is rejected.
+     - With configured `working_dir/sub` (only `working_dir` a link), `set ..`
+       from `<external>/sub` stores `working_dir`, and `set ../..` is
+       rejected.
    - (d) Two projects whose working_dirs point at nested targets resolve to
      the deeper one; two projects sharing one target are reported as
      ambiguous and stay unresolved.
@@ -192,6 +223,11 @@ Prior art check:
      unconfigured workspace still works with registry-only lookup.
    - (h) An end-to-end `tw activate` followed by `taurworks dev where` finds
      the project.
+   - (i) `taurworks project working .` and `project activate . --print`,
+     run from inside the external target, resolve the project through the
+     reverse lookup (a regression test for the explicit-path branch).
+   - (j) An ambiguous result from `dev where` and from `working-dir set`
+     gives the "rerun from project_root" guidance, not "pass a target".
 7. **Docs.** Update `config_model.md`'s "Working-dir containment and
    symlinked work trees" section, replacing the "run it from project_root
    instead" note. Flip the status line of the new "Discovery from inside a

@@ -301,15 +301,15 @@ Implementation status: not yet implemented; planned via `WI-WORKING-DIR-REVERSE-
 With a symlinked `working_dir` (see the section above), `tw activate` `cd`s
 to the link's resolved target, outside `project_root`. Today every
 cwd-based command run from there reports `project_root: unresolved`:
-`taurworks dev where`/`status`/`test`, `project where`, `project working`,
-`project activate --print` and `working-dir show`/`set` with no explicit
-target. The cause is that discovery walks only the physical cwd's parents
+`taurworks dev where`/`status`/`test`, `project where`, `project activate
+--print` and `working-dir show`/`set` with no explicit target, and explicit
+existing-directory targets such as `taurworks project working .`. The cause is that discovery walks only the physical cwd's parents
 for `.taurworks/`. A terminal, IDE, or agent session opened directly in the
 external tree (including git worktrees created under it) fails the same
 way.
 
-Decision: cwd-based discovery becomes an ordered chain with one shared
-implementation:
+Decision: discovery from the cwd, or from an explicit existing-directory
+target, becomes an ordered chain with one shared implementation:
 
 1. **Physical walk.** Unchanged and always first. The nearest `.taurworks/`
    in the physical cwd or its physical parents wins.
@@ -320,7 +320,11 @@ implementation:
      physical cwd.
    - The deepest resolved working_dir wins. An exact tie, two projects
      sharing one target, is reported as ambiguous with the candidates listed,
-     and discovery stays unresolved. It never guesses.
+     and discovery stays unresolved. It never guesses. The recovery guidance
+     depends on the command: pass a project target where the command accepts
+     one (`project activate`, `project working`, `working-dir show`).
+     Otherwise (`dev ...`, `working-dir set`) rerun from the chosen
+     `project_root`, with a project-root-relative DIR for `set`.
    - Projects whose working_dir is unconfigured, missing, or invalid are
      skipped.
 
@@ -335,9 +339,14 @@ nothing. It never scans the filesystem recursively.
 maps the cwd back through the link. The prefix is the configured
 `working_dir` value plus the cwd's path relative to the resolved target, so
 running it from `<target>/sub` stores `working_dir/sub`. `DIR` then applies
-with the rules above. A leading `..` may only remove components below the
-link boundary; a `..` that would remove the link component itself is
-rejected, because a lexical and a physical step up disagree exactly there.
+with the rules above. The boundary is the last symlink component of the
+lexical `project_root`/`working_dir` path. With configured
+`working_dir/sub`, where only `working_dir` is a link, the boundary is
+`working_dir`. Everything after it is symlink-free, so a leading `..` may
+remove those components: from `<target>/sub`, `set ..` stores
+`working_dir`. A `..` that would remove the symlink component itself, or
+anything before it, is rejected, because that is exactly where a lexical
+and a physical step up disagree.
 This replaces the earlier "run it from `project_root` instead" guidance.
 
 Rejected or deferred alternatives:
