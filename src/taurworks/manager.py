@@ -313,6 +313,7 @@ def classify_project_entry(project_dir):
             project_internals.ProjectConfigError,
             OSError,
             tomllib.TOMLDecodeError,
+            UnicodeDecodeError,
         ) as error:
             status_message = f"initialized but activation metadata is invalid: {error}"
     elif status == PROJECT_STATUS_LEGACY_ADMIN:

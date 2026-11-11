@@ -479,6 +479,18 @@ class ReverseDiscoveryTest(unittest.TestCase):
         discovery = manager.find_project_root_for_path(target)
         self.assertEqual(self.workspace / "Proj", discovery.root)
 
+    def test_non_utf8_project_config_is_skipped_not_fatal(self):
+        target = self.tempspace / "Proj" / "working_dir"
+        self.make_linked_project(self.workspace / "Proj", target)
+        bad = self.workspace / "Bad"
+        (bad / ".taurworks").mkdir(parents=True)
+        (bad / ".taurworks" / "config.toml").write_bytes(b'name = "\xff\xfe"\n')
+        discovery = manager.find_project_root_for_path(target)
+        self.assertEqual(self.workspace / "Proj", discovery.root)
+        row = manager.classify_project_entry(bad)
+        self.assertFalse(row["activation_eligible"])
+        self.assertIn("activation metadata is invalid", row["status_message"])
+
     def test_registered_project_found_without_workspace(self):
         elsewhere = self.root / "Elsewhere" / "Reg"
         target = self.tempspace / "Reg" / "working_dir"
