@@ -311,10 +311,12 @@ external tree (including git worktrees created under it) fails the same
 way.
 
 Decision: discovery from the cwd, or from an explicit existing-directory
-target on the `prefer_project_root` path-emitter branch (`project working
-PATH`, `working-dir show PATH`), becomes an ordered chain with one shared
-implementation. Path-like targets to `project activate` and the other
-activation-resolution commands keep their current explicit-path behaviour.
+target on the `prefer_project_root` branch (the path emitters `project
+working`/`root` and `taurworks working`/`root`, and `working-dir show
+PATH`), becomes an ordered chain with one shared implementation. Path-like
+targets to `project activate` and the other activation-resolution commands
+keep their current explicit-path behaviour. So does `project create`'s
+nested-name guard.
 
 1. **Physical walk.** Unchanged and always first. The nearest `.taurworks/`
    in the physical cwd or its physical parents wins.
@@ -326,11 +328,17 @@ activation-resolution commands keep their current explicit-path behaviour.
    - The deepest resolved working_dir wins. An exact tie, two projects
      sharing one target, is reported as ambiguous with the candidates listed,
      and discovery stays unresolved. It never guesses. The recovery guidance
-     depends on the command: pass a project target where the command accepts
-     one (`project activate`, `project env`/`trust`, `legacy inspect`,
-     `project working`, `working-dir show`).
-     Otherwise (`dev ...`, `working-dir set`) rerun from the chosen
-     `project_root`, with a project-root-relative DIR for `set`.
+     depends on what the command accepts. Commands that resolve project
+     names through the registry (`project activate`, `project env`/`trust`,
+     `legacy inspect`, `project working`/`root`, `taurworks working`/`root`)
+     say to pass the project name or path. `working-dir show`, whose bare
+     names resolve relative to the cwd, says to pass the path to the chosen
+     `project_root`. Commands with no project target (`dev ...`,
+     `project where`, `working-dir set`) say to rerun from the chosen
+     `project_root`, with a project-root-relative DIR for `set`. An
+     ambiguous lookup makes the command fail. It never falls back to the
+     cwd or the target path itself, so a path emitter never prints the
+     external directory.
    - Projects whose working_dir is unconfigured, missing, or invalid are
      skipped.
 

@@ -25,9 +25,9 @@ forbidden_actions:
   - change_physical_walk_precedence
 acceptance:
   - "When no `.taurworks/` exists in the physical cwd or its physical parents, cwd-based discovery selects the known project (registered, or an immediate child of the workspace root) whose resolved `paths.working_dir` contains the physical cwd; the physical walk still runs first and still wins whenever it finds a project"
-  - "From inside the external work tree, these find the project through one shared discovery function rather than per-caller logic: `taurworks dev where`, `dev status` and the `dev` workflow commands; `project where`; `project working-dir show`/`set` with no target; the commands that resolve through `resolve_global_activation_project` with no target (`project activate --print`, `project env show`/`set`, `project trust set`/`unset`, `legacy inspect`); and explicit existing-directory targets on the `prefer_project_root=True` path-emitter branch (`taurworks project working .`, `project working-dir show .`). Explicit path-like targets to `project activate` and the other `resolve_global_activation_project` commands (`prefer_project_root=False`) keep their current behaviour"
-  - "When the physical cwd lies inside the resolved working_dir of more than one known project, the deepest (longest) resolved working_dir wins; an exact tie is reported as ambiguous with every candidate listed and command-specific recovery guidance (pass a project target where the command accepts one; otherwise rerun from the chosen project_root, with a project-root-relative DIR for `working-dir set`), and discovery stays unresolved instead of guessing"
-  - "Diagnostics say how discovery resolved: a `resolved_by`/discovery-source value distinguishes the physical walk from the working_dir reverse lookup (naming the matched project) in `dev where`/`dev status`, `project where`, and `project activate --print`; an ambiguous no-target lookup reaches `resolve_global_activation_project` callers with its candidate list intact (not collapsed to `None`)"
+  - "From inside the external work tree, these find the project through one shared discovery function rather than per-caller logic: `taurworks dev where`, `dev status` and the `dev` workflow commands; `project where`; `project working-dir show`/`set` with no target; the commands that resolve through `resolve_global_activation_project` with no target (`project activate --print`, `project env show`/`set`, `project trust set`/`unset`, `legacy inspect`); `project working-dir show NAME` (its current-project name check); and explicit existing-directory targets on the `prefer_project_root=True` branch, which is shared by the path emitters `taurworks project working .`, `project root .`, top-level `taurworks working .`/`taurworks root .`, and by `project working-dir show .`. `project create`'s nested-name guard (`_current_project_name`) keeps the physical walk only. Explicit path-like targets to `project activate` and the other `resolve_global_activation_project` commands (`prefer_project_root=False`) keep their current behaviour"
+  - "When the physical cwd lies inside the resolved working_dir of more than one known project, the deepest (longest) resolved working_dir wins; an exact tie is reported as ambiguous with every candidate listed and command-specific recovery guidance (pass the project name or path to commands that resolve names through the registry; pass the path to the chosen project_root to `working-dir show`; otherwise rerun from the chosen project_root, with a project-root-relative DIR for `working-dir set`). The affected command then fails instead of guessing: an ambiguous lookup never falls back to the cwd or the target path itself (for example, the path emitters never print the external directory)"
+  - "Diagnostics say how discovery resolved: a `resolved_by`/discovery-source value distinguishes the physical walk from the working_dir reverse lookup (naming the matched project) in `dev where`/`dev status`, `project where`, and `project activate --print`; an ambiguous lookup reaches every caller with its candidate list intact, on both the `find_current_project`/`resolve_global_activation_project` path and the `resolve_project_target` path (not collapsed to `None` or to a fallback resolution)"
   - "`taurworks project working-dir set [DIR]` run from inside the external work tree stores the configured `working_dir` value joined with the cwd's path relative to the resolved working_dir target (e.g. `working_dir/sub`), never resolving through the link; the boundary is the last symlink component of the lexical `project_root`/`working_dir` path (e.g. `working_dir` when the configured value is `working_dir/sub` and only `working_dir` is a link): a leading `..` in DIR may only remove components after that symlink component, and a `..` that would remove the symlink component itself is rejected"
   - "A known project whose working_dir is invalid (absolute, `..`, dangling, or looping), missing, or unconfigured is skipped by the reverse lookup without failing discovery; non-symlinked layouts behave exactly as before, and the reverse lookup only runs when the physical walk finds nothing"
   - "`config_model.md`'s \"Working-dir containment and symlinked work trees\" section is updated to describe the reverse lookup and the revised `working-dir set` mapping, replacing the \"run it from project_root instead\" guidance"
@@ -79,19 +79,26 @@ Call sites that discover from the cwd (re-grep before implementing):
 - `dev.py` `gather_dev_where_diagnostics` and the dev-command context
   (`dev.py:78-79`, `dev.py:197-198`)
 - `project_resolution.gather_project_where_diagnostics` (`:13-14`)
-- `project_resolution.py:775` and the `working-dir set` diagnostics
-  (`:1172-1173`)
+- The `working-dir set` diagnostics (`project_resolution.py:1172-1173`)
 - `project_internals.resolve_project_target`'s no-target `CURRENT_PROJECT`
   branch (`:132-147`). Only `project working-dir show` reaches it with no
-  target (`project_resolution.py:1081-1085`). The other callers
-  (`:127` for `init`, `:209`, `:1668`) only ever pass a path-like target.
+  target (`project_resolution.py:1081-1085`). The other callers (`:127`
+  for `init`, `:209`, `:1668`) never pass `None`. `:127` can also receive
+  a bare name, for example `project init foo`.
+- `resolve_project_target`'s current-project name check (`:134`,
+  `:149-156`). It matches a bare-name target against the project found by
+  the physical walk only. So today `project working-dir show NAME` from
+  the external tree falls through to `CHILD_PATH` (`<cwd>/NAME`), while
+  `project working NAME` and `activate --print NAME` resolve through the
+  registry.
 - `resolve_project_target`'s explicit existing-path branch with
   `prefer_project_root=True` (`:165-181`), which walks only the physical
   parents of the target. Two callers reach it:
   - The path emitters (`_resolve_project_path_emitter_target`,
-    `project_resolution.py:1666-1672`). `taurworks project working` takes a
-    required PROJECT argument (`cli.py:614-618`), so `project working .`
-    lands here.
+    `project_resolution.py:1662-1672`). These are `project working`,
+    `project root`, and top-level `taurworks working`/`taurworks root`
+    (`cli.py:109-114`, `cli.py:1207-1210`). They take a required PROJECT
+    argument (`cli.py:614-618`), so `project working .` lands here.
   - `working-dir show` with an explicit path (`:1081-1085`).
   Today `project working .` from inside the external tree doesn't report
   "unresolved": it exits 0 and prints the external directory itself, which
@@ -102,6 +109,9 @@ Call sites that discover from the cwd (re-grep before implementing):
   `project env show`/`set` (`:1262`, `:1360`), `project trust set`/`unset`
   (`:1439`, `:1514`) and `legacy inspect` (`legacy.py:174-176`). It returns
   `dict | None` today, so it can't carry ambiguity candidates.
+- Not affected: `project_resolution._current_project_name` (`:773-790`),
+  the nested same-name guard for `project create`. It keeps the physical
+  walk only, so `project create` behaviour doesn't change.
 - Not affected: path-like targets to `resolve_global_activation_project`
   (`:208-212`) use `prefer_project_root=False`. Today `project activate .`
   from a physical project subdirectory resolves to the subdirectory itself
@@ -168,6 +178,11 @@ Prior art check:
      candidate list.
    - Rows whose working_dir metadata is invalid are skipped silently.
      `classify_project_entry` already catches `ProjectConfigError`.
+   - Ambiguity needs a carrier on the `resolve_project_target` path too. Add
+     a `candidates` field to `project_internals.ProjectResolution`
+     (defaulting to an empty tuple, so existing constructors are
+     unaffected), plus an ambiguous `ResolutionReason` value (for example
+     `WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS`).
 2. **Callers.** Route every cwd-based call site in Problem / Context through
    the shared function. For `resolve_project_target`'s no-target branch,
    pass in the discovered root, or add a hook, so `project_internals` stays
@@ -176,9 +191,19 @@ Prior art check:
    - The explicit existing-path branch with `prefer_project_root=True`
      changes too. When the existing target has no physical `.taurworks/`
      ancestor, apply the reverse lookup to the resolved target before
-     falling back to today's `EXISTING_PATH` result. This makes
-     `taurworks project working .` and `project working-dir show .` work
-     from inside the external tree.
+     falling back to today's `EXISTING_PATH` result. This makes the path
+     emitters (`project working .`, `project root .`, `taurworks working
+     .`, `taurworks root .`) and `project working-dir show .` work from
+     inside the external tree.
+   - When the lookup is ambiguous, `resolve_project_target` returns the
+     ambiguous reason and candidates; it does **not** fall back to
+     `EXISTING_PATH` or `DEFAULT_CURRENT_DIRECTORY`. Its callers (the path
+     emitters and `working-dir show`) then fail (`ok=False`, non-zero exit,
+     nothing printed to stdout by the path emitters), reporting the
+     candidates and the guidance from Required Change 3.
+   - The hook that supplies the discovered root to `resolve_project_target`
+     also feeds its current-project name check (`:134`, `:149-156`). That
+     makes `project working-dir show NAME` work from the external tree.
    - The `prefer_project_root=False` branch is unchanged. That includes
      path-like targets to `resolve_global_activation_project` (for example
      `project activate .`), so explicit-path precedence stays as it is.
@@ -197,12 +222,18 @@ Prior art check:
      names the matched project.
    - `project activate --print` keeps reporting `resolved_by`.
    - An ambiguous result lists the candidate project roots, with guidance
-     specific to the command. Commands that accept a project target say to
-     pass one: `project activate`, `project env show`/`set`, `project trust
-     set`/`unset`, `legacy inspect`, `project working` and `working-dir
-     show`. Commands that don't (`dev ...`, `working-dir set`, whose argument
-     is DIR, not a project) say to rerun from the chosen `project_root`,
-     with a project-root-relative DIR for `set`.
+     that depends on what the command can actually accept:
+     - Commands that resolve a project name through the registry and
+       workspace say to pass the project name or the path to its
+       `project_root`: `project activate`, `project env show`/`set`,
+       `project trust set`/`unset`, `legacy inspect`, `project working`,
+       `project root`, and `taurworks working`/`taurworks root`.
+     - `project working-dir show` resolves bare names relative to the cwd,
+       not through the registry, so it says to pass the path to the chosen
+       `project_root`.
+     - Commands that take no project target (`dev ...`, `project where`,
+       and `working-dir set`, whose argument is DIR) say to rerun from the
+       chosen `project_root`, with a project-root-relative DIR for `set`.
 4. **`working-dir set` mapping.** In `relative_working_dir`, or a wrapper
    used by the `set` diagnostics: when the physical cwd is not under the
    resolved `project_root` but is inside the project's resolved configured
@@ -251,19 +282,29 @@ Prior art check:
      unconfigured workspace still works with registry-only lookup.
    - (h) An end-to-end `tw activate` followed by `taurworks dev where` finds
      the project.
-   - (i) `taurworks project working .` and `project working-dir show .`,
-     run from a subdirectory of the external target, resolve the project
+   - (i) `taurworks project working .`, `project root .`, top-level
+     `taurworks working .` and `project working-dir show .`, run from a
+     subdirectory of the external target, resolve the project
      through the reverse lookup. Running from the target's root can't tell
      before from after, because the working_dir resolves to that same path.
      This is a regression test for the explicit-path branch. Also check
      that `project activate .` from a physical project subdirectory still
      resolves to that subdirectory (`existing_path`), unchanged.
-   - (j) An ambiguous result from `dev where` and from `working-dir set`
-     gives the "rerun from project_root" guidance, not "pass a target".
+   - (j) An ambiguous result from `dev where`, `project where` and
+     `working-dir set` gives the "rerun from project_root" guidance, not
+     "pass a target".
    - (k) An ambiguous no-target lookup through
      `resolve_global_activation_project` (`project activate --print`, and
      one of env, trust or legacy inspect) lists the candidates and says to
-     pass a target.
+     pass the project name or path.
+   - (l) An ambiguous lookup on the `resolve_project_target` path fails:
+     `project working .` exits non-zero with nothing on stdout, never
+     printing the external directory, and `project working-dir show` with
+     no target fails. Each lists the candidates; `working-dir show`
+     recommends passing the path to `project_root`.
+   - (m) `project working-dir show NAME`, run from inside the external
+     target, resolves the named current project (not `CHILD_PATH`), and
+     `project create NAME`'s nested-name guard behaves as before.
 7. **Docs.** Update `config_model.md`'s "Working-dir containment and
    symlinked work trees" section, replacing the "run it from project_root
    instead" note. Flip the status line of the new "Discovery from inside a
