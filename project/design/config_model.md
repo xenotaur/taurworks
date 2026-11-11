@@ -227,7 +227,9 @@ path:
     discovery does not find the project at all (unchanged behavior). The
     logical `$PWD` is deliberately not consulted, since honoring it would
     change project discovery semantics; run `taurworks project working-dir
-    set working_dir` from `project_root` instead.
+    set working_dir` from `project_root` instead. (Planned change: see
+    "Discovery from inside a symlinked work tree" below, which adds a
+    working_dir reverse lookup and maps `set` through the link.)
 - The joined path (`project_root` + `working_dir`) is no longer required to
   stay under `project_root` *after following symlinks*. A `working_dir`
   component may itself be a symlink whose real target lies outside
@@ -291,6 +293,95 @@ matching its target's basename) was considered and rejected as a check tied
 to this change: it would be noisy for legitimate git-worktree layouts where
 a workstream/worktree directory is deliberately named differently from the
 project it belongs to.
+
+### Discovery from inside a symlinked work tree
+
+Implementation status: not yet implemented; planned via `WI-WORKING-DIR-REVERSE-DISCOVERY-0001`.
+
+With a symlinked `working_dir` (see the section above), `tw activate` `cd`s
+to the link's resolved target, outside `project_root`. Today every
+cwd-based command run from there reports `project_root: unresolved`:
+`taurworks dev where`/`status`/`test`, `project where`, and with no target
+`project activate --print`, `project env`/`trust`, `legacy inspect` and
+`working-dir show`/`set`. Explicit path targets on the path-emitter branch,
+such as `taurworks project working .`, don't fail but silently resolve to the
+external directory itself rather than the project. The cause is that discovery walks only the physical cwd's parents
+for `.taurworks/`. A terminal, IDE, or agent session opened directly in the
+external tree (including git worktrees created under it) fails the same
+way.
+
+Decision: discovery from the cwd, or from an explicit existing-directory
+target on the `prefer_project_root` branch (the path emitters `project
+working`/`root` and `taurworks working`/`root`, and `working-dir show
+PATH`), becomes an ordered chain with one shared implementation. Path-like
+targets to `project activate` and the other activation-resolution commands
+keep their current explicit-path behaviour. So does `project create`'s
+nested-name guard.
+
+1. **Physical walk.** Unchanged and always first. The nearest `.taurworks/`
+   in the physical cwd or its physical parents wins.
+2. **Working-dir reverse lookup.** Runs only when step 1 finds nothing.
+   - Among the already-known projects (registered projects plus immediate
+     children of the workspace root, the same set `taurworks project list`
+     shows), select the one whose resolved `paths.working_dir` contains the
+     physical cwd.
+   - The deepest resolved working_dir wins. An exact tie, two projects
+     sharing one target, is reported as ambiguous with the candidates listed,
+     and discovery stays unresolved. It never guesses. The recovery guidance
+     depends on what the command accepts. Commands that resolve project
+     names through the registry (`project activate`, `project env`/`trust`,
+     `legacy inspect`, `project working`/`root`, `taurworks working`/`root`)
+     say to pass the project name or path. `working-dir show`, whose bare
+     names resolve relative to the cwd, says to pass the path to the chosen
+     `project_root`. Commands with no project target (`dev ...`,
+     `project where`, `working-dir set`) say to rerun from the chosen
+     `project_root`, with a project-root-relative DIR for `set`. An
+     ambiguous lookup makes the command fail. It never falls back to the
+     cwd or the target path itself, so a path emitter never prints the
+     external directory.
+   - Projects whose working_dir is unconfigured, missing, or invalid are
+     skipped.
+
+Diagnostics report which step resolved the project (`resolved_by` /
+discovery source, naming the matched project for the reverse lookup). This
+keeps the fallback inspectable rather than hidden, as AGENTS.md's "avoid
+hidden magic in repo discovery" requires. The lookup reads one config file
+per known project, and only on fallback, so non-symlinked layouts pay
+nothing. It never scans the filesystem recursively.
+
+`taurworks project working-dir set [DIR]` run from inside the external tree
+maps the cwd back through the link. The prefix is the configured
+`working_dir` value plus the cwd's path relative to the resolved target, so
+running it from `<target>/sub` stores `working_dir/sub`. `DIR` then applies
+with the rules above. The boundary is the last symlink component of the
+lexical `project_root`/`working_dir` path. With configured
+`working_dir/sub`, where only `working_dir` is a link, the boundary is
+`working_dir`. Everything after it is symlink-free, so a leading `..` may
+remove those components: from `<target>/sub`, `set ..` stores
+`working_dir`. A `..` that would remove the symlink component itself, or
+anything before it, is rejected, because that is exactly where a lexical
+and a physical step up disagree.
+This replaces the earlier "run it from `project_root` instead" guidance.
+
+Rejected or deferred alternatives:
+- **A logical `$PWD` walk (deferred).** It would be validated by the POSIX
+  `pwd -L` rule: an absolute path naming the current directory, with no `.`
+  or `..` components. But it only helps when the user navigated through the
+  link. It fails right after `tw activate`, which `cd`s to the physical
+  path, and in sessions opened at physical paths, so it would be a second
+  mechanism with little added coverage. It remains a candidate if symlinks
+  other than `working_dir` inside a project need discovery later.
+- **Exporting `TAURWORKS_PROJECT_ROOT` from `tw activate` (rejected).**
+  Shell state that goes stale on `cd` and leaks into subshells is hidden
+  discovery magic.
+- **Making `tw activate` `cd` to the logical `project_root/working_dir`
+  path (not adopted).** It isn't needed once the reverse lookup exists, and
+  it would be a visible behaviour change.
+
+A synced project config can't steer this lookup by itself. The config names
+only a relative path, and the symlink that makes the target external is a
+machine-local filesystem detail. The lookup only decides which known
+project the cwd belongs to; it never executes anything.
 
 ## Repo-local workflow configuration
 Use `taurdev.toml` as the primary repo-local workflow configuration surface.
