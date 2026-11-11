@@ -8,6 +8,7 @@ from unittest import mock
 from helpers import assert_same_path
 
 from taurworks import global_config
+from taurworks import project_internals
 from taurworks import project_resolution
 
 
@@ -536,6 +537,45 @@ class GlobalActivationResolutionTest(unittest.TestCase):
         names = [project["name"] for project in listing["projects"]]
         self.assertIn("Parent", names)
         self.assertNotIn("Nested", names)
+
+
+class AmbiguousActivationResolutionTest(unittest.TestCase):
+    """Ambiguity reaches activation-resolution callers with its candidates."""
+
+    def setUp(self):
+        self._temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._temp.cleanup)
+        self.cwd = pathlib.Path(self._temp.name).resolve()
+        self.candidates = (self.cwd.parent / "A", self.cwd.parent / "B")
+        ambiguous = project_internals.PathDiscovery(
+            root=None,
+            source=project_internals.DiscoverySource.WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS,
+            candidates=self.candidates,
+        )
+        patcher = mock.patch.object(
+            project_resolution.manager,
+            "find_current_project",
+            return_value=(None, ambiguous),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_no_target_resolution_is_ambiguous_with_candidates(self):
+        resolution, project = project_resolution.resolve_global_activation_project(
+            None, self.cwd
+        )
+        self.assertTrue(resolution.ambiguous)
+        self.assertEqual(self.candidates, resolution.candidates)
+        self.assertEqual("ambiguous", project["source"])
+
+    def test_explicit_target_falls_through_an_ambiguous_cwd(self):
+        resolution, _project = project_resolution.resolve_global_activation_project(
+            str(self.cwd), self.cwd
+        )
+        self.assertFalse(resolution.ambiguous)
+        self.assertEqual(
+            project_internals.ResolutionReason.EXISTING_PATH, resolution.resolved_by
+        )
 
 
 class ProjectEnvDiagnosticsTest(unittest.TestCase):

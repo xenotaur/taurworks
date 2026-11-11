@@ -11,17 +11,42 @@ from taurworks import project_internals
 def gather_project_where_diagnostics() -> dict[str, str | bool | None]:
     """Collect read-only diagnostics for `taurworks project where`."""
     cwd = pathlib.Path.cwd().resolve()
-    project_root = project_internals.find_project_root_candidate(cwd)
+    discovery = manager.find_project_root_for_path(cwd)
+    project_root = discovery.root
     config_candidate = project_internals.config_path_candidate().resolve()
 
     metadata_found = project_root is not None
 
-    if metadata_found:
+    if discovery.source is project_internals.DiscoverySource.PHYSICAL_WALK:
         discovery_source = "filesystem metadata (.taurworks directory)"
-        limitation = "No workspace registry resolution is implemented yet."
+        limitation = (
+            "Found by walking the physical current directory and its parents; "
+            "the working_dir reverse lookup was not needed."
+        )
+    elif (
+        discovery.source is project_internals.DiscoverySource.WORKING_DIR_REVERSE_LOOKUP
+    ):
+        discovery_source = (
+            "working_dir reverse lookup (project "
+            f"{discovery.matched_project}: current directory is inside its "
+            "resolved working_dir)"
+        )
+        limitation = (
+            "No `.taurworks` metadata above the physical current directory; "
+            "matched a registered/workspace project by its resolved working_dir."
+        )
+    elif discovery.ambiguous:
+        discovery_source = "working_dir reverse lookup (ambiguous)"
+        limitation = project_internals.ambiguous_discovery_message(
+            discovery.candidates, "rerun"
+        )
     else:
         discovery_source = "none"
-        limitation = "No `.taurworks` metadata directory found from current directory to filesystem root."
+        limitation = (
+            "No `.taurworks` metadata directory found from current directory to "
+            "filesystem root, and no registered/workspace project's resolved "
+            "working_dir contains it."
+        )
 
     return {
         "cwd": str(cwd),
@@ -154,6 +179,19 @@ def _resolution_reason_for_project(
     return project_internals.ResolutionReason.WORKSPACE_ONLY_PROJECT
 
 
+def _ambiguity_message_or(
+    resolution: project_internals.ProjectResolution,
+    guidance_kind: str,
+    default: str,
+) -> str:
+    """Return the ambiguity guidance for an ambiguous resolution, else default."""
+    if resolution.ambiguous:
+        return project_internals.ambiguous_discovery_message(
+            resolution.candidates, guidance_kind
+        )
+    return default
+
+
 def resolve_global_activation_project(
     path_or_name: str | None,
     cwd: pathlib.Path,
@@ -184,7 +222,23 @@ def resolve_global_activation_project(
                 workspace_project,
             )
 
-    current_project = manager.find_current_project(cwd)
+    current_project, current_discovery = manager.find_current_project(cwd)
+    if current_project is None and current_discovery.ambiguous and path_or_name is None:
+        placeholder = cwd.resolve()
+        project = manager.classify_project_entry(placeholder)
+        row = dict(project)
+        row["source"] = "ambiguous"
+        row["registered"] = False
+        row["registered_name"] = "none"
+        return (
+            project_internals.ProjectResolution(
+                input=display_input,
+                project_root=placeholder,
+                resolved_by=project_internals.ResolutionReason.WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS,
+                candidates=current_discovery.candidates,
+            ),
+            row,
+        )
     if current_project is not None:
         current_root = pathlib.Path(str(current_project["path"]))
         current_config_name = project_internals.project_name_from_config(current_root)
@@ -194,6 +248,11 @@ def resolve_global_activation_project(
             current_root.name,
         }:
             reason = project_internals.ResolutionReason.CURRENT_PROJECT
+            if (
+                current_discovery.source
+                is project_internals.DiscoverySource.WORKING_DIR_REVERSE_LOOKUP
+            ):
+                reason = project_internals.ResolutionReason.WORKING_DIR_REVERSE_LOOKUP
             if path_or_name is not None:
                 reason = project_internals.ResolutionReason.CURRENT_PROJECT_NAME
             return (
@@ -1084,9 +1143,10 @@ def gather_project_working_dir_show_diagnostics(
         path_or_name,
         cwd,
         prefer_project_root=True,
+        discover=manager.find_project_root_for_path,
     )
     project_root = resolution.project_root
-    if not (project_root / ".taurworks").is_dir():
+    if resolution.ambiguous or not (project_root / ".taurworks").is_dir():
         return {
             "ok": False,
             "cwd": str(cwd),
@@ -1096,7 +1156,11 @@ def gather_project_working_dir_show_diagnostics(
             "config_path": "unresolved",
             "working_dir_configured": False,
             "working_dir": "",
-            "message": "No Taurworks project metadata found for the resolved target.",
+            "message": _ambiguity_message_or(
+                resolution,
+                "path",
+                "No Taurworks project metadata found for the resolved target.",
+            ),
         }
 
     config_path = project_internals.project_config_path(project_root)
@@ -1170,8 +1234,18 @@ def gather_project_working_dir_set_diagnostics(
 ) -> dict[str, str | bool | list[str]]:
     """Set working-directory metadata for the current project context."""
     cwd = pathlib.Path.cwd().resolve()
-    project_root = project_internals.find_project_root_candidate(cwd)
+    discovery = manager.find_project_root_for_path(cwd)
+    project_root = discovery.root
     if project_root is None:
+        message = (
+            "No Taurworks project root found from current directory to "
+            "filesystem root, and no registered/workspace project's resolved "
+            "working_dir contains it."
+        )
+        if discovery.ambiguous:
+            message = project_internals.ambiguous_discovery_message(
+                discovery.candidates, "rerun"
+            )
         return {
             "ok": False,
             "cwd": str(cwd),
@@ -1181,7 +1255,7 @@ def gather_project_working_dir_set_diagnostics(
             "previous_working_dir": "",
             "working_dir": "",
             "repairs": [],
-            "message": "No Taurworks project root found from current directory to filesystem root.",
+            "message": message,
         }
 
     config_path = project_internals.project_config_path(project_root)
@@ -1272,7 +1346,11 @@ def gather_project_env_show_diagnostics(
             "environment_configured": False,
             "environment_type": "",
             "environment_name": "",
-            "message": "No Taurworks project metadata found for the resolved target.",
+            "message": _ambiguity_message_or(
+                resolution,
+                "target",
+                "No Taurworks project metadata found for the resolved target.",
+            ),
         }
 
     config_path = project_internals.project_config_path(project_root)
@@ -1369,7 +1447,11 @@ def gather_project_env_set_diagnostics(
             "config_path": "unresolved",
             "previous_environment": "none",
             "environment_name": "none",
-            "message": "No Taurworks project metadata found for the resolved target.",
+            "message": _ambiguity_message_or(
+                resolution,
+                "target",
+                "No Taurworks project metadata found for the resolved target.",
+            ),
         }
 
     config_path = project_internals.project_config_path(project_root)
@@ -1455,6 +1537,12 @@ def gather_project_trust_set_diagnostics(
         "message": "",
     }
 
+    if resolution.ambiguous:
+        base["message"] = project_internals.ambiguous_discovery_message(
+            resolution.candidates, "target"
+        )
+        return base
+
     if not legacy_setup_exists:
         base["message"] = (
             f"No legacy setup script found for project {project_name!r} at "
@@ -1525,6 +1613,12 @@ def gather_project_trust_unset_diagnostics(
         "removed_digest": "none",
         "message": "",
     }
+
+    if resolution.ambiguous:
+        base["message"] = project_internals.ambiguous_discovery_message(
+            resolution.candidates, "target"
+        )
+        return base
 
     try:
         resolved = global_config.config_path()
@@ -1669,6 +1763,7 @@ def _resolve_project_path_emitter_target(
             path_or_name,
             cwd,
             prefer_project_root=True,
+            discover=manager.find_project_root_for_path,
         )
         project = manager.classify_project_entry(resolution.project_root)
         row = dict(project)
@@ -1701,6 +1796,14 @@ def gather_project_path_diagnostics(
         "path": str(project_root),
         "message": "Resolved project root.",
     }
+
+    if resolution.ambiguous:
+        base_diagnostics["ok"] = False
+        base_diagnostics["path"] = ""
+        base_diagnostics["message"] = project_internals.ambiguous_discovery_message(
+            resolution.candidates, "target"
+        )
+        return base_diagnostics
 
     if base_diagnostics["source"] == "unresolved":
         base_diagnostics["ok"] = False
@@ -1885,6 +1988,13 @@ def gather_project_activate_print_diagnostics(
         "read_only": True,
     }
     _apply_legacy_trust_diagnostics(base_diagnostics)
+
+    if resolution.ambiguous:
+        base_diagnostics["ok"] = False
+        base_diagnostics["guidance"] = project_internals.ambiguous_discovery_message(
+            resolution.candidates, "target"
+        )
+        return base_diagnostics
 
     if base_diagnostics["source"] == "unresolved":
         base_diagnostics["ok"] = False

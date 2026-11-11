@@ -264,11 +264,15 @@ def _handle_dev_command(args):
     if args.dev_command == "where":
         diagnostics = dev.gather_dev_where_diagnostics()
         print(dev.format_dev_where_output(diagnostics))
+        if not diagnostics["ok"]:
+            raise SystemExit(1)
         return
 
     if args.dev_command == "status":
         diagnostics = dev.gather_dev_status_diagnostics()
         print(dev.format_dev_status_output(diagnostics))
+        if not diagnostics["ok"]:
+            raise SystemExit(1)
         return
 
     if args.dev_command in dev.DEV_V1_COMMANDS:

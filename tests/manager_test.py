@@ -1,5 +1,6 @@
 import contextlib
 import io
+import os
 import pathlib
 import subprocess
 import tempfile
@@ -360,6 +361,146 @@ class ManagerModuleTest(unittest.TestCase):
         self.assertEqual(status["status"], manager.PROJECT_STATUS_LEGACY_ADMIN)
         self.assertEqual(before_paths, after_paths)
         self.assertFalse(sentinel.exists())
+
+
+def _write_project(
+    project_root: pathlib.Path, name: str, working_dir: str | None
+) -> None:
+    (project_root / ".taurworks").mkdir(parents=True)
+    text = f'schema_version = 1\n\n[project]\nname = "{name}"\n'
+    if working_dir is not None:
+        text += f'\n[paths]\nworking_dir = "{working_dir}"\n'
+    (project_root / ".taurworks" / "config.toml").write_text(text, encoding="utf-8")
+
+
+class ReverseDiscoveryTest(unittest.TestCase):
+    """`find_project_root_for_path`: physical walk, then working_dir lookup."""
+
+    def setUp(self):
+        self._temp = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self._temp.name).resolve()
+        self.workspace = self.root / "Workspace"
+        self.workspace.mkdir()
+        self.tempspace = self.root / "Tempspace"
+        self.tempspace.mkdir()
+        self.xdg = self.root / "xdg"
+        (self.xdg / "taurworks").mkdir(parents=True)
+        self.write_global_config({})
+        env = {
+            "HOME": str(self.root),
+            "XDG_CONFIG_HOME": str(self.xdg),
+            "TAURWORKS_WORKSPACE": str(self.workspace),
+        }
+        patcher = unittest.mock.patch.dict(os.environ, env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(self._temp.cleanup)
+
+    def write_global_config(self, registered: dict[str, pathlib.Path]) -> None:
+        text = "schema_version = 1\n"
+        for name, root in registered.items():
+            text += f'\n[projects.{name}]\nroot = "{root}"\n'
+        (self.xdg / "taurworks" / "config.toml").write_text(text, encoding="utf-8")
+
+    def make_linked_project(
+        self,
+        project_root: pathlib.Path,
+        target: pathlib.Path,
+        link_name: str = "working_dir",
+    ) -> None:
+        _write_project(project_root, project_root.name, link_name)
+        target.mkdir(parents=True, exist_ok=True)
+        (project_root / link_name).symlink_to(target, target_is_directory=True)
+
+    def test_reverse_lookup_finds_workspace_project_from_target_and_subdir(self):
+        target = self.tempspace / "Proj" / "working_dir"
+        self.make_linked_project(self.workspace / "Proj", target)
+        (target / "sub").mkdir()
+        for start in (target, target / "sub"):
+            with self.subTest(start=start):
+                discovery = manager.find_project_root_for_path(start)
+                self.assertEqual(self.workspace / "Proj", discovery.root)
+                self.assertEqual(
+                    project_internals.DiscoverySource.WORKING_DIR_REVERSE_LOOKUP,
+                    discovery.source,
+                )
+                self.assertEqual("Proj", discovery.matched_project)
+
+    def test_physical_walk_wins_over_reverse_lookup(self):
+        target = self.tempspace / "Proj" / "working_dir"
+        self.make_linked_project(self.workspace / "Proj", target)
+        _write_project(self.tempspace / "Proj", "Shadow", None)
+        discovery = manager.find_project_root_for_path(target)
+        self.assertEqual(self.tempspace / "Proj", discovery.root)
+        self.assertEqual(
+            project_internals.DiscoverySource.PHYSICAL_WALK, discovery.source
+        )
+
+    def test_deepest_resolved_working_dir_wins(self):
+        outer = self.tempspace / "Shared"
+        inner = outer / "inner"
+        self.make_linked_project(self.workspace / "Outer", outer)
+        self.make_linked_project(self.workspace / "Inner", inner)
+        (inner / "x").mkdir()
+        self.assertEqual(
+            self.workspace / "Inner",
+            manager.find_project_root_for_path(inner / "x").root,
+        )
+        self.assertEqual(
+            self.workspace / "Outer", manager.find_project_root_for_path(outer).root
+        )
+
+    def test_shared_target_is_ambiguous_and_never_guessed(self):
+        target = self.tempspace / "Shared"
+        self.make_linked_project(self.workspace / "Alpha", target)
+        self.make_linked_project(self.workspace / "Beta", target)
+        discovery = manager.find_project_root_for_path(target)
+        self.assertIsNone(discovery.root)
+        self.assertTrue(discovery.ambiguous)
+        self.assertEqual(
+            {self.workspace / "Alpha", self.workspace / "Beta"},
+            set(discovery.candidates),
+        )
+        row, current = manager.find_current_project(target)
+        self.assertIsNone(row)
+        self.assertTrue(current.ambiguous)
+
+    def test_invalid_working_dir_projects_are_skipped(self):
+        target = self.tempspace / "Proj" / "working_dir"
+        self.make_linked_project(self.workspace / "Proj", target)
+        broken = self.workspace / "Broken"
+        _write_project(broken, "Broken", "working_dir")
+        (broken / "working_dir").symlink_to(
+            self.root / "gone", target_is_directory=True
+        )
+        looping = self.workspace / "Looping"
+        _write_project(looping, "Looping", "loop")
+        (looping / "loop").symlink_to(looping / "loop")
+        discovery = manager.find_project_root_for_path(target)
+        self.assertEqual(self.workspace / "Proj", discovery.root)
+
+    def test_registered_project_found_without_workspace(self):
+        elsewhere = self.root / "Elsewhere" / "Reg"
+        target = self.tempspace / "Reg" / "working_dir"
+        self.make_linked_project(elsewhere, target)
+        self.write_global_config({"Reg": elsewhere})
+        with unittest.mock.patch.dict(
+            os.environ, {"TAURWORKS_WORKSPACE": str(self.root / "no-such-ws")}
+        ):
+            row, discovery = manager.find_current_project(target)
+        self.assertEqual(elsewhere, discovery.root)
+        self.assertIsNotNone(row)
+        self.assertEqual(str(elsewhere), row["path"])
+
+    def test_unrelated_directory_stays_unresolved(self):
+        self.make_linked_project(
+            self.workspace / "Proj", self.tempspace / "Proj" / "working_dir"
+        )
+        unrelated = self.root / "unrelated"
+        unrelated.mkdir()
+        discovery = manager.find_project_root_for_path(unrelated)
+        self.assertIsNone(discovery.root)
+        self.assertEqual(project_internals.DiscoverySource.NONE, discovery.source)
 
 
 if __name__ == "__main__":

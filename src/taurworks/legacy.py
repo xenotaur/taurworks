@@ -193,6 +193,13 @@ def gather_legacy_inspect_diagnostics(path_or_name: str | None) -> dict[str, Any
         "message": "",
     }
 
+    if resolution.ambiguous:
+        base["ok"] = False
+        base["message"] = project_internals.ambiguous_discovery_message(
+            resolution.candidates, "target"
+        )
+        return base
+
     if not setup_exists:
         base["ok"] = False
         base["message"] = f"No legacy setup script found at {setup_path}."

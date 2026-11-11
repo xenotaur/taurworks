@@ -461,18 +461,78 @@ def find_workspace_project(name: str) -> dict[str, object] | None:
     return row
 
 
-def find_current_project(cwd: pathlib.Path | None = None) -> dict[str, object] | None:
-    """Return the enclosing initialized project for current-directory fallback."""
+def find_project_root_for_path(
+    start: pathlib.Path,
+) -> project_internals.PathDiscovery:
+    """Find the project that contains `start` (see config_model.md).
+
+    1. Physical walk: the nearest `.taurworks/` in `start` or its physical
+       parents, exactly as before. It always wins when it finds a project.
+    2. Working-dir reverse lookup, only when step 1 finds nothing: among the
+       already-known projects (registered projects plus immediate workspace
+       children, as `taurworks project list` shows), select the one whose
+       resolved `paths.working_dir` equals or contains `start`. The deepest
+       resolved working_dir wins; an exact tie is returned as ambiguous with
+       its candidates, never guessed. Projects with an unconfigured, missing,
+       or invalid working_dir are skipped. Nothing is scanned recursively.
+    """
+    resolved_start = start.resolve()
+    physical = project_internals.physical_discovery(resolved_start)
+    if physical.root is not None:
+        return physical
+
+    best_depth = -1
+    matches: list[dict[str, object]] = []
+    for project in gather_global_projects():
+        if not project.get("working_dir_exists"):
+            continue
+        target_text = str(project.get("resolved_working_dir", "none"))
+        if target_text == "none":
+            continue
+        target = pathlib.Path(target_text)
+        if resolved_start != target and target not in resolved_start.parents:
+            continue
+        depth = len(target.parts)
+        if depth > best_depth:
+            best_depth = depth
+            matches = [project]
+        elif depth == best_depth:
+            matches.append(project)
+
+    if not matches:
+        return physical
+    if len(matches) > 1:
+        return project_internals.PathDiscovery(
+            root=None,
+            source=project_internals.DiscoverySource.WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS,
+            candidates=tuple(pathlib.Path(str(match["path"])) for match in matches),
+        )
+    match = matches[0]
+    return project_internals.PathDiscovery(
+        root=pathlib.Path(str(match["path"])),
+        source=project_internals.DiscoverySource.WORKING_DIR_REVERSE_LOOKUP,
+        matched_project=str(match["name"]),
+    )
+
+
+def find_current_project(
+    cwd: pathlib.Path | None = None,
+) -> tuple[dict[str, object] | None, project_internals.PathDiscovery]:
+    """Return the project containing the cwd, with how it was discovered.
+
+    The row is None when nothing was found or the lookup was ambiguous; the
+    `PathDiscovery` carries the source and any ambiguity candidates.
+    """
     search_cwd = cwd if cwd is not None else pathlib.Path.cwd()
-    project_root = project_internals.find_project_root_candidate(search_cwd.resolve())
-    if project_root is None:
-        return None
-    project = classify_project_entry(project_root)
+    discovery = find_project_root_for_path(search_cwd)
+    if discovery.root is None:
+        return None, discovery
+    project = classify_project_entry(discovery.root)
     row = dict(project)
     row["source"] = PROJECT_SOURCE_CURRENT
     row["registered"] = False
     row["registered_name"] = "none"
-    return row
+    return row, discovery
 
 
 def list_projects(show_details=False):

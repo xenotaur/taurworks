@@ -222,14 +222,11 @@ path:
     working_dir` run from `project_root` stores `working_dir` even when that
     entry is a symlink to an external work tree.
   - With no `DIR`, the stored value is the physical cwd relative to the
-    resolved `project_root`. When the shell's cwd is *inside* the external
-    work tree, the physical cwd is outside `project_root`, so project
-    discovery does not find the project at all (unchanged behavior). The
-    logical `$PWD` is deliberately not consulted, since honoring it would
-    change project discovery semantics; run `taurworks project working-dir
-    set working_dir` from `project_root` instead. (Planned change: see
-    "Discovery from inside a symlinked work tree" below, which adds a
-    working_dir reverse lookup and maps `set` through the link.)
+    resolved `project_root`. The logical `$PWD` is deliberately not
+    consulted. When the cwd is *inside* the external work tree, the physical
+    cwd is outside `project_root`. Discovery then finds the project through
+    the working_dir reverse lookup, and `set` maps the cwd back through the
+    link (see "Discovery from inside a symlinked work tree" below).
 - The joined path (`project_root` + `working_dir`) is no longer required to
   stay under `project_root` *after following symlinks*. A `working_dir`
   component may itself be a symlink whose real target lies outside
@@ -296,7 +293,7 @@ project it belongs to.
 
 ### Discovery from inside a symlinked work tree
 
-Implementation status: not yet implemented; planned via `WI-WORKING-DIR-REVERSE-DISCOVERY-0001`.
+Implementation status: implemented via `WI-WORKING-DIR-REVERSE-DISCOVERY-0001` (`manager.find_project_root_for_path`, the `discover` hook on `project_internals.resolve_project_target`, and `manager.find_current_project`'s discovery result). Behaviour on an ambiguous lookup: `taurworks dev where`/`dev status` print their diagnostics with no work-directory guess and exit 1; the `dev` workflow commands (`dev test` and the others) refuse to run rather than fall back to `scripts/<name>`; every other affected command fails with the guidance below.
 
 With a symlinked `working_dir` (see the section above), `tw activate` `cd`s
 to the link's resolved target, outside `project_root`. Today every
