@@ -301,15 +301,20 @@ Implementation status: not yet implemented; planned via `WI-WORKING-DIR-REVERSE-
 With a symlinked `working_dir` (see the section above), `tw activate` `cd`s
 to the link's resolved target, outside `project_root`. Today every
 cwd-based command run from there reports `project_root: unresolved`:
-`taurworks dev where`/`status`/`test`, `project where`, `project activate
---print` and `working-dir show`/`set` with no explicit target, and explicit
-existing-directory targets such as `taurworks project working .`. The cause is that discovery walks only the physical cwd's parents
+`taurworks dev where`/`status`/`test`, `project where`, and with no target
+`project activate --print`, `project env`/`trust`, `legacy inspect` and
+`working-dir show`/`set`. Explicit path targets on the path-emitter branch,
+such as `taurworks project working .`, don't fail but silently resolve to the
+external directory itself rather than the project. The cause is that discovery walks only the physical cwd's parents
 for `.taurworks/`. A terminal, IDE, or agent session opened directly in the
 external tree (including git worktrees created under it) fails the same
 way.
 
 Decision: discovery from the cwd, or from an explicit existing-directory
-target, becomes an ordered chain with one shared implementation:
+target on the `prefer_project_root` path-emitter branch (`project working
+PATH`, `working-dir show PATH`), becomes an ordered chain with one shared
+implementation. Path-like targets to `project activate` and the other
+activation-resolution commands keep their current explicit-path behaviour.
 
 1. **Physical walk.** Unchanged and always first. The nearest `.taurworks/`
    in the physical cwd or its physical parents wins.
@@ -322,7 +327,8 @@ target, becomes an ordered chain with one shared implementation:
      sharing one target, is reported as ambiguous with the candidates listed,
      and discovery stays unresolved. It never guesses. The recovery guidance
      depends on the command: pass a project target where the command accepts
-     one (`project activate`, `project working`, `working-dir show`).
+     one (`project activate`, `project env`/`trust`, `legacy inspect`,
+     `project working`, `working-dir show`).
      Otherwise (`dev ...`, `working-dir set`) rerun from the chosen
      `project_root`, with a project-root-relative DIR for `set`.
    - Projects whose working_dir is unconfigured, missing, or invalid are
