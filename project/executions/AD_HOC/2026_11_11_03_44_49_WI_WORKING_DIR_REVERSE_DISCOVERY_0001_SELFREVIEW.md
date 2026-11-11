@@ -3,8 +3,8 @@ execution_id: 2026_11_11_03_44_49_WI_WORKING_DIR_REVERSE_DISCOVERY_0001_SELFREVI
 prompt_id: PROMPT(AD_HOC:WI_WORKING_DIR_REVERSE_DISCOVERY_0001_SELFREVIEW)[2026-11-11T03:44:49+00:00]
 work_item: AD_HOC
 status: in_progress
-rerun_of:
-pr:
+rerun_of: 2026_11_11_03_45_54_WI_WORKING_DIR_REVERSE_DISCOVERY_0001
+pr: https://github.com/xenotaur/taurworks/pull/119
 commit:
 created_at: 2026-11-11T03:44:49+00:00
 agent: claude_app
