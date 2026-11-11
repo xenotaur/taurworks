@@ -293,16 +293,18 @@ project it belongs to.
 
 ### Discovery from inside a symlinked work tree
 
-Implementation status: implemented via `WI-WORKING-DIR-REVERSE-DISCOVERY-0001` (`manager.find_project_root_for_path`, the `discover` hook on `project_internals.resolve_project_target`, and `manager.find_current_project`'s discovery result). Behaviour on an ambiguous lookup: `taurworks dev where`/`dev status` print their diagnostics with no work-directory guess and exit 1; the `dev` workflow commands (`dev test` and the others) refuse to run rather than fall back to `scripts/<name>`; every other affected command fails with the guidance below.
+Implementation status: implemented via `WI-WORKING-DIR-REVERSE-DISCOVERY-0001` (`manager.find_project_root_for_path`, the `discover` hook on `project_internals.resolve_project_target`, and `manager.find_current_project`'s discovery result). Behaviour on an ambiguous lookup: `taurworks dev where`/`dev status` print their diagnostics with no work-directory guess and exit 1; the `dev` workflow commands (`dev test` and the others) refuse to run rather than fall back to `scripts/<name>`; every other affected command (including `project where`, which still prints its diagnostics) exits non-zero with the guidance below.
 
 With a symlinked `working_dir` (see the section above), `tw activate` `cd`s
-to the link's resolved target, outside `project_root`. Today every
-cwd-based command run from there reports `project_root: unresolved`:
+to the link's resolved target, outside `project_root`. Before this
+change, every cwd-based command run from there failed to find the project
+(reporting `project_root: unresolved`, or, for no-target `project activate
+--print`, resolving the cwd itself as a `child_path`):
 `taurworks dev where`/`status`/`test`, `project where`, and with no target
 `project activate --print`, `project env`/`trust`, `legacy inspect` and
 `working-dir show`/`set`. Explicit path targets on the path-emitter branch,
-such as `taurworks project working .`, don't fail but silently resolve to the
-external directory itself rather than the project. The cause is that discovery walks only the physical cwd's parents
+such as `taurworks project working .`, didn't fail but silently resolved to
+the external directory itself rather than the project. The cause is that discovery walks only the physical cwd's parents
 for `.taurworks/`. A terminal, IDE, or agent session opened directly in the
 external tree (including git worktrees created under it) fails the same
 way.

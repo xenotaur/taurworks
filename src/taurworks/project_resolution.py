@@ -55,6 +55,7 @@ def gather_project_where_diagnostics() -> dict[str, str | bool | None]:
         "config_path": str(config_candidate),
         "config_exists": config_candidate.exists(),
         "project_metadata_found": metadata_found,
+        "discovery_ambiguous": discovery.ambiguous,
         "limitations": limitation,
     }
 
@@ -222,7 +223,14 @@ def resolve_global_activation_project(
                 workspace_project,
             )
 
-    current_project, current_discovery = manager.find_current_project(cwd)
+    if path_or_name is not None and _is_path_like_input(path_or_name):
+        # A path-like target can never match the current-project name, so
+        # skip the (possibly reverse-lookup) cwd discovery entirely.
+        current_project, current_discovery = None, project_internals.PathDiscovery(
+            root=None, source=project_internals.DiscoverySource.NONE
+        )
+    else:
+        current_project, current_discovery = manager.find_current_project(cwd)
     if current_project is None and current_discovery.ambiguous and path_or_name is None:
         placeholder = cwd.resolve()
         project = manager.classify_project_entry(placeholder)

@@ -117,6 +117,8 @@ def _handle_project_command(args):
     if args.project_command == "where":
         diagnostics = project_resolution.gather_project_where_diagnostics()
         print(project_resolution.format_project_where_output(diagnostics))
+        if diagnostics.get("discovery_ambiguous"):
+            raise SystemExit(1)
         return
 
     if args.project_command == "list":

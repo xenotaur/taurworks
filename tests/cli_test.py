@@ -3662,6 +3662,22 @@ class ReverseDiscoveryCliTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, msg=message)
         self.assertEqual("link", self.config_working_dir(nested))
 
+        # Restore working_dir = "link/sub": from the configured target,
+        # `../..` would remove the `link` symlink component itself.
+        result, message = self.run_cli(["project", "working-dir", "set"], nested_target)
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertEqual("link/sub", self.config_working_dir(nested))
+        result, message = self.run_cli(
+            ["project", "working-dir", "set", "../.."], nested_target
+        )
+        self.assertNotEqual(result.returncode, 0, msg=message)
+        self.assertIn("past the symlinked working_dir component", result.stdout)
+        self.assertEqual("link/sub", self.config_working_dir(nested))
+        result, message = self.run_cli(
+            ["project", "working-dir", "set", ".."], nested_target
+        )
+        self.assertEqual(result.returncode, 0, msg=message)
+
         # The stored value is now `link`, whose target is the link root.
         result, message = self.run_cli(
             ["project", "working-dir", "set", ".."], nested_target.parent
@@ -3711,6 +3727,19 @@ class ReverseDiscoveryCliTest(unittest.TestCase):
         self.assertEqual("current_project_name", fields["resolved_by"])
         self.assertIn("working_dir: working_dir", result.stdout)
 
+    # (m), second half: `project create`'s nested-name guard is unchanged
+    # (physical walk only), so it does not fire from the external tree.
+    def test_project_create_nested_name_guard_still_physical_only(self):
+        inside, message = self.run_cli(
+            ["project", "create", "Proj", "--local"], self.project
+        )
+        self.assertNotEqual(inside.returncode, 0, msg=message)
+        external, message = self.run_cli(
+            ["project", "create", "Proj", "--local"], self.target
+        )
+        self.assertEqual(external.returncode, 0, msg=message)
+        self.assertTrue((self.target / "Proj" / ".taurworks").is_dir())
+
     # (j)
     def test_ambiguous_no_target_commands_say_rerun_from_project_root(self):
         self.make_ambiguous()
@@ -3724,8 +3753,7 @@ class ReverseDiscoveryCliTest(unittest.TestCase):
                 result, message = self.run_cli(args, self.target)
                 self.assertIn("rerun from the chosen project_root", result.stdout)
                 self.assertIn(str(self.project), result.stdout, msg=message)
-                if args[0] == "dev" or args[-1] == "set":
-                    self.assertNotEqual(result.returncode, 0, msg=message)
+                self.assertNotEqual(result.returncode, 0, msg=message)
 
     # (j): no script fallback on ambiguity
     def test_ambiguous_dev_test_refuses_script_fallback(self):
