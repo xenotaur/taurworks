@@ -2,14 +2,14 @@
 execution_id: 2026_11_10_23_33_06_WI_WORKING_DIR_REVERSE_DISCOVERY_0001_CONFIRM
 prompt_id: PROMPT(AD_HOC:WI_WORKING_DIR_REVERSE_DISCOVERY_0001_CONFIRM)[2026-11-10T23:32:49+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_11_10_16_21_41_WI_WORKING_DIR_REVERSE_DISCOVERY_0001
 pr: https://github.com/xenotaur/taurworks/pull/118
-commit:
+commit: e5114117b0f4204a47e002f0d99a46dc3cabef08
 created_at: 2026-11-10T23:33:06+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/118
-session_transcript: pending
+session_transcript: claude-app:1b69806b-4260-4637-95d0-46434a8c5576
 ---
 
 # Summary

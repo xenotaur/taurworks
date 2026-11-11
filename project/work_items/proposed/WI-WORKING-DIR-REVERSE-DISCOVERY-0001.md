@@ -334,6 +334,52 @@ See frontmatter `acceptance`. In prose:
 - Non-symlinked layouts are unchanged.
 - `config_model.md` describes the result.
 
+## Implementer notes from review
+
+These are non-blocking points from the final substitute review of PR #118
+(`3b56d8f`). They were recorded at closeout so they get settled during
+implementation rather than lost:
+
+- **Ambiguity on the `dev` path.**
+  - `gather_dev_where_diagnostics` falls back to the git root or cwd when
+    no project root is found (`dev.py:88-99`). `resolve_dev_command` can
+    then run `<guess>/scripts/<name>`, skipping both projects'
+    `[dev.commands]` overrides.
+  - Decide and document whether `dev where`/`dev status` (exit 0 today)
+    exit non-zero on an ambiguous lookup.
+  - Make `dev test` and the other workflow commands refuse to run a script
+    fallback when discovery is ambiguous, as Acceptance Criterion 3's
+    "never falls back to the cwd" requires.
+  - Extend test (j) with a `dev test` ambiguity case.
+- **Ambiguous cwd plus an explicit, non-matching target.** Both resolvers
+  run cwd discovery before the name and path branches.
+  - An ambiguous cwd must fall through, not fail early, when an explicit
+    target doesn't match the current-project name. Examples:
+    `working-dir show NAME`, `project activate .`,
+    `project working /other/proj`.
+  - This preserves Acceptance Criterion 2's "explicit path-like targets
+    keep their current behaviour".
+- **The ambiguous `ProjectResolution`.** Specify what `project_root` holds
+  in an ambiguous result (for example the cwd as a placeholder, never used
+  as a target). Make callers check the ambiguous `resolved_by` before
+  using it. `gather_project_path_diagnostics` currently sets `ok=True`
+  whenever `source == "path"`.
+- **Inventory additions.** `legacy migrate` (which writes config with
+  `--apply`) and `project activate --shell` (the path `tw activate` uses)
+  both go through `resolve_global_activation_project`. They inherit the
+  change, and belong in the command lists and the ambiguity guidance
+  (registry-name group).
+- **Wording.**
+  - Today, no-target `project activate --print` from the external tree
+    prints the cwd with `resolved_by: child_path` and exits 1. The design
+    section's "reports `project_root: unresolved`" summary is loose.
+  - Test (i)'s "can't tell before from after" applies to `working`, not
+    `root`.
+  - Update `project where`'s stale limitation text ("No workspace registry
+    resolution is implemented yet").
+  - The explicit-path branch also handles existing *files*, through their
+    parent directory.
+
 ## Validation
 
 - ./scripts/format --check --diff
