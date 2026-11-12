@@ -30,7 +30,12 @@ def configured_workspace_path() -> pathlib.Path | None:
         if configured_root is None:
             return None
         return global_config.configured_workspace_root_path(configured_root)
-    except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError):
+    except (
+        global_config.GlobalConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+        UnicodeDecodeError,
+    ):
         return None
 
 
@@ -356,7 +361,12 @@ def _registered_projects_from_config() -> list[dict[str, object]]:
         projects_table = config.get("projects") or {}
         if not isinstance(projects_table, dict):
             return []
-    except (global_config.GlobalConfigError, OSError, tomllib.TOMLDecodeError):
+    except (
+        global_config.GlobalConfigError,
+        OSError,
+        tomllib.TOMLDecodeError,
+        UnicodeDecodeError,
+    ):
         return []
 
     projects: list[dict[str, object]] = []
@@ -482,9 +492,15 @@ def find_project_root_for_path(
     if physical.root is not None:
         return physical
 
+    try:
+        known_projects = gather_global_projects()
+    except OSError:
+        # The lookup is a best-effort fallback: an unreadable workspace must
+        # not break discovery that would otherwise have reported "none".
+        return physical
     best_depth = -1
     matches: list[dict[str, object]] = []
-    for project in gather_global_projects():
+    for project in known_projects:
         if not project.get("working_dir_exists"):
             continue
         target_text = str(project.get("resolved_working_dir", "none"))

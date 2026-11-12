@@ -74,6 +74,16 @@ def _is_inside(cwd: pathlib.Path, candidate: str) -> bool:
     return True
 
 
+def _is_nested_work_tree(
+    git_root: pathlib.Path | None, resolved_working_dir: str
+) -> bool:
+    """Return whether git_root is strictly inside the resolved working_dir."""
+    if git_root is None:
+        return False
+    working_dir = pathlib.Path(resolved_working_dir)
+    return git_root != working_dir and working_dir in git_root.parents
+
+
 def gather_dev_where_diagnostics(
     discovery: project_internals.PathDiscovery | None = None,
 ) -> dict[str, str | bool]:
@@ -119,7 +129,15 @@ def gather_dev_where_diagnostics(
         working_dir_message,
     ) = _configured_working_dir(project_root)
 
-    if resolved_working_dir != "none":
+    if resolved_working_dir != "none" and _is_nested_work_tree(
+        git_root, resolved_working_dir
+    ):
+        # A git work tree nested inside the configured working_dir (a
+        # `git worktree` or submodule checkout) is the tree the user is
+        # actually working in; prefer it over the working_dir's main checkout.
+        work_directory_guess = str(git_root)
+        guess_source = "nearest git work tree inside the configured working_dir"
+    elif resolved_working_dir != "none":
         work_directory_guess = resolved_working_dir
         guess_source = "configured Taurworks working_dir"
     elif git_root is not None:

@@ -3740,6 +3740,50 @@ class ReverseDiscoveryCliTest(unittest.TestCase):
         self.assertEqual(external.returncode, 0, msg=message)
         self.assertTrue((self.target / "Proj" / ".taurworks").is_dir())
 
+    def test_dev_test_in_nested_worktree_runs_the_worktree_script(self):
+        # A `git worktree` inside the external working_dir target must run its
+        # own scripts/test, not the main checkout's (regression vs. master,
+        # where the project was not found and the git root won).
+        marker_main = self.root / "ran-main"
+        marker_wt = self.root / "ran-worktree"
+        (self.target / ".git").mkdir()
+        main_script = self.target / "scripts" / "test"
+        main_script.parent.mkdir()
+        main_script.write_text(f'#!/bin/sh\ntouch "{marker_main}"\n', encoding="utf-8")
+        main_script.chmod(0o755)
+        worktree = self.target / ".wt" / "feature"
+        (worktree / "scripts").mkdir(parents=True)
+        (worktree / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+        wt_script = worktree / "scripts" / "test"
+        wt_script.write_text(f'#!/bin/sh\ntouch "{marker_wt}"\n', encoding="utf-8")
+        wt_script.chmod(0o755)
+
+        result, message = self.run_cli(["dev", "test"], worktree)
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertTrue(marker_wt.exists(), msg=message)
+        self.assertFalse(marker_main.exists(), msg=message)
+
+        result, message = self.run_cli(["dev", "where"], worktree)
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(self, fields["project_root"], self.project)
+        assert_same_path(self, fields["work_directory_guess"], worktree)
+
+        # From the main checkout itself, the working_dir is still used.
+        result, message = self.run_cli(["dev", "test"], self.target)
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertTrue(marker_main.exists(), msg=message)
+
+    def test_non_utf8_global_config_does_not_crash_dev_where(self):
+        config_path = self.root / "xdg" / "taurworks" / "config.toml"
+        config_path.parent.mkdir(parents=True)
+        config_path.write_bytes(b'schema_version = 1\nname = "\xff"\n')
+        outside = self.root / "outside"
+        outside.mkdir()
+        result, message = self.run_cli(["dev", "where"], outside)
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertNotIn("Traceback", result.stderr, msg=message)
+        self.assertIn("project_root: unresolved", result.stdout)
+
     # (j)
     def test_ambiguous_no_target_commands_say_rerun_from_project_root(self):
         self.make_ambiguous()
