@@ -184,6 +184,21 @@ _tw_require_taurworks() {
     return 1
 }
 
+_tw_clear_activation_exports() {
+    # Names originate from Taurworks' validated export-name parser. PATH is
+    # deliberately left to the environment provider (not unset outright).
+    local old_ifs
+    local export_name
+    old_ifs=$IFS
+    IFS=,
+    for export_name in ${TAURWORKS_ACTIVE_EXPORTS-}; do
+        if [ "$export_name" != "" ] && [ "$export_name" != "PATH" ]; then
+            unset "$export_name"
+        fi
+    done
+    IFS=$old_ifs
+}
+
 _tw_activate() {
     local output
     local status
@@ -194,6 +209,7 @@ _tw_activate() {
     local activation_message
     local activation_message_configured
     local activation_export_count
+    local activation_export_names
     local activation_export_commands
     local environment_configured
     local environment_type
@@ -210,6 +226,11 @@ _tw_activate() {
     local legacy_once
     local no_legacy
     local target_label
+
+    if [ "${TAURWORKS_EXECUTION_ENVIRONMENT-}" = "devcontainer" ]; then
+        printf '%s\n' "tw activate: unsafe nested environment transition; exit this Dev Container shell and run tw activate from the host control shell." >&2
+        return 1
+    fi
 
     path_or_name=""
     verbose=0
@@ -289,10 +310,13 @@ _tw_activate() {
     local TAURWORKS_ACTIVATION_MESSAGE
     local TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED
     local TAURWORKS_ACTIVATION_EXPORT_COUNT
+    local TAURWORKS_ACTIVATION_EXPORT_NAMES
     local TAURWORKS_ACTIVATION_EXPORT_COMMANDS
     local TAURWORKS_ACTIVATION_ENVIRONMENT_CONFIGURED
     local TAURWORKS_ACTIVATION_ENVIRONMENT_TYPE
     local TAURWORKS_ACTIVATION_ENVIRONMENT_NAME
+    local TAURWORKS_ACTIVATION_ENVIRONMENT_CONFIG
+    local TAURWORKS_ACTIVATION_ENVIRONMENT_PROVIDER
     local TAURWORKS_ACTIVATION_PROJECT_NAME
     local TAURWORKS_ACTIVATION_PROJECT_ROOT
     local TAURWORKS_ACTIVATION_LEGACY_SETUP_EXISTS
@@ -313,6 +337,7 @@ _tw_activate() {
     activation_message=$TAURWORKS_ACTIVATION_MESSAGE
     activation_message_configured=$TAURWORKS_ACTIVATION_MESSAGE_CONFIGURED
     activation_export_count=$TAURWORKS_ACTIVATION_EXPORT_COUNT
+    activation_export_names=$TAURWORKS_ACTIVATION_EXPORT_NAMES
     activation_export_commands=$TAURWORKS_ACTIVATION_EXPORT_COMMANDS
     environment_configured=$TAURWORKS_ACTIVATION_ENVIRONMENT_CONFIGURED
     environment_type=$TAURWORKS_ACTIVATION_ENVIRONMENT_TYPE
@@ -337,11 +362,39 @@ _tw_activate() {
         return 1
     fi
 
-    if [ "$environment_configured" = "True" ]; then
-        if [ "$environment_type" != "conda" ]; then
-            printf '%s\n' "tw activate: unsupported activation environment type: $environment_type" >&2
+    if [ "$environment_type" = "devcontainer" ]; then
+        if ! command taurworks environment prepare "$project_root"; then
+            printf '%s\n' "tw activate: failed to prepare Dev Container environment for $project_name" >&2
             return 1
         fi
+        printf '%s\n' "tw activate: entering Dev Container for $project_name; exit its shell before switching projects." >&2
+        if [ "$activation_message_configured" = "True" ]; then
+            printf '%s\n' "$activation_message"
+        fi
+        if ! command taurworks environment enter "$project_root"; then
+            printf '%s\n' "tw activate: Dev Container shell entry failed; host shell state was left unchanged." >&2
+            return 1
+        fi
+        if [ "${TAURWORKS_ENVIRONMENT_TYPE-}" = "conda" ] && type conda >/dev/null 2>&1; then
+            if ! conda deactivate; then
+                printf '%s\n' "tw activate: returned from the container but failed to leave the previous Conda environment." >&2
+                return 1
+            fi
+        fi
+        _tw_clear_activation_exports
+        if ! cd -- "$resolved_working_dir"; then
+            printf '%s\n' "tw activate: failed to change host directory to: $resolved_working_dir" >&2
+            return 1
+        fi
+        export TAURWORKS_ACTIVE_PROJECT="$project_name"
+        export TAURWORKS_ENVIRONMENT_TYPE="devcontainer"
+        export TAURWORKS_EXECUTION_ENVIRONMENT="host"
+        export TAURWORKS_ACTIVE_EXPORTS=""
+        printf '%s\n' "tw activate: returned to host control for $project_name at $resolved_working_dir"
+        return 0
+    fi
+
+    if [ "$environment_configured" = "True" ]; then
         if ! type conda >/dev/null 2>&1; then
             printf '%s\n' "tw activate: conda activation is unavailable in this shell; configure conda activate before using Taurworks Conda activation." >&2
             return 1
@@ -350,7 +403,14 @@ _tw_activate() {
             printf '%s\n' "tw activate: failed to activate Conda environment: $environment_name" >&2
             return 1
         fi
+    elif [ "${TAURWORKS_ENVIRONMENT_TYPE-}" = "conda" ] && type conda >/dev/null 2>&1; then
+        if ! conda deactivate; then
+            printf '%s\n' "tw activate: failed to leave the previous Conda environment." >&2
+            return 1
+        fi
     fi
+
+    _tw_clear_activation_exports
 
     if [ "$activation_export_commands" != "" ]; then
         if ! eval "$activation_export_commands"; then
@@ -363,6 +423,15 @@ _tw_activate() {
         printf '%s\n' "tw activate: failed to change directory to: $resolved_working_dir" >&2
         return 1
     fi
+
+    export TAURWORKS_ACTIVE_PROJECT="$project_name"
+    if [ "$environment_configured" = "True" ]; then
+        export TAURWORKS_ENVIRONMENT_TYPE="$environment_type"
+    else
+        export TAURWORKS_ENVIRONMENT_TYPE="host"
+    fi
+    export TAURWORKS_EXECUTION_ENVIRONMENT="host"
+    export TAURWORKS_ACTIVE_EXPORTS="$activation_export_names"
 
     if [ "$working_dir_configured" != "True" ] && [ "$guidance" != "" ]; then
         printf '%s\n' "tw activate: warning: $guidance" >&2

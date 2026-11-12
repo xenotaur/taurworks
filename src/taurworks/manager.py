@@ -1,6 +1,7 @@
 import os
 import pathlib
 import re
+import shutil
 import sys
 import subprocess
 import tomllib
@@ -70,6 +71,45 @@ def get_conda_environments():
     except Exception as e:
         print(f"Warning: Could not fetch Conda environments: {e}")
         return set()
+
+
+def _environment_listing_details(
+    project_path: pathlib.Path,
+    config: dict[str, object] | None,
+) -> dict[str, object]:
+    """Return provider-specific fields for the detailed project listing."""
+    details: dict[str, object] = {"environment_type": "none"}
+    if config is None:
+        return details
+    try:
+        environment = project_internals.activation_environment_from_config(config)
+    except project_internals.ProjectConfigError:
+        return details
+    if environment is None:
+        return details
+
+    environment_type = str(environment["type"])
+    details["environment_type"] = environment_type
+    if environment_type == "conda":
+        details["conda_environment_name"] = str(environment["name"])
+        return details
+    if environment_type == "devcontainer":
+        configured = environment.get("config")
+        if configured is not None:
+            config_path = (project_path / str(configured)).resolve()
+        else:
+            candidates = (
+                project_path / ".devcontainer" / "devcontainer.json",
+                project_path / ".devcontainer.json",
+            )
+            config_path = next(
+                (candidate for candidate in candidates if candidate.is_file()),
+                candidates[0],
+            )
+        details["devcontainer_config"] = str(config_path)
+        details["devcontainer_config_exists"] = config_path.is_file()
+        details["devcontainer_cli_exists"] = shutil.which("devcontainer") is not None
+    return details
 
 
 def create_conda_environment(
@@ -277,6 +317,7 @@ def classify_project_entry(project_dir):
     working_dir_configured = False
     working_dir_exists = False
     activation_eligible = False
+    environment_details: dict[str, object] = {"environment_type": "none"}
     if metadata_dir_exists:
         status_message = (
             "workspace metadata directory exists but config.toml is missing; "
@@ -289,6 +330,7 @@ def classify_project_entry(project_dir):
         status_message = "initialized but no working_dir is configured"
         try:
             config = project_internals.read_project_config(project_path)
+            environment_details = _environment_listing_details(project_path, config)
             configured_working_dir = project_internals.working_dir_from_config(config)
             if configured_working_dir is not None:
                 (
@@ -335,6 +377,7 @@ def classify_project_entry(project_dir):
         "working_dir_exists": working_dir_exists,
         "activation_eligible": activation_eligible,
         "status_message": status_message,
+        **environment_details,
     }
 
 
@@ -482,7 +525,10 @@ def list_projects(show_details=False):
         print("No projects found.")
         return
 
-    conda_envs = get_conda_environments() if show_details else set()
+    has_conda_project = any(
+        project.get("environment_type") == "conda" for project in projects
+    )
+    conda_envs = get_conda_environments() if show_details and has_conda_project else set()
     name_width = max(len(str(project["name"])) for project in projects)
     status_width = max(len(str(project["status"])) for project in projects)
 
@@ -490,7 +536,10 @@ def list_projects(show_details=False):
     for project in projects:
         if show_details:
             project_dir = str(project["path"])
-            has_env = project["name"] in conda_envs
+            has_env = (
+                project.get("environment_type") == "conda"
+                and project.get("conda_environment_name") in conda_envs
+            )
             dir_size, file_count = get_directory_info(project_dir)
             size_str = f"{dir_size / (1024*1024):.2f} MB"
             print(f"- {project['name']}")
@@ -515,10 +564,27 @@ def list_projects(show_details=False):
             print(f"  ├── Resolved Working Dir: {project['resolved_working_dir']}")
             print(f"  ├── Working Dir Exists: {project['working_dir_exists']}")
             print(f"  ├── Status Message: {project['status_message']}")
-            print(
-                f"  ├── Conda Env Exists: {'✔' if has_env else '✘'} "
-                f"({'active' if has_env else 'missing'})"
-            )
+            environment_type = project.get("environment_type")
+            if environment_type == "conda":
+                print(f"  ├── Environment Type: conda")
+                print(f"  ├── Conda Environment: {project['conda_environment_name']}")
+                print(
+                    f"  ├── Conda Env Exists: {'✔' if has_env else '✘'} "
+                    f"({'available' if has_env else 'missing'})"
+                )
+            elif environment_type == "devcontainer":
+                config_exists = bool(project["devcontainer_config_exists"])
+                cli_exists = bool(project["devcontainer_cli_exists"])
+                print(f"  ├── Environment Type: devcontainer")
+                print(f"  ├── Dev Container Config: {project['devcontainer_config']}")
+                print(
+                    f"  ├── Dev Container Config Exists: "
+                    f"{'✔' if config_exists else '✘'}"
+                )
+                print(
+                    f"  ├── Dev Container CLI: "
+                    f"{'✔' if cli_exists else '✘'}"
+                )
             print(f"  ├── Files: {file_count}, Size: {size_str}\n")
         else:
             print(

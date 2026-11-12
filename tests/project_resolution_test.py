@@ -334,7 +334,10 @@ class GlobalActivationResolutionTest(unittest.TestCase):
         self.assertIn(
             "unsupported activation environment type", diagnostics["guidance"]
         )
-        self.assertIn("only 'conda' is supported", diagnostics["guidance"])
+        self.assertIn(
+            "supported types are 'conda' and 'devcontainer'",
+            diagnostics["guidance"],
+        )
 
     def test_conda_activation_environment_requires_name(self):
         with tempfile.TemporaryDirectory() as temp_dir:

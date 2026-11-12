@@ -115,14 +115,13 @@ taurworks help
 tw help
 ```
 
-On success, `tw activate` validates the project activation config, applies
-validated `[activation.exports]`, activates a configured Conda environment when
-`[activation.environment]` is present, runs `cd` to the resolved destination in
-the current shell, and prints `activation.message` when configured. The shell
-mutation order is: run `conda activate <name>` when configured, export
-configured variables after environment activation succeeds, change directory to
-`[paths].working_dir` or the project root fallback, print a concise
-changed-directory line, then print the configured message. Name-based activation
+On success, `tw activate` validates the project activation config and dispatches
+to its Host, Conda, or Dev Container environment provider. Host and Conda
+projects remain in the current host shell; Conda activation happens before
+literal `[activation.exports]` are applied and the shell changes to
+`[paths].working_dir` (or the project-root fallback). Dev Container projects are
+prepared with the reference Dev Container CLI and entered as an interactive
+child shell at the mapped container working directory. Name-based activation
 uses the user-global registry and configured workspace root, so
 `tw activate NAME` works from outside the workspace and after
 switching into another project's working directory. Normal activation failures
@@ -139,15 +138,10 @@ alias for `tw --help`.
 Only `tw activate ...` uses validated
 `taurworks project activate --shell` output to export variables, run supported
 environment activation, and run `cd` in the current shell. Declarative
-activation currently supports a readiness message, string environment-variable
-Future trusted startup hooks and
-legacy `Admin/project-setup.source` migration are in-development topics documented
-in `project/design/activation_extension.md`.
-
-Declarative activation currently supports a readiness message, string environment-variable
-exports, and Conda environment activation only. Virtualenv activation, Docker
-activation, arbitrary user hooks/scripts, and legacy `Admin/project-setup.source`
-migration remain deferred.
+activation supports a readiness message, string environment-variable exports,
+Conda, and Dev Containers. Arbitrary Docker orchestration is deliberately not
+implemented: Taurworks delegates Dev Container definition and lifecycle to the
+reference CLI and the project's `devcontainer.json`.
 
 ## `taurworks`, `tw`, and `tl`
 
@@ -161,8 +155,9 @@ Three layers make up the activation stack:
 - **`tw`** is the sourced, config-aware shell function printed by
   `taurworks shell print` (see "User install and shell helper setup" above).
   It is the supported, full-featured way to activate a project: it applies
-  `[activation.exports]`, activates a configured Conda environment, changes
-  directory, and offers trust-gated legacy sourcing.
+  host/Conda shell state or enters a project Dev Container, changes to the
+  environment-appropriate working directory, and offers trust-gated legacy
+  sourcing for host-side activation.
 - **`tl`** ("Taurworks Legacy") is a permanent, dependency-free break-glass
   fallback. `taurworks setup` places its packaged source file (`tl.source`)
   alongside the shell helper. Reach for it when `tw` is unavailable or
@@ -272,7 +267,7 @@ type = "conda"
 name = "LCATS"
 ```
 
-Only `type = "conda"` is supported initially, and `name` is required. Taurworks
+For Conda, `name` is required. Taurworks
 validates Conda names conservatively, does not run `conda init`, does not create
 or install Conda environments, and does not edit shell startup files. Your shell
 must already provide a working `conda activate` command or function before you
@@ -282,6 +277,51 @@ changing directory.
 `taurworks project activate [PATH_OR_NAME] --print` remains read-only and only
 reports environment fields such as `environment_configured`,
 `environment_type`, and `environment_name`; Python does not perform activation.
+
+### Dev Container project environments
+
+Prerequisites are a working container runtime and the reference
+`devcontainer` CLI (`@devcontainers/cli`) on the host. The project continues to
+own all image, Dockerfile, Feature, mount, port, user, and lifecycle settings in
+`devcontainer.json`; Taurworks stores only the provider association:
+
+```toml
+[activation.environment]
+type = "devcontainer"
+```
+
+Default discovery checks `.devcontainer/devcontainer.json` and
+`.devcontainer.json`. An explicit project-root-relative configuration is also
+supported:
+
+```toml
+[activation.environment]
+type = "devcontainer"
+config = ".devcontainer/devcontainer.json"
+```
+
+`tw activate` runs `devcontainer up` (which reuses an existing environment when
+possible), uses the returned `remoteWorkspaceFolder`, appends the validated
+relative Taurworks `working_dir`, and enters an interactive shell there through
+`devcontainer exec`. Project exports and Taurworks context markers are supplied
+inside the container with `--remote-env`; host Conda variables are not copied.
+Exiting the container shell returns to the host control shell. Taurworks then
+clears its previous project exports, leaves a Taurworks-managed Conda activation
+when necessary, and selects the Dev Container project on the host so subsequent
+`taurworks dev ...` commands route back into that container.
+
+Cross-project activation is host-controlled: exit the current container shell,
+then run `tw activate CONDA_PROJECT` or `tw activate OTHER_CONTAINER`. Attempts
+to run a nested activation from a process marked as a Taurworks Dev Container
+fail with an explicit diagnostic. Containers are reused and are not rebuilt,
+stopped, or removed merely because the interactive shell exits.
+
+Troubleshooting diagnostics distinguish a missing CLI, missing or escaping
+configuration path, failed `devcontainer up`/container runtime, an unreadable
+startup result, and a missing container-side working directory. Use
+`tw activate NAME --verbose` for activation resolution details and run the
+project's normal `devcontainer up --workspace-folder ...` command when deeper
+runtime logs are needed.
 
 ## Developer setup
 
@@ -483,7 +523,7 @@ Registry entries differ from workspace discovery: workspace discovery remains di
 1. **Tier 1 — explicit config override.** If the project's `.taurworks/config.toml` has a `[dev.commands]` table with an entry for that command name (e.g. `test = "pytest -x"`), that string is split with `shlex.split` and run directly as an argv list (never through a shell). This is always read from the detected **project root** — the directory containing `.taurworks/` — never from a configured `working_dir`, since `.taurworks/config.toml` is project-root metadata even when `working_dir` points somewhere nested.
 2. **Tier 2 — project-local script.** Otherwise, Taurworks looks for a `scripts/<name>` file relative to the resolved working directory (the same `work_directory_guess` `dev where` reports: configured `working_dir`, else the nearest `.git` root, else the detected project root, else the current directory) and runs it directly.
 
-If neither resolves, `taurworks dev <name>` prints a message naming both locations it checked and exits non-zero — never a silent no-op. The delegated command's exit code becomes `taurworks dev <name>`'s own exit code, and its stdout/stderr stream live (not captured and reprinted). It always runs with its working directory set to the resolved `work_directory_guess`, regardless of the directory `taurworks dev <name>` itself was invoked from.
+If neither resolves, `taurworks dev <name>` prints a message naming both locations it checked and exits non-zero — never a silent no-op. The delegated command's exit code becomes `taurworks dev <name>`'s own exit code, and its stdout/stderr stream live (not captured and reprinted). Host and Conda projects retain the existing host-subprocess behavior. Dev Container projects run the same resolved argv through `devcontainer exec`, with host-local script paths mapped below the CLI-reported container workspace and the configured relative working directory used inside the container.
 
 ```toml
 [dev.commands]
@@ -563,7 +603,7 @@ Implemented target-aware `working-dir show` behavior:
 
 Activation resolution for bare names is stable and global-first: explicit registry entry by name; direct initialized child of the configured workspace root; direct legacy-admin child of the configured workspace root; direct workspace-only child of the configured workspace root; current/enclosing project fallback when no name is provided or the name matches the current project; and explicit path-like inputs for local/path-oriented activation. Unresolved bare names do not silently scan the current directory recursively.
 
-Activation behavior is intentionally safe. Initialized projects with `[paths].working_dir` change to that directory when it exists. Initialized projects without `working_dir` change to the project root and warn. Workspace-only projects also change to the project root and warn that the project is not initialized. Legacy-admin projects change to the project root and warn that `Admin/project-setup.source` exists but was not sourced. Registered projects first resolve their registry root, then use the same initialized/workspace-only/legacy-admin behavior. Taurworks still does not source scripts, activate Conda/venv/Docker environments, run hooks, edit shell startup files, or create missing working directories during activation.
+Activation behavior is intentionally safe. Initialized projects with `[paths].working_dir` use that directory when it exists. Workspace-only and legacy-admin fallbacks still change only to the project root with warnings. Registered projects first resolve their registry root, then use the same status behavior. The read-only `taurworks project activate --print` command never sources scripts, activates an environment, runs hooks, edits shell startup files, or creates missing working directories; the sourced `tw activate` helper owns Host/Conda shell mutation and Dev Container entry.
 
 ## Script-friendly project path emitters
 
@@ -952,7 +992,7 @@ Expected result:
 ~/Workspace/TestProject/test_repo
 ```
 
-The shell helper intentionally does not edit `.bashrc`, `.zshrc`, `.profile`, or any other shell startup file; add a `source ...` line yourself only if you choose. It does not source arbitrary project files and does not activate Conda, virtualenv, or other environments. Bash is the primary supported shell for this first wrapper layer; the implementation uses portable shell-function features that are also expected to work when sourced by zsh.
+The shell helper intentionally does not edit `.bashrc`, `.zshrc`, `.profile`, or any other shell startup file; add a `source ...` line yourself only if you choose. It does not source arbitrary project files. It activates only the configured Host, Conda, or Dev Container provider. Bash is the primary supported shell; the implementation uses portable shell-function features that are also expected to work when sourced by zsh.
 
 ## Safety and shell-integration guardrails
 
