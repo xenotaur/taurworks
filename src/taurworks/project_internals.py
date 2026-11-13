@@ -94,9 +94,10 @@ AMBIGUITY_GUIDANCE = {
         "pass the path to the chosen project_root (bare names here resolve "
         "relative to the current directory)"
     ),
-    "rerun": (
-        "rerun from the chosen project_root (for `working-dir set`, with a "
-        "project-root-relative DIR)"
+    "rerun": "rerun from the chosen project_root",
+    "rerun_working_dir_set": (
+        "rerun from the chosen project_root, passing DIR relative to that "
+        "project_root"
     ),
 }
 
