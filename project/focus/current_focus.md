@@ -1,9 +1,9 @@
 ---
 id: FOCUS-CURRENT
-title: Packaging/install complete; legacy-migrate-tl-fallback abandoned; dev workflow automation v1 done; working_dir symlink escape proposed
+title: Packaging/install complete; legacy-migrate-tl-fallback abandoned; dev workflow automation v1 done; symlinked working_dir support done
 status: active
-updated: 2026-11-07
-basis: packaging_and_install_series_resolved_legacy_migrate_abandoned_dev_v1_done_working_dir_symlink_escape_proposed
+updated: 2026-11-12
+basis: packaging_and_install_series_resolved_legacy_migrate_abandoned_dev_v1_done_symlinked_working_dir_resolved
 confidence: high
 ---
 
@@ -50,33 +50,38 @@ containment: a project can keep `project_root` (and its non-code metadata —
 location while the actual Git-tracked work tree lives elsewhere (an
 SSD-local `Tempspace`, to avoid sync churn from active builds, tests, and
 growing `git worktree` usage), with `project_root/working_dir` as a
-same-named symlink into that external location. `tw activate` currently
-rejects this as an escape attempt because the containment check resolves
-symlinks before testing containment, rather than checking the literal
-config value lexically — and the error message's own suggested remedy
-(`taurworks project working-dir set [DIR]`) hits the identical check, so it
-is currently a dead end for this layout. `project/design/config_model.md`
-("Working-dir containment and symlinked work trees") and `design.md`
-record the decision: reject absolute values and every `..` component in the
-literal config string (a tightening for in-root `..` values, accepted
-today), but stop requiring the *resolved* path to stay under
-`project_root`. `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (proposed) tracks the
-`project_internals.py` implementation. No new config field, global
-allowlist, or trust-gate is part of this — see the work item's
-`forbidden_actions` for what is explicitly out of scope.
+same-named symlink into that external location. That layout is now
+supported end to end:
+
+- `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (resolved, PR #117) made
+  containment lexical: absolute values and every `..` component in the
+  literal config string are rejected, dangling or looping symlinks are
+  rejected, and the *resolved* path no longer has to stay under
+  `project_root`.
+- `WI-WORKING-DIR-REVERSE-DISCOVERY-0001` (resolved, PR #119) lets commands
+  run from inside the external tree find their project: after the physical
+  walk, a working_dir reverse lookup over known projects picks the deepest
+  match and reports exact ties as ambiguous instead of guessing.
+  `working-dir set` maps through the link, and `dev` prefers a linked
+  `git worktree` nested in the working_dir.
+
+`project/design/config_model.md` ("Working-dir containment and symlinked
+work trees", "Discovery from inside a symlinked work tree") records both
+decisions, including the caveat that a `working_dir` linked to a broad
+directory such as `$HOME` claims every non-project directory under it. No
+new config field, global allowlist, or trust-gate was added. No further
+work is planned against this scope without a new need being raised.
 
 ## Active direction
 
 1. Keep `taurworks project activate --print` read-only and `tw activate`/
    `tw shell refresh` as the only shell-mutating layers.
-2. Implement `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` as scoped: a lexical
-   containment check plus explicit rejection of dangling/looping symlinks,
-   and nothing more — no trust-gate, allowlist, or name-matching warning.
+2. Take new work from newly raised needs (dogfooding findings first);
+   no work item is currently active.
 
 ## In scope now
 
-`WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (proposed 2026-10-26) is the current
-active-direction item. The only other unstarted roadmap item is Phase 7
+No work item is active. The only unstarted roadmap item is Phase 7
 (compatibility migration path), which has no active plan.
 
 ## Out of scope now
@@ -136,6 +141,10 @@ active-direction item. The only other unstarted roadmap item is Phase 7
   (`WI-DEV-WORKFLOW-AUTOMATION-0001`).
 - Contributors roster (`project/contributors/*.md`) replacing the
   previously-broken placeholder.
+- `working_dir` as a symlink to a work tree outside `project_root`
+  (lexical containment, `WI-WORKING-DIR-SYMLINK-ESCAPE-0001`), plus
+  discovery from inside that tree via a working_dir reverse lookup
+  (`WI-WORKING-DIR-REVERSE-DISCOVERY-0001`).
 
 ## Safety stance
 

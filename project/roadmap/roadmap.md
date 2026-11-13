@@ -11,7 +11,7 @@ confidence: medium
 
 This roadmap is phased and conservative. It prioritizes command-model alignment, safe incremental delivery, and explicit trust boundaries.
 
-## Current phase snapshot (2026-08-01)
+## Current phase snapshot (2026-11-12)
 
 Phases 1 through 5A below, and the entire dogfood recovery plan
 (`WI-INTERIM-TL-PIPX-0001`, `WI-LEGACY-BATCH-MIGRATION-0001`,
@@ -59,14 +59,15 @@ whose `project_root` stays on a Google-Drive-synced `Workspace` location
 while its actual Git-tracked work tree is a same-named symlink into an
 external, SSD-local `Tempspace` location (adopted to avoid Google-Drive
 sync churn from active builds, tests, and growing `git worktree` usage).
-Phase 9 below (proposed) tracks the fix: lexical, not resolved-path,
-containment.
+Phase 9 below is done: containment is now lexical, not resolved-path
+(`WI-WORKING-DIR-SYMLINK-ESCAPE-0001`, PR #117), and commands run from
+inside the external work tree find their project through a working_dir
+reverse lookup (`WI-WORKING-DIR-REVERSE-DISCOVERY-0001`, PR #119).
 
 ### In scope now
 
-`WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (Phase 9 below, proposed) is the
-current active-direction item. The only other unstarted roadmap item is
-Phase 7 below, which has no active plan.
+No work item is active. The only unstarted roadmap item is Phase 7
+below, which has no active plan; new work starts from a newly raised need.
 
 ### Out of scope now
 
@@ -243,17 +244,17 @@ original author's. All four are resolved:
 No further work is planned against this design without a new need being
 raised.
 
-## Phase 9 — Allow `working_dir` to be a symlink outside `project_root` (proposed 2026-10-26)
+## Phase 9 — Allow `working_dir` to be a symlink outside `project_root` (done)
 
 Prompted by a real dogfood layout where `project_root` stays on a
 Google-Drive-synced `Workspace` location while the actual Git-tracked work
 tree is a same-named symlink into an external, SSD-local `Tempspace`
 location, to avoid Google-Drive sync churn from active builds, tests, and
 growing `git worktree` usage. `tw activate`'s `working_dir` containment
-check currently rejects this: it resolves symlinks before testing
+check used to reject this: it resolved symlinks before testing
 containment, so a `working_dir` symlink pointing outside `project_root`
-always fails, and the error's own suggested remedy (`taurworks project
-working-dir set [DIR]`) hits the identical check.
+always failed, and the error's own suggested remedy (`taurworks project
+working-dir set [DIR]`) hit the identical check.
 
 - Decision recorded in `project/design/config_model.md` ("Working-dir
   containment and symlinked work trees") and `project/design/design.md`:
@@ -261,7 +262,17 @@ working-dir set [DIR]`) hits the identical check.
   config value (rejecting absolute paths and every `..` component — a
   tightening for in-root `..` values, accepted today) rather than a
   check against the fully resolved, symlink-followed path.
-- Tracked by `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (proposed).
+- Implemented by `WI-WORKING-DIR-SYMLINK-ESCAPE-0001` (resolved, PR #117).
+- Follow-up: commands run from inside the external work tree used to
+  report `project_root: unresolved`, because discovery walked only the
+  physical cwd's parents. `WI-WORKING-DIR-REVERSE-DISCOVERY-0001`
+  (resolved, PR #119) adds a working_dir reverse lookup over known
+  projects after the physical walk (deepest match wins; exact ties are
+  reported as ambiguous, never guessed), maps `working-dir set` through the
+  link, and makes `dev` prefer a linked `git worktree` nested in the
+  working_dir. See `project/design/config_model.md` ("Discovery from
+  inside a symlinked work tree"), including why a `working_dir` linked to a
+  broad directory such as `$HOME` should be avoided.
 - Explicitly not part of this phase: a trust-gate or global allowlist for
   external `working_dir` targets, a name-matching warning between a
   symlink and its target, or a convenience command to create/verify the

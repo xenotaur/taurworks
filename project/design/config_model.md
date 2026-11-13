@@ -295,6 +295,8 @@ project it belongs to.
 
 Implementation status: implemented via `WI-WORKING-DIR-REVERSE-DISCOVERY-0001` (`manager.find_project_root_for_path`, the `discover` hook on `project_internals.resolve_project_target`, and `manager.find_current_project`'s discovery result). Behaviour on an ambiguous lookup: `taurworks dev where`/`dev status` print their diagnostics with no work-directory guess and exit 1; the `dev` workflow commands (`dev test` and the others) refuse to run rather than fall back to `scripts/<name>`; every other affected command (including `project where`, which still prints its diagnostics) exits non-zero with the guidance below. When the current directory is inside a linked `git worktree` checkout nested within the resolved working_dir, `dev` commands use that worktree, not the working_dir's main checkout, as their work directory. This applies whether the project was found by the physical walk or the reverse lookup. The checkout considered is the one containing the current directory (its nearest git root). It is a linked worktree when its `.git` file's `gitdir:` ends in `worktrees/<name>` and that directory has a `commondir` file; submodules (`modules/<name>`, whatever their own name) and independent nested clones (a `.git` directory) keep the working_dir.
 
+"Keep" describes plain (physically discovered) projects, where submodules and nested clones already used the working_dir before this change. Inside a symlinked external tree, discovery used to fail outright, so nothing resolved there. Submodules and nested clones there now use the working_dir too, like the rest of the tree. The work item's acceptance criterion 6 ("submodules and independent nested clones keep their current behaviour") describes plain projects only.
+
 With a symlinked `working_dir` (see the section above), `tw activate` `cd`s
 to the link's resolved target, outside `project_root`. Before this
 change, every cwd-based command run from there failed to find the project
@@ -334,12 +336,33 @@ nested-name guard.
      names resolve relative to the cwd, says to pass the path to the chosen
      `project_root`. Commands with no project target (`dev ...`,
      `project where`, `working-dir set`) say to rerun from the chosen
-     `project_root`, with a project-root-relative DIR for `set`. An
+     `project_root`. Only `working-dir set`'s message adds that DIR
+     should then be given relative to that `project_root`, since it is the
+     only one of these that takes a DIR. An
      ambiguous lookup makes the command fail. It never falls back to the
      cwd or the target path itself, so a path emitter never prints the
      external directory.
    - Projects whose working_dir is unconfigured, missing, or invalid are
      skipped.
+   - **A broad link target claims everything under it.** The lookup
+     matches by containment, so a `working_dir` linked to a broad
+     directory (for example `$HOME`, or a whole `~/src`) makes that
+     project the owner of every directory under the link's target with no
+     `.taurworks/` in it or above it. That includes unrelated checkouts and
+     scratch directories. There, `dev where`/`dev status` report that
+     project, `project where` and the path emitters given `.` resolve to it, and `dev
+     test` and the other `dev` workflow commands use its `[dev.commands]`
+     overrides. They run in the link's resolved target (for example
+     `$HOME` itself), not in the directory's own checkout, unless that
+     checkout is a linked `git worktree`. With no override they look for
+     `scripts/<name>` in that target. A directory
+     inside a deeper project's working_dir, or with its own `.taurworks/`,
+     still resolves to that project instead (deepest match wins; the
+     physical walk runs first). Taurworks does not warn about or reject a
+     broad target, so link `working_dir` to the project's own work tree,
+     not to a shared parent. `resolved_by: working_dir_reverse_lookup` in
+     `dev where`/`dev status`, or `project where`'s discovery source
+     (which names the matched project), shows when this happens.
 
 Diagnostics report which step resolved the project (`resolved_by` /
 discovery source, naming the matched project for the reverse lookup). This

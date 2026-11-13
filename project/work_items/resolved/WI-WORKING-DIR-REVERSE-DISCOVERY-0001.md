@@ -422,3 +422,24 @@ implementation rather than lost:
   names only a relative path, and the symlink that makes a target external
   is a machine-local filesystem detail. The lookup only selects which
   already-known project the cwd belongs to. It never executes anything.
+
+## Closeout notes
+
+Recorded after resolution, from points deferred as non-blocking during the
+PR #119 review (settled in the follow-up docs/guidance PR):
+
+- **Criterion 6's parenthetical describes plain projects.** "Submodules and
+  independent nested clones keep their current behaviour" means plain
+  (physically discovered) projects, where they already used the working_dir.
+  Inside a symlinked external tree, discovery used to fail outright; there,
+  submodules and nested clones now use the working_dir like the rest of the
+  tree. `config_model.md` ("Discovery from inside a symlinked work tree")
+  states this.
+- **A broad link target claims everything under it.** A `working_dir`
+  linked to a broad directory (for example `$HOME`) makes the reverse lookup
+  claim every directory under it with no `.taurworks/` in it or above it,
+  including `dev test` using that project's `[dev.commands]`. Documented in
+  `config_model.md` and the README; no warning or rejection was added.
+- **Ambiguity guidance per command.** The no-target "rerun" guidance now
+  mentions DIR only for `working-dir set`; `dev where`/`dev status`/`project
+  where` say only to rerun from the chosen `project_root`.

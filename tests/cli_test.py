@@ -3874,6 +3874,13 @@ class ReverseDiscoveryCliTest(unittest.TestCase):
                 self.assertIn("rerun from the chosen project_root", result.stdout)
                 self.assertIn(str(self.project), result.stdout, msg=message)
                 self.assertNotEqual(result.returncode, 0, msg=message)
+                # Only `working-dir set` takes a DIR, so only it mentions one.
+                mentions_dir = "passing DIR relative to that project_root"
+                if args[-1] == "set":
+                    self.assertIn(mentions_dir, result.stdout, msg=message)
+                else:
+                    self.assertNotIn(mentions_dir, result.stdout, msg=message)
+                    self.assertNotIn("working-dir set", result.stdout, msg=message)
 
     # (j): no script fallback on ambiguity
     def test_ambiguous_dev_test_refuses_script_fallback(self):

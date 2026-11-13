@@ -1252,7 +1252,7 @@ def gather_project_working_dir_set_diagnostics(
         )
         if discovery.ambiguous:
             message = project_internals.ambiguous_discovery_message(
-                discovery.candidates, "rerun"
+                discovery.candidates, "rerun_working_dir_set"
             )
         return {
             "ok": False,
