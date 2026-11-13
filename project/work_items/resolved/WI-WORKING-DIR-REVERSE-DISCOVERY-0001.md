@@ -2,10 +2,10 @@
 id: WI-WORKING-DIR-REVERSE-DISCOVERY-0001
 title: "Discover the project from inside a symlinked working_dir target (reverse lookup)"
 type: deliverable
-status: proposed
+status: resolved
 blocked: false
 blocked_reason: null
-resolution: null
+resolution: 'Implemented and merged in PR #119 (merge commit 9be45ca; content in 0fb0802): working_dir reverse-lookup discovery from inside symlinked work trees (ambiguity reported, never guessed), working-dir set maps through the link, and dev prefers linked git worktrees nested in the working_dir; note: inside a symlinked external tree, submodules and nested clones now use the working_dir (criterion 6 parenthetical describes plain projects).'
 related_focus:
   - FOCUS-CURRENT
 related_roadmap:

@@ -2,14 +2,14 @@
 execution_id: 2026_11_11_03_44_49_WI_WORKING_DIR_REVERSE_DISCOVERY_0001_SELFREVIEW
 prompt_id: PROMPT(AD_HOC:WI_WORKING_DIR_REVERSE_DISCOVERY_0001_SELFREVIEW)[2026-11-11T03:44:49+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_11_11_03_45_54_WI_WORKING_DIR_REVERSE_DISCOVERY_0001
 pr: https://github.com/xenotaur/taurworks/pull/119
-commit:
+commit: 9be45caa6efe6a5f8067a1550cb0036db6113bc3
 created_at: 2026-11-11T03:44:49+00:00
 agent: claude_app
 instruction_source: "lrh-self-review diff-mode (lrh-implement Step 7.5) for project/work_items/proposed/WI-WORKING-DIR-REVERSE-DISCOVERY-0001.md"
-session_transcript: pending
+session_transcript: claude-app:1b69806b-4260-4637-95d0-46434a8c5576
 ---
 
 # Summary
