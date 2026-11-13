@@ -78,10 +78,13 @@ def _is_linked_worktree(git_root: pathlib.Path) -> bool:
     """Return whether git_root is a linked `git worktree` checkout.
 
     A linked worktree's `.git` is a file containing `gitdir: <path>`, where
-    the path ends in `worktrees/<name>`. A submodule's `.git` file points at
+    the path ends in `worktrees/<name>` and that administrative directory
+    contains a `commondir` file (git always writes one for linked worktrees
+    and never for a submodule's git dir, whose name may itself contain a
+    `worktrees/` component). A submodule's `.git` file points at
     `modules/<name>` instead, and an independent clone has a `.git`
-    directory; neither counts. Reads the file directly (no `git` process);
-    an unreadable or malformed file is not a worktree.
+    directory; neither counts. Reads files directly (no `git` process); an
+    unreadable or malformed file is not a worktree.
     """
     git_file = git_root / ".git"
     if not git_file.is_file():
@@ -93,8 +96,15 @@ def _is_linked_worktree(git_root: pathlib.Path) -> bool:
     prefix = "gitdir:"
     if not first_line.startswith(prefix):
         return False
-    gitdir = pathlib.PurePath(first_line[len(prefix) :].strip())
-    return len(gitdir.parts) >= 2 and gitdir.parts[-2] == "worktrees"
+    gitdir_text = first_line[len(prefix) :].strip()
+    if not gitdir_text:
+        return False
+    gitdir = pathlib.Path(gitdir_text)
+    if not gitdir.is_absolute():
+        gitdir = git_root / gitdir
+    if len(gitdir.parts) < 2 or gitdir.parts[-2] != "worktrees":
+        return False
+    return (gitdir / "commondir").is_file()
 
 
 def _is_nested_linked_worktree(

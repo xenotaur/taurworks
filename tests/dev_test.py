@@ -229,36 +229,62 @@ class AmbiguousDiscoveryDevTest(unittest.TestCase):
 
 
 class LinkedWorktreeDetectionTest(unittest.TestCase):
-    """`_is_linked_worktree` reads the `.git` file without running git."""
+    """`_is_linked_worktree` reads `.git`/`commondir` files without git."""
 
-    def check(self, git_entry: str | None, expected: bool, as_dir: bool = False):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            checkout = pathlib.Path(temp_dir)
-            if as_dir:
-                (checkout / ".git").mkdir()
-            elif git_entry is not None:
-                (checkout / ".git").write_text(git_entry, encoding="utf-8")
-            self.assertIs(expected, dev._is_linked_worktree(checkout))
+    def setUp(self):
+        self._temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._temp.cleanup)
+        self.root = pathlib.Path(self._temp.name).resolve()
+        self.checkout = self.root / "repo" / "checkout"
+        self.checkout.mkdir(parents=True)
+
+    def admin_dir(self, *parts: str, commondir: bool = True) -> pathlib.Path:
+        path = self.root.joinpath("repo", ".git", *parts)
+        path.mkdir(parents=True)
+        if commondir:
+            (path / "commondir").write_text("../..\n", encoding="utf-8")
+        return path
+
+    def write_git_file(self, text: str) -> None:
+        (self.checkout / ".git").write_text(text, encoding="utf-8")
 
     def test_absolute_worktree_gitdir(self):
-        self.check("gitdir: /repo/.git/worktrees/feature\n", True)
+        admin = self.admin_dir("worktrees", "feature")
+        self.write_git_file(f"gitdir: {admin}\n")
+        self.assertTrue(dev._is_linked_worktree(self.checkout))
 
     def test_relative_worktree_gitdir_with_trailing_slash(self):
-        self.check("gitdir: ../.git/worktrees/feature/\n", True)
+        self.admin_dir("worktrees", "feature")
+        self.write_git_file("gitdir: ../.git/worktrees/feature/\n")
+        self.assertTrue(dev._is_linked_worktree(self.checkout))
 
-    def test_worktree_of_a_submodule(self):
-        self.check("gitdir: /repo/.git/modules/lib/worktrees/x\n", True)
+    def test_worktree_admin_dir_without_commondir_is_not_a_worktree(self):
+        admin = self.admin_dir("worktrees", "feature", commondir=False)
+        self.write_git_file(f"gitdir: {admin}\n")
+        self.assertFalse(dev._is_linked_worktree(self.checkout))
 
     def test_submodule_is_not_a_worktree(self):
-        self.check("gitdir: ../../.git/modules/lib\n", False)
+        self.admin_dir("modules", "lib", commondir=False)
+        self.write_git_file("gitdir: ../.git/modules/lib\n")
+        self.assertFalse(dev._is_linked_worktree(self.checkout))
+
+    def test_submodule_named_under_worktrees_is_not_a_worktree(self):
+        # `git submodule add <url> worktrees/trap` -> modules/worktrees/trap,
+        # whose next-to-last part is `worktrees` but which has no commondir.
+        self.admin_dir("modules", "worktrees", "trap", commondir=False)
+        self.write_git_file("gitdir: ../.git/modules/worktrees/trap\n")
+        self.assertFalse(dev._is_linked_worktree(self.checkout))
 
     def test_git_directory_is_not_a_worktree(self):
-        self.check(None, False, as_dir=True)
+        (self.checkout / ".git").mkdir()
+        self.assertFalse(dev._is_linked_worktree(self.checkout))
 
     def test_missing_empty_or_malformed_git_file(self):
-        self.check(None, False)
-        self.check("", False)
-        self.check("worktrees/feature\n", False)
+        self.assertFalse(dev._is_linked_worktree(self.checkout))
+        for text in ("", "gitdir:\n", "worktrees/feature\n"):
+            with self.subTest(text=text):
+                self.write_git_file(text)
+                self.assertFalse(dev._is_linked_worktree(self.checkout))
 
 
 class ExecuteDevCommandTest(unittest.TestCase):

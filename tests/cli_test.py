@@ -3753,10 +3753,10 @@ class ReverseDiscoveryCliTest(unittest.TestCase):
         main_script.chmod(0o755)
         worktree = self.target / ".wt" / "feature"
         (worktree / "scripts").mkdir(parents=True)
-        (worktree / ".git").write_text(
-            f"gitdir: {self.target / '.git' / 'worktrees' / 'feature'}\n",
-            encoding="utf-8",
-        )
+        admin = self.target / ".git" / "worktrees" / "feature"
+        admin.mkdir(parents=True)
+        (admin / "commondir").write_text("../..\n", encoding="utf-8")
+        (worktree / ".git").write_text(f"gitdir: {admin}\n", encoding="utf-8")
         wt_script = worktree / "scripts" / "test"
         wt_script.write_text(f'#!/bin/sh\ntouch "{marker_wt}"\n', encoding="utf-8")
         wt_script.chmod(0o755)
@@ -3802,9 +3802,15 @@ class ReverseDiscoveryCliTest(unittest.TestCase):
             script.chmod(0o755)
 
         add_checkout(repo, "main")
+        admin = repo / ".git" / "worktrees" / "feature"
+        admin.mkdir(parents=True)
+        (admin / "commondir").write_text("../..\n", encoding="utf-8")
+        (repo / ".git" / "modules" / "lib").mkdir(parents=True)
+        (repo / ".git" / "modules" / "worktrees" / "trap").mkdir(parents=True)
         cases = {
-            "worktree": f"gitdir: {repo / '.git' / 'worktrees' / 'feature'}\n",
-            "submodule": "gitdir: ../../.git/modules/lib\n",
+            "worktree": f"gitdir: {admin}\n",
+            "submodule": "gitdir: ../.git/modules/lib\n",
+            "trap": "gitdir: ../.git/modules/worktrees/trap\n",
             "malformed": "not a gitdir line\n",
         }
         for label, git_file in cases.items():
@@ -3817,8 +3823,10 @@ class ReverseDiscoveryCliTest(unittest.TestCase):
         add_checkout(clone, "clone")
 
         expected = {
+            ".": "main",
             "worktree": "worktree",
             "submodule": "main",
+            "trap": "main",
             "malformed": "main",
             "clone": "main",
         }
@@ -3826,7 +3834,7 @@ class ReverseDiscoveryCliTest(unittest.TestCase):
             with self.subTest(checkout=label):
                 for marker in markers.iterdir():
                     marker.unlink()
-                cwd = repo / label
+                cwd = repo if label == "." else repo / label
                 result, message = self.run_cli(["dev", "test"], cwd)
                 self.assertEqual(result.returncode, 0, msg=message)
                 self.assertEqual(
