@@ -4,7 +4,7 @@ prompt_id: PROMPT(AD_HOC:WORKING_DIR_SYMLINK_FOLLOWUPS)[2026-11-13T03:07:39+00:0
 work_item: AD_HOC
 status: in_progress
 rerun_of:
-pr:
+pr: https://github.com/xenotaur/taurworks/pull/120
 commit:
 created_at: 2026-11-13T03:07:45+00:00
 agent: claude_app
