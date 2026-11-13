@@ -29,7 +29,8 @@ acceptance:
   - "When the physical cwd lies inside the resolved working_dir of more than one known project, the deepest (longest) resolved working_dir wins; an exact tie is reported as ambiguous with every candidate listed and command-specific recovery guidance (pass the project name or path to commands that resolve names through the registry; pass the path to the chosen project_root to `working-dir show`; otherwise rerun from the chosen project_root, with a project-root-relative DIR for `working-dir set`). The affected command then fails instead of guessing: an ambiguous lookup never falls back to the cwd or the target path itself (for example, the path emitters never print the external directory)"
   - "Diagnostics say how discovery resolved: a `resolved_by`/discovery-source value distinguishes the physical walk from the working_dir reverse lookup (naming the matched project) in `dev where`/`dev status`, `project where`, and `project activate --print`; an ambiguous lookup reaches every caller with its candidate list intact, on both the `find_current_project`/`resolve_global_activation_project` path and the `resolve_project_target` path (not collapsed to `None` or to a fallback resolution)"
   - "`taurworks project working-dir set [DIR]` run from inside the external work tree stores the configured `working_dir` value joined with the cwd's path relative to the resolved working_dir target (e.g. `working_dir/sub`), never resolving through the link; the boundary is the last symlink component of the lexical `project_root`/`working_dir` path (e.g. `working_dir` when the configured value is `working_dir/sub` and only `working_dir` is a link): a leading `..` in DIR may only remove components after that symlink component, and a `..` that would remove the symlink component itself is rejected"
-  - "A known project whose working_dir is invalid (absolute, `..`, dangling, or looping), missing, or unconfigured is skipped by the reverse lookup without failing discovery; non-symlinked layouts behave exactly as before, and the reverse lookup only runs when the physical walk finds nothing"
+  - "A known project whose working_dir is invalid (absolute, `..`, dangling, or looping), missing, or unconfigured is skipped by the reverse lookup without failing discovery; non-symlinked layouts behave exactly as before, except that `dev` commands run from inside a linked `git worktree` checkout nested within the resolved working_dir use that worktree as their work directory, whether or not the working_dir is a symlink (submodules and independent nested clones keep their current behaviour); and the reverse lookup only runs when the physical walk finds nothing"
+  - "The linked-worktree test reads the nested checkout's `.git` file (a `gitdir:` path ending in `worktrees/<name>` whose directory contains a `commondir` file) without running `git`; a `.git` directory, a submodule `gitdir` (`modules/<name>`, even when the submodule's own name contains a `worktrees/` component), or an unreadable or malformed `.git` file is not a worktree"
   - "`config_model.md`'s \"Working-dir containment and symlinked work trees\" section is updated to describe the reverse lookup and the revised `working-dir set` mapping, replacing the \"run it from project_root instead\" guidance"
 artifacts_expected:
   - src/taurworks/manager.py
@@ -254,11 +255,26 @@ Prior art check:
    - A `..` after any ordinary component is still rejected.
    - The usual lexical, symlink, and existence checks then run on the
      result.
-5. **Unchanged.** Keep the physical-walk precedence, `tw activate`'s `cd`
+5. **`dev` work directory inside a linked worktree** (amended during PR
+   #119 review, with the user's approval). In `dev`'s work-directory guess:
+   when the nearest git root (the checkout containing the cwd) is strictly
+   inside the resolved working_dir *and* is a linked `git worktree`
+   checkout, use it as the work directory.
+   This applies whether the project was found by the physical walk or the
+   reverse lookup. A checkout counts as a linked worktree when its `.git`
+   is a file whose `gitdir:` path ends in `worktrees/<name>` and that
+   directory contains a `commondir` file, which git always writes for linked
+   worktrees and never for a submodule's git dir. Read the files directly,
+   without running `git`. A `.git` directory (an independent
+   clone), a submodule (`gitdir` ending in `modules/<name>`), and an
+   unreadable or malformed `.git` file keep today's behaviour, where the
+   configured working_dir wins. Tier 1 `[dev.commands]` still come from
+   `project_root`; they run with the worktree as cwd.
+6. **Unchanged.** Keep the physical-walk precedence, `tw activate`'s `cd`
    target, and the shell helper. Add no environment variable and no `$PWD`
    handling. Don't recursively scan the filesystem; only registered projects
    and immediate workspace children are considered, as `project list` does.
-6. **Tests.**
+7. **Tests.**
    - (a) `dev where` from inside the external target, and from a nested
      subdirectory of it, finds the project with `resolved_by` set to the
      reverse lookup.
@@ -305,7 +321,17 @@ Prior art check:
    - (m) `project working-dir show NAME`, run from inside the external
      target, resolves the named current project (not `CHILD_PATH`), and
      `project create NAME`'s nested-name guard behaves as before.
-7. **Docs.** Update `config_model.md`'s "Working-dir containment and
+   - (n) `dev test`/`dev where` from a linked worktree nested in the
+     working_dir use the worktree, both inside a symlinked external target
+     and inside a plain (physically discovered) project; from the main
+     checkout the working_dir is still used.
+   - (o) Parity with master for a plain project: `dev test` from inside a
+     submodule (`.git` file pointing at `modules/<name>`) and from inside an
+     independent nested clone (`.git` directory) still uses the working_dir.
+   - (p) A malformed `.git` file inside the working_dir is not treated as a
+     worktree, and neither is a submodule whose name puts `worktrees` next to
+     last in its `gitdir` (`modules/worktrees/<name>`).
+8. **Docs.** Update `config_model.md`'s "Working-dir containment and
    symlinked work trees" section, replacing the "run it from project_root
    instead" note. Flip the status line of the new "Discovery from inside a
    symlinked work tree" section to implemented.

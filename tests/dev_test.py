@@ -3,6 +3,7 @@ import pathlib
 import stat
 import tempfile
 import unittest
+from unittest import mock
 
 from taurworks import dev
 from taurworks import project_internals
@@ -184,6 +185,106 @@ class ResolveDevCommandTest(unittest.TestCase):
         self.assertTrue(resolution.resolved)
         self.assertEqual(resolution.tier, "script")
         self.assertEqual(pathlib.Path(resolution.cwd), repo_dir.resolve())
+
+
+class AmbiguousDiscoveryDevTest(unittest.TestCase):
+    """An ambiguous working_dir reverse lookup never yields a guessed work dir."""
+
+    def setUp(self):
+        self._temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._temp.cleanup)
+        self.cwd = pathlib.Path(self._temp.name).resolve()
+        original_cwd = pathlib.Path.cwd()
+        os.chdir(self.cwd)
+        self.addCleanup(os.chdir, original_cwd)
+        (self.cwd / ".git").mkdir()
+        _write_executable_script(self.cwd / "scripts" / "test", "#!/bin/sh\n")
+        self.candidates = (self.cwd.parent / "A", self.cwd.parent / "B")
+        ambiguous = project_internals.PathDiscovery(
+            root=None,
+            source=project_internals.DiscoverySource.WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS,
+            candidates=self.candidates,
+        )
+        patcher = mock.patch.object(
+            dev.manager, "find_project_root_for_path", return_value=ambiguous
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_dev_where_reports_ambiguity_without_guessing(self):
+        diagnostics = dev.gather_dev_where_diagnostics()
+        self.assertFalse(diagnostics["ok"])
+        self.assertEqual("unresolved", diagnostics["work_directory_guess"])
+        self.assertEqual("unresolved", diagnostics["git_root_guess"])
+        self.assertEqual(
+            "working_dir_reverse_lookup_ambiguous", diagnostics["resolved_by"]
+        )
+        self.assertIn(str(self.candidates[0]), diagnostics["working_dir_message"])
+
+    def test_resolve_dev_command_refuses_script_fallback(self):
+        resolution = dev.resolve_dev_command("test")
+        self.assertFalse(resolution.resolved)
+        self.assertIsNone(resolution.argv)
+        self.assertIn("rerun from the chosen project_root", resolution.detail)
+
+
+class LinkedWorktreeDetectionTest(unittest.TestCase):
+    """`_is_linked_worktree` reads `.git`/`commondir` files without git."""
+
+    def setUp(self):
+        self._temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._temp.cleanup)
+        self.root = pathlib.Path(self._temp.name).resolve()
+        self.checkout = self.root / "repo" / "checkout"
+        self.checkout.mkdir(parents=True)
+
+    def admin_dir(self, *parts: str, commondir: bool = True) -> pathlib.Path:
+        path = self.root.joinpath("repo", ".git", *parts)
+        path.mkdir(parents=True)
+        if commondir:
+            (path / "commondir").write_text("../..\n", encoding="utf-8")
+        return path
+
+    def write_git_file(self, text: str) -> None:
+        (self.checkout / ".git").write_text(text, encoding="utf-8")
+
+    def test_absolute_worktree_gitdir(self):
+        admin = self.admin_dir("worktrees", "feature")
+        self.write_git_file(f"gitdir: {admin}\n")
+        self.assertTrue(dev._is_linked_worktree(self.checkout))
+
+    def test_relative_worktree_gitdir_with_trailing_slash(self):
+        self.admin_dir("worktrees", "feature")
+        self.write_git_file("gitdir: ../.git/worktrees/feature/\n")
+        self.assertTrue(dev._is_linked_worktree(self.checkout))
+
+    def test_worktree_admin_dir_without_commondir_is_not_a_worktree(self):
+        admin = self.admin_dir("worktrees", "feature", commondir=False)
+        self.write_git_file(f"gitdir: {admin}\n")
+        self.assertFalse(dev._is_linked_worktree(self.checkout))
+
+    def test_submodule_is_not_a_worktree(self):
+        self.admin_dir("modules", "lib", commondir=False)
+        self.write_git_file("gitdir: ../.git/modules/lib\n")
+        self.assertFalse(dev._is_linked_worktree(self.checkout))
+
+    def test_submodule_named_under_worktrees_is_not_a_worktree(self):
+        # `git submodule add <url> worktrees/trap` -> modules/worktrees/trap,
+        # whose next-to-last part is `worktrees` but which has no commondir.
+        self.admin_dir("modules", "worktrees", "trap", commondir=False)
+        self.write_git_file("gitdir: ../.git/modules/worktrees/trap\n")
+        self.assertFalse(dev._is_linked_worktree(self.checkout))
+
+    def test_git_directory_is_not_a_worktree(self):
+        (self.checkout / ".git").mkdir()
+        self.assertFalse(dev._is_linked_worktree(self.checkout))
+
+    def test_missing_empty_or_malformed_git_file(self):
+        self.assertFalse(dev._is_linked_worktree(self.checkout))
+        for text in ("", "gitdir:\n", "worktrees/feature\n"):
+            with self.subTest(text=text):
+                self.write_git_file(text)
+                self.assertFalse(dev._is_linked_worktree(self.checkout))
 
 
 class ExecuteDevCommandTest(unittest.TestCase):

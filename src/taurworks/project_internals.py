@@ -6,6 +6,7 @@ import pathlib
 import re
 import stat
 import tomllib
+from collections.abc import Callable
 from typing import Any
 
 PROJECT_SCHEMA_VERSION = 1
@@ -33,15 +34,91 @@ class ResolutionReason(enum.StrEnum):
     WORKSPACE_INITIALIZED_PROJECT = "workspace_initialized_project"
     WORKSPACE_LEGACY_ADMIN_PROJECT = "workspace_legacy_admin_project"
     WORKSPACE_ONLY_PROJECT = "workspace_only_project"
+    WORKING_DIR_REVERSE_LOOKUP = "working_dir_reverse_lookup"
+    WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS = "working_dir_reverse_lookup_ambiguous"
 
 
 @dataclasses.dataclass(frozen=True)
 class ProjectResolution:
-    """Inspectable result of resolving a project path or name."""
+    """Inspectable result of resolving a project path or name.
+
+    When `resolved_by` is `WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS`,
+    `project_root` is only a placeholder (the directory discovery started
+    from, which never contains `.taurworks/`) and must not be used as a
+    target; `candidates` lists the competing project roots.
+    """
 
     input: str
     project_root: pathlib.Path
     resolved_by: ResolutionReason
+    candidates: tuple[pathlib.Path, ...] = ()
+
+    @property
+    def ambiguous(self) -> bool:
+        """Return whether discovery matched several projects equally well."""
+        return self.resolved_by is ResolutionReason.WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS
+
+
+class DiscoverySource(enum.StrEnum):
+    """How cwd/path-based project discovery resolved (see config_model.md)."""
+
+    PHYSICAL_WALK = "physical_walk"
+    WORKING_DIR_REVERSE_LOOKUP = "working_dir_reverse_lookup"
+    WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS = "working_dir_reverse_lookup_ambiguous"
+    NONE = "none"
+
+
+@dataclasses.dataclass(frozen=True)
+class PathDiscovery:
+    """Result of discovering the project that contains a directory.
+
+    `root` is set for `PHYSICAL_WALK` and `WORKING_DIR_REVERSE_LOOKUP`; it is
+    `None` for `NONE` and for an ambiguous lookup, whose `candidates` list
+    the competing project roots.
+    """
+
+    root: pathlib.Path | None
+    source: DiscoverySource
+    matched_project: str | None = None
+    candidates: tuple[pathlib.Path, ...] = ()
+
+    @property
+    def ambiguous(self) -> bool:
+        """Return whether the reverse lookup matched several projects."""
+        return self.source is DiscoverySource.WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS
+
+
+AMBIGUITY_GUIDANCE = {
+    "target": ("pass the project name, or the path to its project_root, to choose one"),
+    "path": (
+        "pass the path to the chosen project_root (bare names here resolve "
+        "relative to the current directory)"
+    ),
+    "rerun": (
+        "rerun from the chosen project_root (for `working-dir set`, with a "
+        "project-root-relative DIR)"
+    ),
+}
+
+
+def ambiguous_discovery_message(
+    candidates: tuple[pathlib.Path, ...], guidance_kind: str
+) -> str:
+    """Explain an ambiguous working_dir reverse lookup and how to recover."""
+    listed = ", ".join(str(candidate) for candidate in candidates)
+    return (
+        "This directory is inside the working_dir of more than one known "
+        f"project ({listed}); Taurworks will not guess. To proceed, "
+        f"{AMBIGUITY_GUIDANCE[guidance_kind]}."
+    )
+
+
+def physical_discovery(start: pathlib.Path) -> PathDiscovery:
+    """Discover a project by walking the physical parents of `start` only."""
+    root = find_project_root_candidate(start.resolve())
+    if root is None:
+        return PathDiscovery(root=None, source=DiscoverySource.NONE)
+    return PathDiscovery(root=root, source=DiscoverySource.PHYSICAL_WALK)
 
 
 def project_name_from_path(project_root: pathlib.Path) -> str:
@@ -122,23 +199,56 @@ def _path_candidate(path_or_name: str, cwd: pathlib.Path) -> pathlib.Path:
     return cwd / raw_path
 
 
+def _may_be_current_project_name(path_or_name: str) -> bool:
+    """Return whether a target could match the current project's name."""
+    return len(pathlib.PurePath(path_or_name).parts) == 1 and path_or_name not in {
+        ".",
+        "..",
+    }
+
+
 def resolve_project_target(
     path_or_name: str | None,
     cwd: pathlib.Path,
     *,
     prefer_project_root: bool = False,
+    discover: Callable[[pathlib.Path], PathDiscovery] | None = None,
 ) -> ProjectResolution:
-    """Resolve a project target with stable, inspectable precedence rules."""
+    """Resolve a project target with stable, inspectable precedence rules.
+
+    `discover` finds the project containing a directory. It defaults to
+    `physical_discovery`; callers that can see the registry and workspace
+    pass `manager.find_project_root_for_path` so that a directory inside a
+    symlinked working_dir target is attributed to its project. It is used
+    for the no-target case, the current-project name check, and (with
+    `prefer_project_root`) existing path targets. An ambiguous lookup is
+    returned as such, never replaced by a fallback resolution -- except that
+    an ambiguous cwd does not block an explicit target, which falls through
+    to the path rules below.
+    """
+    discover = discover or physical_discovery
     resolved_cwd = cwd.resolve()
     display_input = path_or_name or "(current working directory)"
-    current_project_root = find_project_root_candidate(resolved_cwd)
+    cwd_discovery: PathDiscovery | None = None
+    if path_or_name is None or _may_be_current_project_name(path_or_name):
+        cwd_discovery = discover(resolved_cwd)
 
     if path_or_name is None:
-        if current_project_root is not None:
+        if cwd_discovery.root is not None:
+            reason = ResolutionReason.CURRENT_PROJECT
+            if cwd_discovery.source is DiscoverySource.WORKING_DIR_REVERSE_LOOKUP:
+                reason = ResolutionReason.WORKING_DIR_REVERSE_LOOKUP
             return ProjectResolution(
                 input=display_input,
-                project_root=current_project_root,
-                resolved_by=ResolutionReason.CURRENT_PROJECT,
+                project_root=cwd_discovery.root,
+                resolved_by=reason,
+            )
+        if cwd_discovery.ambiguous:
+            return ProjectResolution(
+                input=display_input,
+                project_root=resolved_cwd,
+                resolved_by=ResolutionReason.WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS,
+                candidates=cwd_discovery.candidates,
             )
         return ProjectResolution(
             input=display_input,
@@ -146,12 +256,12 @@ def resolve_project_target(
             resolved_by=ResolutionReason.DEFAULT_CURRENT_DIRECTORY,
         )
 
-    if current_project_root is not None:
-        current_project_name = project_name_from_config(current_project_root)
+    if cwd_discovery is not None and cwd_discovery.root is not None:
+        current_project_name = project_name_from_config(cwd_discovery.root)
         if path_or_name == current_project_name:
             return ProjectResolution(
                 input=display_input,
-                project_root=current_project_root,
+                project_root=cwd_discovery.root,
                 resolved_by=ResolutionReason.CURRENT_PROJECT_NAME,
             )
 
@@ -169,12 +279,22 @@ def resolve_project_target(
             search_base = resolved_candidate
             if not search_base.is_dir():
                 search_base = search_base.parent
-            project_root = find_project_root_candidate(search_base)
-            if project_root is not None:
+            discovery = discover(search_base)
+            if discovery.root is not None:
+                reason = ResolutionReason.EXISTING_PATH_PROJECT_ROOT
+                if discovery.source is DiscoverySource.WORKING_DIR_REVERSE_LOOKUP:
+                    reason = ResolutionReason.WORKING_DIR_REVERSE_LOOKUP
                 return ProjectResolution(
                     input=display_input,
-                    project_root=project_root,
-                    resolved_by=ResolutionReason.EXISTING_PATH_PROJECT_ROOT,
+                    project_root=discovery.root,
+                    resolved_by=reason,
+                )
+            if discovery.ambiguous:
+                return ProjectResolution(
+                    input=display_input,
+                    project_root=resolved_candidate,
+                    resolved_by=ResolutionReason.WORKING_DIR_REVERSE_LOOKUP_AMBIGUOUS,
+                    candidates=discovery.candidates,
                 )
         return ProjectResolution(
             input=display_input,
@@ -547,10 +667,57 @@ def _readlink_for_display(path: pathlib.Path) -> str:
         return "(unreadable target)"
 
 
+WORKING_DIR_LINK_BOUNDARY_MESSAGE = (
+    "working_dir may not escape with '..' past the symlinked working_dir "
+    "component; run `taurworks project working-dir set` from the project root "
+    "to choose a directory outside the linked work tree"
+)
+
+
+def _map_cwd_through_working_dir(
+    resolved_project_root: pathlib.Path,
+    resolved_cwd: pathlib.Path,
+    configured_working_dir: str | None,
+) -> tuple[list[str], int] | None:
+    """Map a cwd inside the resolved working_dir target back through the link.
+
+    Returns `(parts, min_parts)`: the lexical, project-root-relative parts of
+    the cwd (the configured working_dir value plus the cwd's path relative to
+    its resolved target) and how many leading parts a `..` may never remove.
+    The boundary is the last symlink component of the lexical path; every
+    component after it is symlink-free, so a lexical step up there equals a
+    physical one. Returns None when the cwd is not inside the target.
+    """
+    if not configured_working_dir:
+        return None
+    try:
+        relative, target, _exists = resolve_configured_working_dir(
+            resolved_project_root, configured_working_dir
+        )
+    except ProjectConfigError:
+        return None
+    try:
+        tail = resolved_cwd.relative_to(target).parts
+    except ValueError:
+        return None
+
+    configured_parts = list(relative.parts)
+    boundary: int | None = None
+    candidate = resolved_project_root
+    for index, part in enumerate(configured_parts):
+        candidate = candidate / part
+        if candidate.is_symlink():
+            boundary = index
+    if boundary is None:
+        return None
+    return configured_parts + list(tail), boundary + 1
+
+
 def relative_working_dir(
     project_root: pathlib.Path,
     cwd: pathlib.Path,
     user_path: str | None,
+    configured_working_dir: str | None = None,
 ) -> pathlib.Path:
     """Validate and return a working directory path relative to project root.
 
@@ -562,13 +729,24 @@ def relative_working_dir(
     resulting stored value is checked lexically, never by resolving it, so a
     component that is a symlink to a directory outside the project root is
     accepted.
+
+    When the cwd is outside the resolved project root but inside the resolved
+    target of the `configured_working_dir` symlink, it is mapped back through
+    the link (see `_map_cwd_through_working_dir`); a leading `..` may then
+    remove components only after the last symlink component.
     """
     resolved_project_root = project_root.resolve()
+    resolved_cwd = cwd.resolve()
+    min_parts = 0
     try:
-        cwd_relative = cwd.resolve().relative_to(resolved_project_root)
+        parts = list(resolved_cwd.relative_to(resolved_project_root).parts)
     except ValueError as error:
-        raise ProjectConfigError(WORKING_DIR_ESCAPE_MESSAGE) from error
-    parts = list(cwd_relative.parts)
+        mapped = _map_cwd_through_working_dir(
+            resolved_project_root, resolved_cwd, configured_working_dir
+        )
+        if mapped is None:
+            raise ProjectConfigError(WORKING_DIR_ESCAPE_MESSAGE) from error
+        parts, min_parts = mapped
 
     if user_path is not None:
         raw_path = pathlib.Path(user_path).expanduser()
@@ -579,8 +757,12 @@ def relative_working_dir(
             if part == "..":
                 if seen_component:
                     raise ProjectConfigError(WORKING_DIR_DOTDOT_MESSAGE)
-                if not parts:
-                    raise ProjectConfigError(WORKING_DIR_ESCAPE_MESSAGE)
+                if len(parts) <= min_parts:
+                    raise ProjectConfigError(
+                        WORKING_DIR_LINK_BOUNDARY_MESSAGE
+                        if min_parts
+                        else WORKING_DIR_ESCAPE_MESSAGE
+                    )
                 parts.pop()
             else:
                 seen_component = True
@@ -606,7 +788,9 @@ def set_working_dir(
     config = read_project_config(project_root)
     previous_working_dir = working_dir_from_config(config)
     config, repairs = ensure_minimal_project_config(project_root, config)
-    relative_path = relative_working_dir(project_root, cwd, user_path)
+    relative_path = relative_working_dir(
+        project_root, cwd, user_path, configured_working_dir=previous_working_dir
+    )
     relative_path_text = relative_path.as_posix()
 
     paths_table = config.get("paths")

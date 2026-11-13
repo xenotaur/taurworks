@@ -3525,5 +3525,410 @@ class ProjectRegistryCliTest(unittest.TestCase):
         self.assertNotIn("Traceback", alias_result.stderr)
 
 
+class ReverseDiscoveryCliTest(unittest.TestCase):
+    """End-to-end discovery from inside a symlinked working_dir target.
+
+    Layout: Workspace/Proj/.taurworks with `working_dir` a symlink to
+    Tempspace/Proj/working_dir (which has a `sub/` directory).
+    """
+
+    def setUp(self):
+        self._temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._temp.cleanup)
+        self.root = pathlib.Path(self._temp.name).resolve()
+        self.workspace = self.root / "Workspace"
+        self.workspace.mkdir()
+        self.env = {
+            "HOME": str(self.root),
+            "XDG_CONFIG_HOME": str(self.root / "xdg"),
+            "TAURWORKS_WORKSPACE": str(self.workspace),
+        }
+        self.project = self.workspace / "Proj"
+        self.target = self.root / "Tempspace" / "Proj" / "working_dir"
+        self.make_project(self.project, self.target)
+        (self.target / "sub").mkdir()
+
+    def make_project(
+        self,
+        project_root: pathlib.Path,
+        target: pathlib.Path,
+        working_dir: str = "working_dir",
+    ) -> None:
+        (project_root / ".taurworks").mkdir(parents=True)
+        (project_root / ".taurworks" / "config.toml").write_text(
+            (
+                "schema_version = 1\n\n"
+                f'[project]\nname = "{project_root.name}"\n\n'
+                f'[paths]\nworking_dir = "{working_dir}"\n'
+            ),
+            encoding="utf-8",
+        )
+        target.mkdir(parents=True, exist_ok=True)
+        link_name = working_dir.split("/")[0]
+        if not (project_root / link_name).is_symlink():
+            link_target = target
+            for _extra in working_dir.split("/")[1:]:
+                link_target = link_target.parent
+            (project_root / link_name).symlink_to(link_target, target_is_directory=True)
+
+    def make_ambiguous(self) -> pathlib.Path:
+        other = self.workspace / "Other"
+        (other / ".taurworks").mkdir(parents=True)
+        (other / ".taurworks" / "config.toml").write_text(
+            'schema_version = 1\n\n[project]\nname = "Other"\n\n'
+            '[paths]\nworking_dir = "working_dir"\n',
+            encoding="utf-8",
+        )
+        (other / "working_dir").symlink_to(self.target, target_is_directory=True)
+        return other
+
+    def run_cli(self, args: list[str], cwd: pathlib.Path):
+        result = _run_cli(args, cwd, self.env)
+        return result, _failure_message(args, result)
+
+    def config_working_dir(self, project_root: pathlib.Path) -> str:
+        config_text = (project_root / ".taurworks" / "config.toml").read_text(
+            encoding="utf-8"
+        )
+        return tomllib.loads(config_text)["paths"]["working_dir"]
+
+    # (a)
+    def test_dev_where_finds_project_from_target_and_subdir(self):
+        for cwd in (self.target, self.target / "sub"):
+            with self.subTest(cwd=cwd):
+                result, message = self.run_cli(["dev", "where"], cwd)
+                self.assertEqual(result.returncode, 0, msg=message)
+                fields = parse_cli_fields(result.stdout)
+                assert_same_path(self, fields["project_root"], self.project)
+                self.assertEqual(
+                    "working_dir_reverse_lookup", fields["resolved_by"], msg=message
+                )
+                assert_same_path(self, fields["resolved_working_dir"], self.target)
+
+    # (b), plus `project where`
+    def test_activate_print_and_project_where_without_target(self):
+        result, message = self.run_cli(
+            ["project", "activate", "--print"], self.target / "sub"
+        )
+        self.assertEqual(result.returncode, 0, msg=message)
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(self, fields["project_root"], self.project)
+        self.assertEqual("working_dir_reverse_lookup", fields["resolved_by"])
+        assert_same_path(self, fields["resolved_working_dir"], self.target)
+
+        result, message = self.run_cli(["project", "where"], self.target / "sub")
+        self.assertEqual(result.returncode, 0, msg=message)
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(self, fields["project_root_candidate"], self.project)
+        self.assertIn("working_dir reverse lookup (project Proj", result.stdout)
+
+    # (c)
+    def test_working_dir_set_maps_through_the_link(self):
+        result, message = self.run_cli(["project", "working-dir", "set"], self.target)
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertEqual("working_dir", self.config_working_dir(self.project))
+
+        result, message = self.run_cli(
+            ["project", "working-dir", "set"], self.target / "sub"
+        )
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertEqual("working_dir/sub", self.config_working_dir(self.project))
+
+        result, message = self.run_cli(
+            ["project", "working-dir", "set", ".."], self.target / "sub"
+        )
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertEqual("working_dir", self.config_working_dir(self.project))
+
+        result, message = self.run_cli(
+            ["project", "working-dir", "set", ".."], self.target
+        )
+        self.assertNotEqual(result.returncode, 0, msg=message)
+        self.assertIn("past the symlinked working_dir component", result.stdout)
+        self.assertEqual("working_dir", self.config_working_dir(self.project))
+
+    # (c), nested configured value where only the first component is a link
+    def test_working_dir_set_boundary_is_last_symlink_component(self):
+        nested = self.workspace / "Nested"
+        nested_target = self.root / "Tempspace" / "Nested" / "link" / "sub"
+        self.make_project(nested, nested_target, working_dir="link/sub")
+        result, message = self.run_cli(["dev", "where"], nested_target)
+        self.assertEqual(result.returncode, 0, msg=message)
+        assert_same_path(self, parse_cli_fields(result.stdout)["project_root"], nested)
+
+        result, message = self.run_cli(
+            ["project", "working-dir", "set", ".."], nested_target
+        )
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertEqual("link", self.config_working_dir(nested))
+
+        # Restore working_dir = "link/sub": from the configured target,
+        # `../..` would remove the `link` symlink component itself.
+        result, message = self.run_cli(["project", "working-dir", "set"], nested_target)
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertEqual("link/sub", self.config_working_dir(nested))
+        result, message = self.run_cli(
+            ["project", "working-dir", "set", "../.."], nested_target
+        )
+        self.assertNotEqual(result.returncode, 0, msg=message)
+        self.assertIn("past the symlinked working_dir component", result.stdout)
+        self.assertEqual("link/sub", self.config_working_dir(nested))
+        result, message = self.run_cli(
+            ["project", "working-dir", "set", ".."], nested_target
+        )
+        self.assertEqual(result.returncode, 0, msg=message)
+
+        # The stored value is now `link`, whose target is the link root.
+        result, message = self.run_cli(
+            ["project", "working-dir", "set", ".."], nested_target.parent
+        )
+        self.assertNotEqual(result.returncode, 0, msg=message)
+        self.assertIn("past the symlinked working_dir component", result.stdout)
+
+    # (i)
+    def test_path_emitters_resolve_dot_through_reverse_lookup(self):
+        cwd = self.target / "sub"
+        for args, expected in (
+            (["project", "working", "."], self.target),
+            (["working", "."], self.target),
+            (["project", "root", "."], self.project),
+            (["root", "."], self.project),
+        ):
+            with self.subTest(args=args):
+                result, message = self.run_cli(args, cwd)
+                self.assertEqual(result.returncode, 0, msg=message)
+                assert_same_path(self, result.stdout.strip(), expected)
+
+        result, message = self.run_cli(["project", "working-dir", "show", "."], cwd)
+        self.assertEqual(result.returncode, 0, msg=message)
+        assert_same_path(
+            self, parse_cli_fields(result.stdout)["project_root"], self.project
+        )
+
+    # (i): activate's explicit path targets are unchanged
+    def test_activate_dot_from_physical_subdir_is_unchanged(self):
+        physical_sub = self.project / "docs"
+        physical_sub.mkdir()
+        result, message = self.run_cli(
+            ["project", "activate", ".", "--print"], physical_sub
+        )
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(self, fields["project_root"], physical_sub)
+        self.assertEqual("existing_path", fields["resolved_by"], msg=message)
+
+    # (m)
+    def test_working_dir_show_name_uses_discovered_current_project(self):
+        result, message = self.run_cli(
+            ["project", "working-dir", "show", "Proj"], self.target / "sub"
+        )
+        self.assertEqual(result.returncode, 0, msg=message)
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(self, fields["project_root"], self.project)
+        self.assertEqual("current_project_name", fields["resolved_by"])
+        self.assertIn("working_dir: working_dir", result.stdout)
+
+    # (m), second half: `project create`'s nested-name guard is unchanged
+    # (physical walk only), so it does not fire from the external tree.
+    def test_project_create_nested_name_guard_still_physical_only(self):
+        inside, message = self.run_cli(
+            ["project", "create", "Proj", "--local"], self.project
+        )
+        self.assertNotEqual(inside.returncode, 0, msg=message)
+        external, message = self.run_cli(
+            ["project", "create", "Proj", "--local"], self.target
+        )
+        self.assertEqual(external.returncode, 0, msg=message)
+        self.assertTrue((self.target / "Proj" / ".taurworks").is_dir())
+
+    def test_dev_test_in_nested_worktree_runs_the_worktree_script(self):
+        # A `git worktree` inside the external working_dir target must run its
+        # own scripts/test, not the main checkout's (regression vs. master,
+        # where the project was not found and the git root won).
+        marker_main = self.root / "ran-main"
+        marker_wt = self.root / "ran-worktree"
+        (self.target / ".git").mkdir()
+        main_script = self.target / "scripts" / "test"
+        main_script.parent.mkdir()
+        main_script.write_text(f'#!/bin/sh\ntouch "{marker_main}"\n', encoding="utf-8")
+        main_script.chmod(0o755)
+        worktree = self.target / ".wt" / "feature"
+        (worktree / "scripts").mkdir(parents=True)
+        admin = self.target / ".git" / "worktrees" / "feature"
+        admin.mkdir(parents=True)
+        (admin / "commondir").write_text("../..\n", encoding="utf-8")
+        (worktree / ".git").write_text(f"gitdir: {admin}\n", encoding="utf-8")
+        wt_script = worktree / "scripts" / "test"
+        wt_script.write_text(f'#!/bin/sh\ntouch "{marker_wt}"\n', encoding="utf-8")
+        wt_script.chmod(0o755)
+
+        result, message = self.run_cli(["dev", "test"], worktree)
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertTrue(marker_wt.exists(), msg=message)
+        self.assertFalse(marker_main.exists(), msg=message)
+
+        result, message = self.run_cli(["dev", "where"], worktree)
+        fields = parse_cli_fields(result.stdout)
+        assert_same_path(self, fields["project_root"], self.project)
+        assert_same_path(self, fields["work_directory_guess"], worktree)
+
+        # From the main checkout itself, the working_dir is still used.
+        result, message = self.run_cli(["dev", "test"], self.target)
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertTrue(marker_main.exists(), msg=message)
+
+    def test_dev_linked_worktree_rule_in_plain_project(self):
+        # (n)-(p): in a physically discovered project, only a linked
+        # `git worktree` nested in the working_dir becomes the work directory;
+        # a submodule, an independent nested clone, and a malformed .git file
+        # keep the working_dir (parity with master).
+        plain = self.workspace / "Plain"
+        (plain / ".taurworks").mkdir(parents=True)
+        (plain / ".taurworks" / "config.toml").write_text(
+            'schema_version = 1\n\n[project]\nname = "Plain"\n\n'
+            '[paths]\nworking_dir = "repo"\n',
+            encoding="utf-8",
+        )
+        repo = plain / "repo"
+        (repo / ".git").mkdir(parents=True)
+        markers = self.root / "markers"
+        markers.mkdir()
+
+        def add_checkout(path: pathlib.Path, label: str) -> None:
+            script = path / "scripts" / "test"
+            script.parent.mkdir(parents=True)
+            script.write_text(
+                f'#!/bin/sh\ntouch "{markers / label}"\n', encoding="utf-8"
+            )
+            script.chmod(0o755)
+
+        add_checkout(repo, "main")
+        admin = repo / ".git" / "worktrees" / "feature"
+        admin.mkdir(parents=True)
+        (admin / "commondir").write_text("../..\n", encoding="utf-8")
+        (repo / ".git" / "modules" / "lib").mkdir(parents=True)
+        (repo / ".git" / "modules" / "worktrees" / "trap").mkdir(parents=True)
+        cases = {
+            "worktree": f"gitdir: {admin}\n",
+            "submodule": "gitdir: ../.git/modules/lib\n",
+            "trap": "gitdir: ../.git/modules/worktrees/trap\n",
+            "malformed": "not a gitdir line\n",
+        }
+        for label, git_file in cases.items():
+            checkout = repo / label
+            checkout.mkdir()
+            (checkout / ".git").write_text(git_file, encoding="utf-8")
+            add_checkout(checkout, label)
+        clone = repo / "clone"
+        (clone / ".git").mkdir(parents=True)
+        add_checkout(clone, "clone")
+
+        expected = {
+            ".": "main",
+            "worktree": "worktree",
+            "submodule": "main",
+            "trap": "main",
+            "malformed": "main",
+            "clone": "main",
+        }
+        for label, ran in expected.items():
+            with self.subTest(checkout=label):
+                for marker in markers.iterdir():
+                    marker.unlink()
+                cwd = repo if label == "." else repo / label
+                result, message = self.run_cli(["dev", "test"], cwd)
+                self.assertEqual(result.returncode, 0, msg=message)
+                self.assertEqual(
+                    [ran], sorted(m.name for m in markers.iterdir()), msg=message
+                )
+                where, message = self.run_cli(["dev", "where"], cwd)
+                fields = parse_cli_fields(where.stdout)
+                self.assertEqual("physical_walk", fields["resolved_by"], msg=message)
+                assert_same_path(
+                    self,
+                    fields["work_directory_guess"],
+                    cwd if ran == "worktree" else repo,
+                )
+
+    def test_non_utf8_global_config_does_not_crash_dev_where(self):
+        config_path = self.root / "xdg" / "taurworks" / "config.toml"
+        config_path.parent.mkdir(parents=True)
+        config_path.write_bytes(b'schema_version = 1\nname = "\xff"\n')
+        outside = self.root / "outside"
+        outside.mkdir()
+        result, message = self.run_cli(["dev", "where"], outside)
+        self.assertEqual(result.returncode, 0, msg=message)
+        self.assertNotIn("Traceback", result.stderr, msg=message)
+        self.assertIn("project_root: unresolved", result.stdout)
+
+    # (j)
+    def test_ambiguous_no_target_commands_say_rerun_from_project_root(self):
+        self.make_ambiguous()
+        for args in (
+            ["dev", "where"],
+            ["dev", "status"],
+            ["project", "where"],
+            ["project", "working-dir", "set"],
+        ):
+            with self.subTest(args=args):
+                result, message = self.run_cli(args, self.target)
+                self.assertIn("rerun from the chosen project_root", result.stdout)
+                self.assertIn(str(self.project), result.stdout, msg=message)
+                self.assertNotEqual(result.returncode, 0, msg=message)
+
+    # (j): no script fallback on ambiguity
+    def test_ambiguous_dev_test_refuses_script_fallback(self):
+        self.make_ambiguous()
+        marker = self.root / "ran"
+        script = self.target / "scripts" / "test"
+        script.parent.mkdir()
+        script.write_text(f'#!/bin/sh\ntouch "{marker}"\n', encoding="utf-8")
+        script.chmod(0o755)
+        result, message = self.run_cli(["dev", "test"], self.target)
+        self.assertNotEqual(result.returncode, 0, msg=message)
+        self.assertIn("will not guess", result.stderr, msg=message)
+        self.assertFalse(marker.exists(), msg=message)
+
+    # (k)
+    def test_ambiguous_activation_resolution_says_pass_a_target(self):
+        self.make_ambiguous()
+        for args in (
+            ["project", "activate", "--print"],
+            ["project", "env", "show"],
+        ):
+            with self.subTest(args=args):
+                result, message = self.run_cli(args, self.target)
+                self.assertNotEqual(result.returncode, 0, msg=message)
+                self.assertIn("pass the project name", result.stdout, msg=message)
+                self.assertNotIn("Traceback", result.stderr)
+
+    # (l)
+    def test_ambiguous_explicit_path_fails_instead_of_falling_back(self):
+        self.make_ambiguous()
+        result, message = self.run_cli(["project", "working", "."], self.target)
+        self.assertNotEqual(result.returncode, 0, msg=message)
+        self.assertEqual("", result.stdout, msg=message)
+        self.assertIn("will not guess", result.stderr, msg=message)
+
+        result, message = self.run_cli(["project", "working-dir", "show"], self.target)
+        self.assertNotEqual(result.returncode, 0, msg=message)
+        self.assertIn("pass the path to the chosen project_root", result.stdout)
+
+    # Implementer note: an ambiguous cwd does not block an explicit target.
+    def test_ambiguous_cwd_still_honours_explicit_targets(self):
+        self.make_ambiguous()
+        result, message = self.run_cli(
+            ["project", "working", str(self.project)], self.target
+        )
+        self.assertEqual(result.returncode, 0, msg=message)
+        assert_same_path(self, result.stdout.strip(), self.target)
+        result, message = self.run_cli(
+            ["project", "activate", "Proj", "--print"], self.target
+        )
+        self.assertEqual(result.returncode, 0, msg=message)
+        assert_same_path(
+            self, parse_cli_fields(result.stdout)["project_root"], self.project
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
