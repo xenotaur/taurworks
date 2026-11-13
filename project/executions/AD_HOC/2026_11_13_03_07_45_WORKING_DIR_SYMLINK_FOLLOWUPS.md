@@ -2,14 +2,14 @@
 execution_id: 2026_11_13_03_07_45_WORKING_DIR_SYMLINK_FOLLOWUPS
 prompt_id: PROMPT(AD_HOC:WORKING_DIR_SYMLINK_FOLLOWUPS)[2026-11-13T03:07:39+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/120
-commit:
+commit: 1886d34b37f22c8c132b55a5d6266076004c7831
 created_at: 2026-11-13T03:07:45+00:00
 agent: claude_app
 instruction_source: 'Follow-ups from project/executions/AD_HOC/2026_11_13_02_59_55_WI_WORKING_DIR_REVERSE_DISCOVERY_0001_CLOSEOUT_NOTE.md (PR #117/#119 deferred review points)'
-session_transcript: pending
+session_transcript: claude-app:bb8a0d8f-eb4a-4db9-9288-bdad683c73f2
 ---
 
 # Summary

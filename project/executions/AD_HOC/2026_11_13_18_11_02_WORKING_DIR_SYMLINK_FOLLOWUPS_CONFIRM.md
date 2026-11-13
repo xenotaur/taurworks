@@ -2,10 +2,10 @@
 execution_id: 2026_11_13_18_11_02_WORKING_DIR_SYMLINK_FOLLOWUPS_CONFIRM
 prompt_id: PROMPT(AD_HOC:WORKING_DIR_SYMLINK_FOLLOWUPS_CONFIRM)[2026-11-13T17:47:09+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of: 2026_11_13_03_07_45_WORKING_DIR_SYMLINK_FOLLOWUPS
 pr: https://github.com/xenotaur/taurworks/pull/120
-commit:
+commit: 1886d34b37f22c8c132b55a5d6266076004c7831
 created_at: 2026-11-13T18:11:02+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/120
