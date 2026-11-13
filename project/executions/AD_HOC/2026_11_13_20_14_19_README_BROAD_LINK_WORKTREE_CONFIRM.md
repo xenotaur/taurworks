@@ -2,10 +2,10 @@
 execution_id: 2026_11_13_20_14_19_README_BROAD_LINK_WORKTREE_CONFIRM
 prompt_id: PROMPT(AD_HOC:README_BROAD_LINK_WORKTREE_CONFIRM)[2026-11-13T18:50:39+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/121
-commit:
+commit: 65f328acd62d39d069e09e7cff9bd0d35679179e
 created_at: 2026-11-13T20:14:19+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/121
