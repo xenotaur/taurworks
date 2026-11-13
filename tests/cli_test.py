@@ -3753,7 +3753,10 @@ class ReverseDiscoveryCliTest(unittest.TestCase):
         main_script.chmod(0o755)
         worktree = self.target / ".wt" / "feature"
         (worktree / "scripts").mkdir(parents=True)
-        (worktree / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+        (worktree / ".git").write_text(
+            f"gitdir: {self.target / '.git' / 'worktrees' / 'feature'}\n",
+            encoding="utf-8",
+        )
         wt_script = worktree / "scripts" / "test"
         wt_script.write_text(f'#!/bin/sh\ntouch "{marker_wt}"\n', encoding="utf-8")
         wt_script.chmod(0o755)
@@ -3772,6 +3775,71 @@ class ReverseDiscoveryCliTest(unittest.TestCase):
         result, message = self.run_cli(["dev", "test"], self.target)
         self.assertEqual(result.returncode, 0, msg=message)
         self.assertTrue(marker_main.exists(), msg=message)
+
+    def test_dev_linked_worktree_rule_in_plain_project(self):
+        # (n)-(p): in a physically discovered project, only a linked
+        # `git worktree` nested in the working_dir becomes the work directory;
+        # a submodule, an independent nested clone, and a malformed .git file
+        # keep the working_dir (parity with master).
+        plain = self.workspace / "Plain"
+        (plain / ".taurworks").mkdir(parents=True)
+        (plain / ".taurworks" / "config.toml").write_text(
+            'schema_version = 1\n\n[project]\nname = "Plain"\n\n'
+            '[paths]\nworking_dir = "repo"\n',
+            encoding="utf-8",
+        )
+        repo = plain / "repo"
+        (repo / ".git").mkdir(parents=True)
+        markers = self.root / "markers"
+        markers.mkdir()
+
+        def add_checkout(path: pathlib.Path, label: str) -> None:
+            script = path / "scripts" / "test"
+            script.parent.mkdir(parents=True)
+            script.write_text(
+                f'#!/bin/sh\ntouch "{markers / label}"\n', encoding="utf-8"
+            )
+            script.chmod(0o755)
+
+        add_checkout(repo, "main")
+        cases = {
+            "worktree": f"gitdir: {repo / '.git' / 'worktrees' / 'feature'}\n",
+            "submodule": "gitdir: ../../.git/modules/lib\n",
+            "malformed": "not a gitdir line\n",
+        }
+        for label, git_file in cases.items():
+            checkout = repo / label
+            checkout.mkdir()
+            (checkout / ".git").write_text(git_file, encoding="utf-8")
+            add_checkout(checkout, label)
+        clone = repo / "clone"
+        (clone / ".git").mkdir(parents=True)
+        add_checkout(clone, "clone")
+
+        expected = {
+            "worktree": "worktree",
+            "submodule": "main",
+            "malformed": "main",
+            "clone": "main",
+        }
+        for label, ran in expected.items():
+            with self.subTest(checkout=label):
+                for marker in markers.iterdir():
+                    marker.unlink()
+                cwd = repo / label
+                result, message = self.run_cli(["dev", "test"], cwd)
+                self.assertEqual(result.returncode, 0, msg=message)
+                self.assertEqual(
+                    [ran], sorted(m.name for m in markers.iterdir()), msg=message
+                )
+                where, message = self.run_cli(["dev", "where"], cwd)
+                fields = parse_cli_fields(where.stdout)
+                self.assertEqual("physical_walk", fields["resolved_by"], msg=message)
+                assert_same_path(
+                    self,
+                    fields["work_directory_guess"],
+                    cwd if ran == "worktree" else repo,
+                )
 
     def test_non_utf8_global_config_does_not_crash_dev_where(self):
         config_path = self.root / "xdg" / "taurworks" / "config.toml"

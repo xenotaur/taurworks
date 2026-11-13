@@ -228,6 +228,39 @@ class AmbiguousDiscoveryDevTest(unittest.TestCase):
         self.assertIn("rerun from the chosen project_root", resolution.detail)
 
 
+class LinkedWorktreeDetectionTest(unittest.TestCase):
+    """`_is_linked_worktree` reads the `.git` file without running git."""
+
+    def check(self, git_entry: str | None, expected: bool, as_dir: bool = False):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            checkout = pathlib.Path(temp_dir)
+            if as_dir:
+                (checkout / ".git").mkdir()
+            elif git_entry is not None:
+                (checkout / ".git").write_text(git_entry, encoding="utf-8")
+            self.assertIs(expected, dev._is_linked_worktree(checkout))
+
+    def test_absolute_worktree_gitdir(self):
+        self.check("gitdir: /repo/.git/worktrees/feature\n", True)
+
+    def test_relative_worktree_gitdir_with_trailing_slash(self):
+        self.check("gitdir: ../.git/worktrees/feature/\n", True)
+
+    def test_worktree_of_a_submodule(self):
+        self.check("gitdir: /repo/.git/modules/lib/worktrees/x\n", True)
+
+    def test_submodule_is_not_a_worktree(self):
+        self.check("gitdir: ../../.git/modules/lib\n", False)
+
+    def test_git_directory_is_not_a_worktree(self):
+        self.check(None, False, as_dir=True)
+
+    def test_missing_empty_or_malformed_git_file(self):
+        self.check(None, False)
+        self.check("", False)
+        self.check("worktrees/feature\n", False)
+
+
 class ExecuteDevCommandTest(unittest.TestCase):
     def test_exit_code_passthrough(self):
         with tempfile.TemporaryDirectory() as temp_dir:

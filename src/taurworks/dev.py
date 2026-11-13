@@ -74,14 +74,39 @@ def _is_inside(cwd: pathlib.Path, candidate: str) -> bool:
     return True
 
 
-def _is_nested_work_tree(
+def _is_linked_worktree(git_root: pathlib.Path) -> bool:
+    """Return whether git_root is a linked `git worktree` checkout.
+
+    A linked worktree's `.git` is a file containing `gitdir: <path>`, where
+    the path ends in `worktrees/<name>`. A submodule's `.git` file points at
+    `modules/<name>` instead, and an independent clone has a `.git`
+    directory; neither counts. Reads the file directly (no `git` process);
+    an unreadable or malformed file is not a worktree.
+    """
+    git_file = git_root / ".git"
+    if not git_file.is_file():
+        return False
+    try:
+        first_line = git_file.read_text(encoding="utf-8").splitlines()[0]
+    except (OSError, UnicodeDecodeError, IndexError):
+        return False
+    prefix = "gitdir:"
+    if not first_line.startswith(prefix):
+        return False
+    gitdir = pathlib.PurePath(first_line[len(prefix) :].strip())
+    return len(gitdir.parts) >= 2 and gitdir.parts[-2] == "worktrees"
+
+
+def _is_nested_linked_worktree(
     git_root: pathlib.Path | None, resolved_working_dir: str
 ) -> bool:
-    """Return whether git_root is strictly inside the resolved working_dir."""
+    """Return whether git_root is a linked worktree strictly inside working_dir."""
     if git_root is None:
         return False
     working_dir = pathlib.Path(resolved_working_dir)
-    return git_root != working_dir and working_dir in git_root.parents
+    if git_root == working_dir or working_dir not in git_root.parents:
+        return False
+    return _is_linked_worktree(git_root)
 
 
 def gather_dev_where_diagnostics(
@@ -129,14 +154,15 @@ def gather_dev_where_diagnostics(
         working_dir_message,
     ) = _configured_working_dir(project_root)
 
-    if resolved_working_dir != "none" and _is_nested_work_tree(
+    if resolved_working_dir != "none" and _is_nested_linked_worktree(
         git_root, resolved_working_dir
     ):
-        # A git work tree nested inside the configured working_dir (a
-        # `git worktree` or submodule checkout) is the tree the user is
-        # actually working in; prefer it over the working_dir's main checkout.
+        # A linked `git worktree` checkout nested inside the configured
+        # working_dir is the tree the user is actually working in; prefer it
+        # over the working_dir's main checkout. Submodules and independent
+        # nested clones keep the working_dir (unchanged behaviour).
         work_directory_guess = str(git_root)
-        guess_source = "nearest git work tree inside the configured working_dir"
+        guess_source = "linked git worktree inside the configured working_dir"
     elif resolved_working_dir != "none":
         work_directory_guess = resolved_working_dir
         guess_source = "configured Taurworks working_dir"
