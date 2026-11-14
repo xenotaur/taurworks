@@ -141,7 +141,8 @@ Also confirm the workspace root is what you expect:
 ## `project create NAME` says no workspace root is configured
 
 `taurworks project create NAME` requires an explicitly configured workspace
-root, even when `~/Workspace` exists and is shown as `inferred`:
+root, even when `~/Workspace` exists and `taurworks workspace show` reports
+it as `inferred`:
 
 ```bash
 taurworks workspace set ~/Workspace

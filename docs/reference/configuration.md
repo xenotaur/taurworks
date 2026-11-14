@@ -94,7 +94,9 @@ lint = "ruff check src"
 ### `schema_version`
 
 Integer. Must be `1`. Written automatically; a missing value is repaired by
-`project refresh` / `project init`. Higher versions are rejected.
+`project refresh` / `project init`. Commands that write the project config
+refuse a different integer version and leave the file unchanged. Commands
+that only read it — activation, `taurworks dev` — do not check the version.
 
 ### `[project]`
 
@@ -169,10 +171,20 @@ run in the project's work directory.
 
 ### Hand-editing
 
-Taurworks' config writer supports plain keys and one level of nested tables,
-as in the example above. When a command needs to rewrite a project config
-that contains TOML it does not support (arrays of tables, deeper nesting), it
-warns and skips the update rather than risk rewriting it incorrectly.
+You can edit a project config by hand, but two things happen when a
+Taurworks command later rewrites it (`project env set`, `project
+working-dir set`, `project init`, `legacy migrate --apply`, and so on):
+
+- **Comments and formatting are not preserved.** The file is regenerated
+  from its parsed contents, so `#` comments and custom layout are dropped.
+- **Only string, integer, and boolean values can be rewritten**, in plain
+  keys or tables. If the file contains any other value type — an array, a
+  float, a date — the command fails with `unsupported config value type for
+  safe writer` and leaves the file unchanged, rather than risk rewriting it
+  incorrectly. Remove or re-express the value, or make the change by hand.
+
+Reading is unaffected: activation and `taurworks dev` parse the file as
+ordinary TOML.
 
 ## Environment variables
 
@@ -195,7 +207,7 @@ There are two sources — the configured root in the global config, and
 |---|---|
 | `tw activate NAME`, `tw projects`, `project list`, `tw root`/`working`, other name lookups | configured root; else `$TAURWORKS_WORKSPACE`; else `~/Workspace` |
 | `taurworks project create NAME` | configured root only; otherwise an error |
-| `taurworks workspace show` | configured root; else reports `~/Workspace` as `inferred` if it exists |
+| `taurworks workspace show` | configured root; else, only when the global config file does not exist, reports an existing `~/Workspace` as `inferred`; otherwise `none` |
 | top-level `taurworks create` / `refresh` | `$TAURWORKS_WORKSPACE`; else `~/Workspace` |
 | `tl NAME` | `$TAURWORKS_WORKSPACE`; else `~/Workspace` |
 

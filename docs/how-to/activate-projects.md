@@ -30,8 +30,13 @@ does not change.
 | Command | Activates |
 |---|---|
 | `tw activate` | the project that contains the current directory |
-| `tw activate ./some/dir` | the project at that path |
-| `tw activate /abs/path/Project` | the project at that path |
+| `tw activate ./some/dir` | the project whose root is that directory |
+| `tw activate /abs/path/Project` | the project whose root is that directory |
+
+A path must name the project root itself. Taurworks does not walk up from a
+path to find the enclosing project: `tw activate .` from a subdirectory of a
+project treats that subdirectory as an uninitialized project and stays put.
+From inside a project, use `tw activate` with no argument.
 
 A bare name is never searched for recursively under the current directory. To
 activate a project in a nearby directory that is not in your workspace or

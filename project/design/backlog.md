@@ -98,9 +98,13 @@ requires a configured root. Legacy top-level `taurworks create`/`refresh`
 use the import-time `manager.TAURWORKS_WORKSPACE` constant
 (`$TAURWORKS_WORKSPACE`, else `~/Workspace`) and ignore
 `taurworks workspace set` entirely, so they can scaffold a project somewhere
-`tw activate` then won't look. `taurworks workspace show` reports
-`~/Workspace` as `inferred` even when `$TAURWORKS_WORKSPACE` points
-elsewhere and is what name lookup actually uses. Candidate fix: route every
+`tw activate` then won't look. `taurworks workspace show` never
+reports the `$TAURWORKS_WORKSPACE` tier that name lookup actually uses: with
+no global config file it reports an existing `~/Workspace` as `inferred`
+even when `$TAURWORKS_WORKSPACE` points elsewhere, and once the config file
+exists without a `[workspace].root` (after `project register`, say) it
+reports `none`/`unconfigured` while name lookup still falls back to
+`$TAURWORKS_WORKSPACE` or `~/Workspace`. Candidate fix: route every
 Python caller through one resolver and have `workspace show` report the
 `$TAURWORKS_WORKSPACE` tier.
 

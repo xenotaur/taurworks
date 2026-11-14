@@ -154,8 +154,13 @@ global config. `show` writes nothing.
 
 #### `taurworks workspace show`
 
-Reports the configured workspace root. If none is configured and
-`~/Workspace` exists, reports it as `inferred`.
+Reports the configured workspace root. If the global config file does not
+exist at all and `~/Workspace` does, reports that directory as `inferred`.
+If the config file exists but has no `[workspace].root` — for example after
+`project register` or `config legacy-sourcing enable` without ever running
+`workspace set` — it reports `workspace_root: none` (`unconfigured`), even
+though name lookup still falls back to `$TAURWORKS_WORKSPACE` or
+`~/Workspace`.
 
 **Writes:** nothing.
 
@@ -236,8 +241,10 @@ name; other names are not looked up globally.
 #### `taurworks project working-dir set [DIR]`
 
 Sets the working directory of the project containing the current directory.
-`DIR` is resolved from the current directory, must exist, must be inside the
-project root, and is stored relative to it. Default: the current directory.
+`DIR` must be a relative path; it is resolved from the current directory,
+must exist, must be inside the project root, and is stored relative to the
+project root. An absolute path is rejected, even one inside the project.
+Default: the current directory.
 
 **Writes:** `[paths].working_dir` in the project config.
 
@@ -372,7 +379,12 @@ environment is reported as `missing`.
 
 #### `taurworks activate PROJECT_NAME`
 
-Prints the `tw activate` command to run. Activates nothing.
+Compatibility command; activates nothing. For an initialized project
+directly under the workspace root whose working directory is configured and
+exists, prints the `tw activate` command to run. Otherwise it prints why the
+project is not ready and exits 1. It does not consult the registry, so a
+registered project outside the workspace root is reported as not initialized
+even though `tw activate` works for it.
 
 **Writes:** nothing.
 
