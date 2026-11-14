@@ -106,7 +106,7 @@ than a full activation:
 |---|---|---|
 | `note:` "no Conda activation environment is configured" | Informational. Everything else was applied; there is simply no environment to activate. Printed on every activation of a project without one. | `taurworks project env set ENV --project NAME`, or ignore it |
 | "not initialized" | The directory has no `.taurworks/config.toml`. Only `cd` to the project root happened. | `taurworks project init PATH --working-dir DIR` |
-| no working directory configured | Only `cd` to the project root happened. | `taurworks project working-dir set DIR` |
+| no working directory configured | The directory change went to the project root instead. The Conda environment, exports, and message were still applied. | `taurworks project working-dir set DIR` |
 | "Legacy Admin/project-setup.source exists" | The project has an old-style setup script and no Taurworks config. Only `cd` to the project root happened; the script was not run. | [Migrate it](migrate-legacy-projects.md), or use [`tl`](use-tl-fallback.md) |
 
 ## Legacy setup scripts

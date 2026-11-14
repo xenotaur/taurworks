@@ -24,6 +24,10 @@ Add the two `source` lines it prints to your `~/.bashrc` (Taurworks never
 edits startup files itself) and open a new shell. Then:
 
 ```bash
+mkdir -p ~/Workspace
+```
+
+```bash
 tw workspace set ~/Workspace
 ```
 

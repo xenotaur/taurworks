@@ -163,11 +163,13 @@ Legacy scripts are still supported, at arm's length:
 - `taurworks legacy inspect` and `legacy migrate` read a script and translate
   the simple, literal parts into config. They never execute it.
 - `tw activate` will source a legacy script only after two separate opt-ins:
-  a global switch, and per-project **trust**. Trust records the script's
-  SHA-256 digest in your global config. Because the record lives outside the
-  project, nothing arriving in a project directory can grant itself trust;
-  because it is tied to content, an edited script must be reviewed and
-  trusted again.
+  a global switch, and then consent for that script. Consent is either
+  one-time — `--legacy`, or answering "source once" at the prompt, which
+  runs the script for that activation and records nothing — or persistent
+  per-project **trust**. Trust records the script's SHA-256 digest in your
+  global config. Because the record lives outside the project, nothing
+  arriving in a project directory can grant itself trust; because it is tied
+  to content, an edited script must be reviewed and trusted again.
 - `tl` sources a setup script unconditionally. That is its entire job, and
   why it is described as a break-glass tool rather than the normal path.
 

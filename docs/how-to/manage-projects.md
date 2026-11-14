@@ -116,8 +116,16 @@ Available projects:
 | `workspace-only` | A directory in the workspace with no Taurworks config. `tw activate` only changes into it. Fix with `taurworks project init`. |
 | `legacy-admin` | Has an old `Admin/project-setup.source` script and no Taurworks config. See [Migrate a legacy project](migrate-legacy-projects.md). |
 
-Use `tw projects --details` for paths, config presence, working directory, and
-whether the configured Conda environment exists.
+Use `tw projects --details` for paths, config presence, and working
+directory. Two things to know about the detailed listing:
+
+- Its `Conda Env Exists` line checks for an environment with the same name
+  as the *project*, not the environment the project is configured to
+  activate. A project whose environment has a different name shows
+  `missing` even when activation works. Use `taurworks project env show
+  NAME` for the configured environment.
+- It counts files and total size by walking each project's whole directory
+  tree, so it can be slow on large projects.
 
 ## Change the working directory
 

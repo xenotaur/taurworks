@@ -49,7 +49,7 @@ If neither file exists, `tl` prints both paths it checked and returns 1.
 | Workspace location | global config, then `$TAURWORKS_WORKSPACE`, then `~/Workspace` | `$TAURWORKS_WORKSPACE`, else `~/Workspace` |
 | Finds registered projects | yes | no |
 | Accepts paths, flags | yes | no — exactly one project name |
-| Runs arbitrary project shell code | only with explicit trust | always |
+| Runs arbitrary project shell code | only with legacy sourcing enabled and your consent: one-time (`--legacy` or the prompt) or persistent trust | always |
 
 Two consequences to be aware of:
 

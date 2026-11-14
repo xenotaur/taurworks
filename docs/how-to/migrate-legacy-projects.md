@@ -62,10 +62,13 @@ case is an export computed by command substitution, which a literal
 ### 5. Check
 
 ```bash
-tw activate NAME
+tw activate NAME --no-legacy
 ```
 
-Compare the result with what the script did.
+Compare the result with what the script did. `--no-legacy` matters here: if
+legacy sourcing is enabled and the script is trusted (or you answer the
+prompt), a plain `tw activate NAME` also sources the old script, which would
+hide anything the migrated config is missing.
 
 ## Retire the old script
 
@@ -76,12 +79,21 @@ migrated config. Move it to the location that only `tl` uses, and revoke any
 trust recorded for it:
 
 ```bash
-mv Admin/project-setup.source .taurworks/project-setup.source
+root="$(taurworks project root NAME)"
+```
+
+```bash
+mv "$root/Admin/project-setup.source" "$root/.taurworks/project-setup.source"
 ```
 
 ```bash
 taurworks project trust unset NAME
 ```
+
+The paths are qualified with the project root because your shell is usually
+in the project's *working directory* after `tw activate`, where a relative
+`Admin/` would be the wrong directory. `.taurworks/` already exists once the
+migration has been applied.
 
 Before moving it:
 

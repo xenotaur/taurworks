@@ -361,8 +361,12 @@ These predate the `project` namespace and remain for compatibility.
 
 Lists projects: immediate subdirectories of the workspace root plus registry
 entries, each with a status (`initialized`, `workspace-only`, `legacy-admin`)
-and source. `--details` adds paths, config and working-directory state, and
-whether the configured Conda environment exists (which runs `conda`).
+and source. `--details` adds paths, config and working-directory state, a
+file count and total size (computed by walking each project's directory tree
+recursively), and whether a Conda environment with the same name as the
+project exists (which runs `conda`). That check does not consult
+`[activation.environment]`, so a project configured with a differently named
+environment is reported as `missing`.
 
 **Writes:** nothing.
 
