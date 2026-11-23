@@ -54,7 +54,7 @@ environments, see
 | `./scripts/smoke` | Run smoke tests. |
 | `./scripts/test-portability` | Run the tests with temporary `HOME`, `XDG_CONFIG_HOME`, and `TAURWORKS_WORKSPACE`, so nothing reads or writes your real config or `~/Workspace`. |
 | `./scripts/audit-side-effects` | Non-destructive helper for the side-effect audit. |
-| `./scripts/version tools` | Print tool versions. |
+| `./scripts/version` | Print tool versions. |
 
 GitHub Actions (`.github/workflows/python-ci.yml`) runs the standard and
 portability suites on Ubuntu and macOS.

@@ -241,3 +241,40 @@ refreshing its file from `tw` is fine, sourcing or delegating is not.
 (`_tw_shell_refresh`); `src/taurworks/setup_command.py`
 (`gather_setup_diagnostics`); `project/design/shell_helper_refresh.md`;
 `docs/how-to/install-and-update.md` ("Update").
+
+---
+
+## Project-config writer corrupts strings containing newlines
+
+**Noted:** 2026-11-23, found by the second independent review pass on
+[PR #122](https://github.com/xenotaur/taurworks/pull/122) and reproduced
+there.
+
+**Idea:** `_toml_quote` in `src/taurworks/project_internals.py` escapes only
+`\` and `"`. When a command rewrites a project's `.taurworks/config.toml`
+(`project env set`, `project working-dir set`, `project init`, `legacy
+migrate --apply`), any string value containing a newline or other control
+character — a hand-edited `[activation] message = "line1\nline2"`, or a
+`"""` multi-line string — is written back with a raw line break inside a
+basic string. The command reports `ok: True` and exits 0, but the file is
+now invalid TOML: every later read fails, and `tw activate` stops working
+for that project until the file is repaired by hand. Candidate fix: escape
+control characters per the TOML spec in `_toml_quote` (`\n`, `\t`, `\r`,
+`\uXXXX`), with a round-trip test; or, more conservatively, reject such
+values the way arrays and floats already are (`unsupported config value
+type for safe writer`), which at least fails without touching the file.
+
+**Status:** Deferred — a real silent-corruption bug, the most serious item
+in this batch, left out of PR #122 only because that PR is docs-only.
+`docs/reference/configuration.md` ("Hand-editing") now warns users to keep
+string values on one line. Reachable only by hand-editing a multi-line or
+control-character string and then running a rewriting command, but
+`[activation].message` is exactly the key the tutorial tells users to
+hand-edit. Worth a work item of its own rather than waiting for a trigger.
+`src/taurworks/global_config.py` has a similar `_toml_quote`, but the global
+writers edit text in place and were observed to preserve such values, so
+the global config is not known to be affected.
+
+**Related:** `src/taurworks/project_internals.py` (`_toml_quote`,
+`_toml_scalar`, `write_project_config`); `docs/reference/configuration.md`
+("Hand-editing"); `docs/tutorials/getting-started.md` (step 6).

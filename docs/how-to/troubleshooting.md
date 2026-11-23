@@ -98,8 +98,10 @@ Look for a warning line in the output:
   `taurworks project init PATH --working-dir DIR`.
 - **Legacy `Admin/project-setup.source` exists but was not sourced** — see
   [Migrate a legacy project](migrate-legacy-projects.md).
-- Only a `note:` about no Conda environment — the project simply has no
-  environment, exports, or message configured. See [Set what activation does](activate-projects.md#set-what-activation-does).
+- Only a `note:` about no Conda environment — there is no Conda environment
+  to activate. Exports and a message, when configured, print their own lines
+  (`exported N variable(s)`, then the message); if you see neither, none are
+  configured. See [Set what activation does](activate-projects.md#set-what-activation-does).
 
 ## `tw activate: --legacy requires legacy sourcing to be enabled`
 

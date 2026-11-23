@@ -182,6 +182,12 @@ working-dir set`, `project init`, `legacy migrate --apply`, and so on):
   float, a date — the command fails with `unsupported config value type for
   safe writer` and leaves the file unchanged, rather than risk rewriting it
   incorrectly. Remove or re-express the value, or make the change by hand.
+- **Keep string values on one line, with no control characters.** A string
+  containing a newline (written as `\n`, or as a `"""` multi-line string)
+  is *not* rejected: the rewrite succeeds but writes the line break back
+  unescaped, leaving a file that no longer parses, and `tw activate` then
+  fails for that project until you repair it by hand. This most often
+  affects `[activation].message`; use a single-line message.
 
 Reading is unaffected: activation and `taurworks dev` parse the file as
 ordinary TOML.

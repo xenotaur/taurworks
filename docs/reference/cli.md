@@ -410,10 +410,16 @@ environment.
 
 #### `taurworks refresh PROJECT_NAME [--create-env] [--python VER] [--packages LIST] [--file YAML]`
 
-Ensures the same layout as `taurworks create` exists for `PROJECT_NAME`,
-creating whatever is missing (the working directory is named in snake case,
-for example `my_project` for `MyProject`). Existing config values are not
-overwritten. Options and location as for `taurworks create`.
+Ensures a project layout exists for `PROJECT_NAME`, creating whatever is
+missing. Existing config values are not overwritten. Options and location as
+for `taurworks create`.
+
+The layout is not quite the one `taurworks create` makes: `refresh` names
+the working directory in snake case (`my_project` for `MyProject`), while
+`create` names it after the project. Running `refresh` on a project made by
+`create` whose name is not already snake case therefore adds a second, empty
+directory (`MyProject/my_project/` beside `MyProject/MyProject/`); the
+config keeps pointing at the original.
 
 **Writes:** as `taurworks create`.
 
