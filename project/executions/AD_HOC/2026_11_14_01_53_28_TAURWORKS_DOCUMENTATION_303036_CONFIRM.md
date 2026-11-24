@@ -2,14 +2,14 @@
 execution_id: 2026_11_14_01_53_28_TAURWORKS_DOCUMENTATION_303036_CONFIRM
 prompt_id: PROMPT(AD_HOC:TAURWORKS_DOCUMENTATION_303036_CONFIRM)[2026-11-14T01:47:14+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/122
-commit:
+commit: 69689f54bebb2707dde3790a852b5304d4f16bc6
 created_at: 2026-11-14T01:53:28+00:00
 agent: claude_app
 instruction_source: https://github.com/xenotaur/taurworks/pull/122
-session_transcript: pending
+session_transcript: claude-app:f9407266-89e8-437f-8a64-a4a8cf46d0bf
 ---
 
 # Summary

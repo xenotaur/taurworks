@@ -2,14 +2,14 @@
 execution_id: 2026_11_14_00_14_13_DOC_WORK_END_USER_DOCS
 prompt_id: PROMPT(AD_HOC:DOC_WORK_END_USER_DOCS)[2026-11-14T00:01:52+00:00]
 work_item: AD_HOC
-status: in_progress
+status: landed
 rerun_of:
 pr: https://github.com/xenotaur/taurworks/pull/122
-commit:
+commit: 69689f54bebb2707dde3790a852b5304d4f16bc6
 created_at: 2026-11-14T00:14:13+00:00
 agent: claude_app
 instruction_source: conversational session — user asked for comprehensive Diataxis end-user documentation of Taurworks (install, tw activate, tl fallback, full CLI) via /lrh-doc-work with scope widened beyond a single work reference
-session_transcript: pending
+session_transcript: claude-app:f9407266-89e8-437f-8a64-a4a8cf46d0bf
 ---
 
 # Summary
