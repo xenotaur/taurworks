@@ -153,6 +153,9 @@ def gather_dev_where_diagnostics(
             "work_directory_guess_source": "none (ambiguous project discovery)",
             "git_root_guess": "unresolved",
             "working_dir_message": message,
+            "environment_provider": "unresolved",
+            "execution_environment": "unresolved",
+            "environment_message": "no project selected (ambiguous project discovery)",
             "read_only": True,
             "mutation_performed": False,
         }
