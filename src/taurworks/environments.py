@@ -21,6 +21,32 @@ class EnvironmentError(RuntimeError):
     """Raised when a development environment cannot be used safely."""
 
 
+def container_relative_working_dir(
+    project_root: pathlib.Path, host_working_dir: pathlib.Path
+) -> pathlib.Path:
+    """Return the path of `host_working_dir` below `project_root`.
+
+    A Dev Container only sees the project root, so a working directory that
+    resolves elsewhere (for example a symlink to an external checkout) cannot
+    be mapped. The project root itself and any directory enclosing it (such as
+    a Git root above the project) map to the container workspace root.
+    """
+    root = pathlib.Path(project_root).resolve()
+    work_dir = pathlib.Path(host_working_dir).resolve()
+    try:
+        return work_dir.relative_to(root)
+    except ValueError:
+        pass
+    if work_dir in root.parents:
+        return pathlib.Path(".")
+    raise EnvironmentError(
+        f"working directory {work_dir} resolves outside the project root "
+        f"{root}, so it cannot be mapped into a Dev Container. Point "
+        "[paths].working_dir at a directory inside the project root, or use a "
+        "non-container environment."
+    )
+
+
 @dataclasses.dataclass(frozen=True)
 class EnvironmentSpec:
     """Validated provider selection and provider-owned Taurworks metadata."""

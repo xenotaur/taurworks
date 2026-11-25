@@ -330,27 +330,49 @@ def _environment_context(
         )
 
     resolved_root = project_root.resolve()
-    try:
-        relative_work_dir = resolved_work_dir.relative_to(resolved_root)
-    except ValueError:
-        # The established dev resolver may select an enclosing Git root when
-        # no working_dir is configured. Host/Conda retain that cwd; a future
-        # container execution still starts at its own workspace root.
-        relative_work_dir = pathlib.Path(".")
     project_config = config or {}
     metadata = project_internals.activation_environment_from_config(project_config)
+    environment = environments.spec_from_metadata(metadata)
+    if environment.type == "devcontainer":
+        # Raises EnvironmentError when the work directory is outside the
+        # project root; a container cannot see it, so never guess.
+        relative_work_dir = environments.container_relative_working_dir(
+            resolved_root, resolved_work_dir
+        )
+    else:
+        try:
+            relative_work_dir = resolved_work_dir.relative_to(resolved_root)
+        except ValueError:
+            # The dev resolver may select an enclosing Git root or an
+            # external symlinked working_dir; Host/Conda run on the host at
+            # `cwd` and do not use the relative path.
+            relative_work_dir = pathlib.Path(".")
     exports = project_internals.activation_exports_from_config(project_config)
     return environments.EnvironmentContext(
         project_name=project_internals.project_name_from_config(resolved_root),
         project_root=resolved_root,
         host_working_dir=resolved_work_dir,
         relative_working_dir=relative_work_dir,
-        environment=environments.spec_from_metadata(metadata),
+        environment=environment,
         exports=exports,
     )
 
 
 def resolve_dev_command(name: str) -> DevCommandResolution:
+    """Resolve a dev command; environment mapping failures become unresolved."""
+    try:
+        return _resolve_dev_command(name)
+    except environments.EnvironmentError as error:
+        return DevCommandResolution(
+            resolved=False,
+            argv=None,
+            cwd=str(pathlib.Path.cwd()),
+            tier=None,
+            detail=f"taurworks dev {name}: {error}",
+        )
+
+
+def _resolve_dev_command(name: str) -> DevCommandResolution:
     """Resolve a v1 dev command to an executable argv, or a clear failure.
 
     Tier 1 (`[dev.commands].<name>` in the detected project_root's

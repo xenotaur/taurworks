@@ -2133,6 +2133,16 @@ def gather_project_activate_print_diagnostics(
         )
         return base_diagnostics
 
+    if base_diagnostics["environment_type"] == "devcontainer":
+        try:
+            environments.container_relative_working_dir(
+                project_root, resolved_working_dir
+            )
+        except environments.EnvironmentError as error:
+            base_diagnostics["ok"] = False
+            base_diagnostics["guidance"] = str(error)
+            return base_diagnostics
+
     base_diagnostics["working_dir_configured"] = True
     base_diagnostics["working_dir"] = relative_working_dir.as_posix()
     base_diagnostics["resolved_working_dir"] = str(resolved_working_dir)
@@ -2256,15 +2266,24 @@ def resolve_project_environment_context(
 
     project_root = pathlib.Path(str(diagnostics["project_root"])).resolve()
     host_working_dir = pathlib.Path(str(diagnostics["resolved_working_dir"])).resolve()
-    relative_working_dir = host_working_dir.relative_to(project_root)
     config = project_internals.read_project_config(project_root)
     metadata = project_internals.activation_environment_from_config(config)
+    environment = environments.spec_from_metadata(metadata)
+    if environment.type == "devcontainer":
+        relative_working_dir = environments.container_relative_working_dir(
+            project_root, host_working_dir
+        )
+    else:
+        try:
+            relative_working_dir = host_working_dir.relative_to(project_root)
+        except ValueError:
+            relative_working_dir = pathlib.Path(".")
     return environments.EnvironmentContext(
         project_name=str(diagnostics["project_name"]),
         project_root=project_root,
         host_working_dir=host_working_dir,
         relative_working_dir=relative_working_dir,
-        environment=environments.spec_from_metadata(metadata),
+        environment=environment,
         exports=project_internals.activation_exports_from_config(config),
     )
 

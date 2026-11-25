@@ -327,6 +327,132 @@ class DevCommandProviderExecutionTest(unittest.TestCase):
             self.assertEqual(call.args[1], ["tool", name])
 
 
+class ContainerRelativeWorkingDirTest(unittest.TestCase):
+    def test_inside_equal_and_ancestor_map_and_external_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = pathlib.Path(temp).resolve()
+            root = base / "proj"
+            (root / "sub").mkdir(parents=True)
+            (base / "external").mkdir()
+            helper = environments.container_relative_working_dir
+            self.assertEqual(helper(root, root / "sub"), pathlib.Path("sub"))
+            self.assertEqual(helper(root, root), pathlib.Path("."))
+            # An enclosing directory (e.g. a Git root above the project root)
+            # keeps the established "." mapping.
+            self.assertEqual(helper(root, base), pathlib.Path("."))
+            with self.assertRaises(environments.EnvironmentError) as caught:
+                helper(root, base / "external")
+            self.assertIn("outside the project root", str(caught.exception))
+
+
+class ExternalWorkingDirDevContainerTest(unittest.TestCase):
+    """A symlinked working_dir outside the project root cannot be mapped."""
+
+    def setUp(self):
+        self._temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._temp.cleanup)
+        base = pathlib.Path(self._temp.name).resolve()
+        self.root = base / "proj"
+        (self.root / ".taurworks").mkdir(parents=True)
+        (self.root / ".devcontainer").mkdir()
+        (self.root / ".devcontainer" / "devcontainer.json").write_text("{}")
+        external = base / "external" / "repo"
+        external.mkdir(parents=True)
+        (self.root / "wd").symlink_to(external, target_is_directory=True)
+        # Shim `devcontainer` so tests never touch a real container runtime
+        # and can prove it was never invoked.
+        shim_dir = base / "shim"
+        shim_dir.mkdir()
+        self.shim_log = base / "devcontainer-calls.log"
+        shim = shim_dir / "devcontainer"
+        shim.write_text(f'#!/bin/sh\necho "$@" >> "{self.shim_log}"\nexit 1\n')
+        shim.chmod(0o755)
+        self.env = {
+            **os.environ,
+            "PATH": f"{shim_dir}{os.pathsep}{os.environ['PATH']}",
+            "XDG_CONFIG_HOME": str(base / "xdg"),
+            "PYTHONPATH": str(pathlib.Path(__file__).parents[1] / "src"),
+        }
+
+    def _write_config(self, environment: str):
+        (self.root / ".taurworks" / "config.toml").write_text(
+            "schema_version = 1\n\n"
+            '[project]\nname = "proj"\n\n'
+            '[paths]\nworking_dir = "wd"\n\n'
+            f"{environment}"
+            '[dev.commands]\ntest = "tool test"\n',
+            encoding="utf-8",
+        )
+
+    def _cli(self, *args):
+        return subprocess.run(
+            [
+                "python",
+                "-c",
+                "import sys;from taurworks.cli import main;main(sys.argv[1:])",
+                *args,
+            ],
+            cwd=self.root,
+            env=self.env,
+            capture_output=True,
+            text=True,
+        )
+
+    def test_environment_prepare_fails_cleanly(self):
+        self._write_config('[activation.environment]\ntype = "devcontainer"\n\n')
+        result = self._cli("environment", "prepare")
+        self.assertEqual(result.returncode, 1, msg=result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertIn("outside the project root", result.stderr)
+        self.assertFalse(self.shim_log.exists())
+
+    def test_activate_print_reports_the_problem(self):
+        self._write_config('[activation.environment]\ntype = "devcontainer"\n\n')
+        result = self._cli("project", "activate", "--print")
+        self.assertNotEqual(result.returncode, 0, msg=result.stdout)
+        self.assertIn("outside the project root", result.stdout + result.stderr)
+
+    def test_dev_command_fails_instead_of_running_at_container_root(self):
+        self._write_config('[activation.environment]\ntype = "devcontainer"\n\n')
+        result = self._cli("dev", "test")
+        self.assertEqual(result.returncode, 1, msg=result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertIn("outside the project root", result.stderr)
+        self.assertFalse(self.shim_log.exists())
+
+    def test_host_project_with_external_symlink_still_runs_dev(self):
+        self._write_config("")
+        with mock.patch.object(dev.subprocess, "run") as run:
+            run.return_value = _completed([], 0)
+            original = pathlib.Path.cwd()
+            os.chdir(self.root)
+            try:
+                resolution = dev.resolve_dev_command("test")
+                self.assertTrue(resolution.resolved, msg=resolution.detail)
+                self.assertEqual(dev.execute_dev_command(resolution), 0)
+            finally:
+                os.chdir(original)
+
+    def test_devcontainer_without_working_dir_still_maps_to_root(self):
+        (self.root / ".taurworks" / "config.toml").write_text(
+            "schema_version = 1\n\n"
+            '[project]\nname = "proj"\n\n'
+            '[activation.environment]\ntype = "devcontainer"\n\n'
+            '[dev.commands]\ntest = "tool test"\n',
+            encoding="utf-8",
+        )
+        original = pathlib.Path.cwd()
+        os.chdir(self.root)
+        try:
+            resolution = dev.resolve_dev_command("test")
+        finally:
+            os.chdir(original)
+        self.assertTrue(resolution.resolved, msg=resolution.detail)
+        self.assertEqual(
+            resolution.environment_context.relative_working_dir, pathlib.Path(".")
+        )
+
+
 class ShellTransitionMatrixTest(unittest.TestCase):
     def _fake_taurworks(self, bin_dir: pathlib.Path) -> None:
         script = bin_dir / "taurworks"

@@ -127,6 +127,11 @@ with `--remote-env`; host Conda variables are not copied.
 - To switch projects, exit the container shell first, then run
   `tw activate OTHER`. Nested activation from inside a Taurworks Dev Container
   fails with an explicit diagnostic.
+- The project's `[paths].working_dir` must resolve inside the project root,
+  because the container only sees that directory. A `working_dir` that is a
+  symlink to an external directory makes `tw activate`, `environment prepare`,
+  and `taurworks dev ...` fail with an explicit message; Host and Conda
+  projects are unaffected.
 - Containers are reused, never rebuilt, stopped, or removed merely because the
   shell exits.
 - Diagnostics distinguish: missing CLI, missing or escaping config path, failed

@@ -140,6 +140,7 @@ provider: Conda, or a Dev Container.
 | `name` | string | Conda only; required. Conda environment name. Must start with a letter or digit and contain only letters, digits, `_`, `.`, and `-`. |
 | `config` | string | Dev Container only; optional. Project-root-relative path to `devcontainer.json`. Default: `.devcontainer/devcontainer.json`, then `.devcontainer.json`. Must not escape the project root. |
 
+For `devcontainer`, `[paths].working_dir` must resolve inside the project root.
 For `devcontainer`, see
 [Dev Container requirements](../how-to/activate-projects.md#dev-container-requirements).
 
