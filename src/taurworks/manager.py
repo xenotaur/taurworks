@@ -605,7 +605,9 @@ def list_projects(show_details=False):
     has_conda_project = any(
         project.get("environment_type") == "conda" for project in projects
     )
-    conda_envs = get_conda_environments() if show_details and has_conda_project else set()
+    conda_envs = (
+        get_conda_environments() if show_details and has_conda_project else set()
+    )
     name_width = max(len(str(project["name"])) for project in projects)
     status_width = max(len(str(project["status"])) for project in projects)
 
@@ -643,7 +645,7 @@ def list_projects(show_details=False):
             print(f"  ├── Status Message: {project['status_message']}")
             environment_type = project.get("environment_type")
             if environment_type == "conda":
-                print(f"  ├── Environment Type: conda")
+                print("  ├── Environment Type: conda")
                 print(f"  ├── Conda Environment: {project['conda_environment_name']}")
                 print(
                     f"  ├── Conda Env Exists: {'✔' if has_env else '✘'} "
@@ -652,16 +654,13 @@ def list_projects(show_details=False):
             elif environment_type == "devcontainer":
                 config_exists = bool(project["devcontainer_config_exists"])
                 cli_exists = bool(project["devcontainer_cli_exists"])
-                print(f"  ├── Environment Type: devcontainer")
+                print("  ├── Environment Type: devcontainer")
                 print(f"  ├── Dev Container Config: {project['devcontainer_config']}")
                 print(
                     f"  ├── Dev Container Config Exists: "
                     f"{'✔' if config_exists else '✘'}"
                 )
-                print(
-                    f"  ├── Dev Container CLI: "
-                    f"{'✔' if cli_exists else '✘'}"
-                )
+                print(f"  ├── Dev Container CLI: " f"{'✔' if cli_exists else '✘'}")
             print(f"  ├── Files: {file_count}, Size: {size_str}\n")
         else:
             print(

@@ -257,9 +257,28 @@ Shows the project's configured activation environment.
 #### `taurworks project env set ENV_NAME [--project PATH_OR_NAME]`
 
 Records `ENV_NAME` as the project's Conda environment, replacing any existing
-value. Does not create or check for the environment.
+value. Does not create or check for the environment. Dev Container projects
+are configured by editing `[activation.environment]` (`type = "devcontainer"`)
+in the project config; see
+[Use Dev Containers](../how-to/use-dev-containers.md).
 
 **Writes:** `[activation.environment]` in the project config.
+
+#### `taurworks environment prepare [PATH_OR_NAME]`
+
+Validates a Dev Container project and starts (or reuses) its container through
+the `devcontainer` CLI. `tw activate` calls this for you. Fails for Host and
+Conda projects, and when `working_dir` resolves outside the project root.
+
+**Writes:** starts a container; changes no Taurworks files.
+
+#### `taurworks environment enter [PATH_OR_NAME]`
+
+Prepares the container as above, then opens an interactive shell in it at the
+project's working directory. Returns the shell's exit code. Used by
+`tw activate`; prefer that command.
+
+**Writes:** nothing in Taurworks files.
 
 #### `taurworks project register NAME PATH [--force] [--allow-missing]`
 

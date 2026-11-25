@@ -2901,7 +2901,9 @@ class CliCommandTest(unittest.TestCase):
                 devcontainer_project / ".devcontainer" / "devcontainer.json"
             )
             devcontainer_config.parent.mkdir()
-            devcontainer_config.write_text('{"image": "alpine:3.20"}\n', encoding="utf-8")
+            devcontainer_config.write_text(
+                '{"image": "alpine:3.20"}\n', encoding="utf-8"
+            )
 
             result = _run_cli(
                 ["projects", "--details"],

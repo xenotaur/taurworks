@@ -111,7 +111,7 @@ You need a working container runtime and the reference `devcontainer` CLI
 (`@devcontainers/cli`) on the host. The project's `devcontainer.json` owns the
 image, Dockerfile, Features, mounts, ports, user, and lifecycle settings;
 Taurworks stores only the provider association. See
-[DEVCONTAINER_PROJECT.md](../../DEVCONTAINER_PROJECT.md) for per-language
+[Use Dev Containers](use-dev-containers.md) for per-language
 examples.
 
 `tw activate` runs `devcontainer up` (which reuses an existing container when
