@@ -7,6 +7,7 @@ import tomllib
 
 from taurworks import manager
 from taurworks import project_internals
+from taurworks import environments
 
 DEV_V1_COMMANDS = ("clean", "test", "smoke", "lint", "format", "build")
 
@@ -124,10 +125,11 @@ def gather_dev_where_diagnostics(
 ) -> dict[str, str | bool]:
     """Collect read-only diagnostics for `taurworks dev where`.
 
-    `ok` is False only when project discovery is ambiguous: the cwd is inside
-    the resolved working_dir of more than one known project. Then no work
-    directory is guessed at all (not even the git root or cwd), so callers
-    never act on a guess.
+    `ok` is False when project discovery is ambiguous (the cwd is inside the
+    resolved working_dir of more than one known project; then no work
+    directory is guessed at all, so callers never act on a guess), or when a
+    Dev Container project's work directory is outside its project root and so
+    cannot be mapped into the container (see `environment_message`).
     """
     cwd = pathlib.Path.cwd().resolve()
     if discovery is None:
@@ -152,6 +154,9 @@ def gather_dev_where_diagnostics(
             "work_directory_guess_source": "none (ambiguous project discovery)",
             "git_root_guess": "unresolved",
             "working_dir_message": message,
+            "environment_provider": "unresolved",
+            "execution_environment": "unresolved",
+            "environment_message": "no project selected (ambiguous project discovery)",
             "read_only": True,
             "mutation_performed": False,
         }
@@ -186,8 +191,43 @@ def gather_dev_where_diagnostics(
         work_directory_guess = str(cwd)
         guess_source = "current working directory fallback"
 
+    environment_provider = "host"
+    environment_message = "no project environment is configured"
+    if project_root is not None:
+        config_path = project_internals.project_config_path(project_root)
+        if config_path.is_file():
+            try:
+                config = project_internals.read_project_config(project_root)
+                environment = project_internals.activation_environment_from_config(
+                    config
+                )
+                if environment is not None:
+                    environment_provider = environment["type"]
+                    environment_message = "configured project environment"
+            except (
+                project_internals.ProjectConfigError,
+                OSError,
+                tomllib.TOMLDecodeError,
+            ) as error:
+                environment_provider = "invalid"
+                environment_message = f"environment metadata is invalid: {error}"
+
+    execution_environment = (
+        "container" if environment_provider == "devcontainer" else "host"
+    )
+
+    ok = True
+    if environment_provider == "devcontainer" and project_root is not None:
+        try:
+            environments.container_relative_working_dir(
+                project_root, pathlib.Path(work_directory_guess)
+            )
+        except environments.EnvironmentError as error:
+            ok = False
+            environment_message = str(error)
+
     return {
-        "ok": True,
+        "ok": ok,
         "cwd": str(cwd),
         "project_root": str(project_root) if project_root is not None else "unresolved",
         "resolved_by": discovery.source.value,
@@ -201,6 +241,9 @@ def gather_dev_where_diagnostics(
         "work_directory_guess_source": guess_source,
         "git_root_guess": str(git_root) if git_root is not None else "unresolved",
         "working_dir_message": working_dir_message,
+        "environment_provider": environment_provider,
+        "execution_environment": execution_environment,
+        "environment_message": environment_message,
         "read_only": True,
         "mutation_performed": False,
     }
@@ -223,6 +266,9 @@ def format_dev_where_output(diagnostics: dict[str, str | bool]) -> str:
         f"- work_directory_guess_source: {diagnostics['work_directory_guess_source']}",
         f"- git_root_guess: {diagnostics['git_root_guess']}",
         f"- working_dir_message: {diagnostics['working_dir_message']}",
+        f"- environment_provider: {diagnostics['environment_provider']}",
+        f"- execution_environment: {diagnostics['execution_environment']}",
+        f"- environment_message: {diagnostics['environment_message']}",
         f"- read_only: {diagnostics['read_only']}",
         "- mutation_performed: False",
     ]
@@ -258,6 +304,7 @@ def format_dev_status_output(diagnostics: dict[str, str | bool]) -> str:
     ]
     if not diagnostics.get("ok", True):
         lines.append(f"- message: {diagnostics['working_dir_message']}")
+        lines.append(f"- environment_message: {diagnostics['environment_message']}")
     return "\n".join(lines)
 
 
@@ -275,9 +322,69 @@ class DevCommandResolution:
     cwd: str
     tier: str | None
     detail: str
+    environment_context: environments.EnvironmentContext | None = None
+
+
+def _environment_context(
+    project_root: pathlib.Path | None,
+    work_dir: str,
+    config: dict | None,
+) -> environments.EnvironmentContext:
+    """Build provider context without changing existing command resolution."""
+    resolved_work_dir = pathlib.Path(work_dir).resolve()
+    if project_root is None:
+        return environments.EnvironmentContext(
+            project_name=resolved_work_dir.name,
+            project_root=resolved_work_dir,
+            host_working_dir=resolved_work_dir,
+            relative_working_dir=pathlib.Path("."),
+            environment=environments.EnvironmentSpec("host"),
+        )
+
+    resolved_root = project_root.resolve()
+    project_config = config or {}
+    metadata = project_internals.activation_environment_from_config(project_config)
+    environment = environments.spec_from_metadata(metadata)
+    if environment.type == "devcontainer":
+        # Raises EnvironmentError when the work directory is outside the
+        # project root; a container cannot see it, so never guess.
+        relative_work_dir = environments.container_relative_working_dir(
+            resolved_root, resolved_work_dir
+        )
+    else:
+        try:
+            relative_work_dir = resolved_work_dir.relative_to(resolved_root)
+        except ValueError:
+            # The dev resolver may select an enclosing Git root or an
+            # external symlinked working_dir; Host/Conda run on the host at
+            # `cwd` and do not use the relative path.
+            relative_work_dir = pathlib.Path(".")
+    exports = project_internals.activation_exports_from_config(project_config)
+    return environments.EnvironmentContext(
+        project_name=project_internals.project_name_from_config(resolved_root),
+        project_root=resolved_root,
+        host_working_dir=resolved_work_dir,
+        relative_working_dir=relative_work_dir,
+        environment=environment,
+        exports=exports,
+    )
 
 
 def resolve_dev_command(name: str) -> DevCommandResolution:
+    """Resolve a dev command; environment mapping failures become unresolved."""
+    try:
+        return _resolve_dev_command(name)
+    except environments.EnvironmentError as error:
+        return DevCommandResolution(
+            resolved=False,
+            argv=None,
+            cwd=str(pathlib.Path.cwd()),
+            tier=None,
+            detail=f"taurworks dev {name}: {error}",
+        )
+
+
+def _resolve_dev_command(name: str) -> DevCommandResolution:
     """Resolve a v1 dev command to an executable argv, or a clear failure.
 
     Tier 1 (`[dev.commands].<name>` in the detected project_root's
@@ -305,6 +412,7 @@ def resolve_dev_command(name: str) -> DevCommandResolution:
         )
 
     config_location = "no Taurworks project root detected"
+    config: dict | None = None
     if project_root is not None:
         config_path = project_internals.project_config_path(project_root)
         config_location = str(config_path)
@@ -357,6 +465,9 @@ def resolve_dev_command(name: str) -> DevCommandResolution:
                     cwd=work_dir,
                     tier="config",
                     detail=f"[dev.commands].{name} in {config_path}",
+                    environment_context=_environment_context(
+                        project_root, work_dir, config
+                    ),
                 )
 
     script_path = pathlib.Path(work_dir) / "scripts" / name
@@ -379,6 +490,7 @@ def resolve_dev_command(name: str) -> DevCommandResolution:
             cwd=work_dir,
             tier="script",
             detail=str(script_path),
+            environment_context=_environment_context(project_root, work_dir, config),
         )
 
     return DevCommandResolution(
@@ -401,5 +513,8 @@ def execute_dev_command(resolution: DevCommandResolution) -> int:
     `cwd` that no longer exists, etc.) -- callers should catch this and
     report a clean failure rather than let a raw traceback surface.
     """
-    result = subprocess.run(resolution.argv, cwd=resolution.cwd)
-    return result.returncode
+    if resolution.environment_context is None:
+        result = subprocess.run(resolution.argv, cwd=resolution.cwd)
+        return result.returncode
+    provider = environments.provider_for(resolution.environment_context.environment)
+    return provider.execute(resolution.environment_context, resolution.argv)

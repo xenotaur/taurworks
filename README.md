@@ -8,8 +8,8 @@ tw activate MyProject
 ```
 
 From any directory, that one command activates the project's Conda
-environment, exports its environment variables, and changes to its working
-directory.
+environment (or enters its Dev Container), exports its environment variables,
+and changes to its working directory.
 
 ## Quick start
 
@@ -61,6 +61,7 @@ Why there are three: [Concepts](docs/explanation/concepts.md).
 | Create a project | `tw project create NAME --working-dir DIR --create-working-dir` | [Manage projects](docs/how-to/manage-projects.md) |
 | Adopt an existing directory | `tw project init PATH --working-dir DIR` | [Manage projects](docs/how-to/manage-projects.md) |
 | Name a project outside my workspace | `tw project register NAME PATH` | [Manage projects](docs/how-to/manage-projects.md) |
+| Run a project in a Dev Container | set `type = "devcontainer"` in `.taurworks/config.toml` | [Activate projects](docs/how-to/activate-projects.md#dev-container-requirements) |
 | Set a project's Conda environment | `tw project env set ENV --project NAME` | [Activate projects](docs/how-to/activate-projects.md) |
 | Run a project's tests | `tw dev test` | [Run dev commands](docs/how-to/run-dev-commands.md) |
 | Activate when `tw` is broken | `tl NAME` | [Use `tl`](docs/how-to/use-tl-fallback.md) |

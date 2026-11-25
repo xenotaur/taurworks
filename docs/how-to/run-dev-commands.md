@@ -63,6 +63,14 @@ you are in if that is a linked `git worktree` inside the configured working
 directory; the configured working directory; the nearest Git root; the
 project root; the current directory.
 
+### Dev Container projects
+
+If the project's environment is `type = "devcontainer"`, the same resolved
+command runs through `devcontainer exec` instead of a host subprocess. Host
+script paths are mapped below the container workspace reported by the
+`devcontainer` CLI, and the configured relative working directory is used
+inside the container. Host and Conda projects are unchanged.
+
 ## Results and failures
 
 - Output streams live, and the command's exit code becomes the exit code of

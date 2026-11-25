@@ -2,7 +2,7 @@
 
 Taurworks keeps track of your development projects and gets a shell ready to
 work in one of them: `tw activate ProjectName` activates the project's Conda
-environment, exports its variables, and changes to its working directory.
+environment (or enters its Dev Container), exports its variables, and changes to its working directory.
 
 The documentation is organized by what you are trying to do.
 
@@ -20,6 +20,7 @@ Recipes for a specific task. They assume you have finished the tutorial.
 - [Create, initialize, and register projects](how-to/manage-projects.md)
 - [Use `tl`, the break-glass fallback](how-to/use-tl-fallback.md)
 - [Migrate a legacy `Admin/project-setup.source` project](how-to/migrate-legacy-projects.md)
+- [Use a Dev Container for a project](how-to/use-dev-containers.md)
 - [Run clean/test/lint/build with `taurworks dev`](how-to/run-dev-commands.md)
 - [Troubleshooting](how-to/troubleshooting.md)
 

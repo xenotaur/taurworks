@@ -1,0 +1,4 @@
+{
+  "name": "Taurworks integration fixture",
+  "image": "alpine:3.20"
+}

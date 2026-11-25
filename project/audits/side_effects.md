@@ -5,7 +5,7 @@ Prompt: `PROMPT(TAURWORKS_POST_MERGE_SIDE_EFFECT_SAFETY_AUDIT)[AUDIT/2026-05-17]
 Date: 2026-05-17
 
 Scope: non-destructive post-merge audit of Taurworks command side effects after
-declarative activation and Conda activation support. This document inventories
+declarative activation plus Host, Conda, and Dev Container providers. This document inventories
 current behavior only; it does not change command behavior.
 
 ## Safety baseline
@@ -393,16 +393,16 @@ Side effects observed:
 
 - `SUBPROCESS_READ_ONLY` for calling `taurworks project activate --shell`
 - `ENVIRONMENT_ACTIVATE` when `[activation.environment]` is configured with
-  `type = "conda"`
-- `SHELL_MUTATION` via `conda activate`, `export`, and `cd`
+  `type = "conda"` or `type = "devcontainer"`
+- `SUBPROCESS_MUTATING` for `devcontainer up` and interactive `devcontainer exec`
+- `SHELL_MUTATION` via Conda activation/deactivation, `export`/`unset`, and `cd`
 
 Assessment:
 
-- This is the explicit shell-mutating layer. It checks that `conda` is available,
-  runs `conda activate "$environment_name"` only for configured Conda
-  activation, evaluates Taurworks-generated shell assignments, evaluates
-  Taurworks-generated export commands, and changes directory to the resolved
-  working directory.
+- This is the explicit shell-mutating layer. Conda keeps its established
+  current-shell flow. Dev Container activation first prepares and enters a child
+  shell through the host-side provider, then reconciles host control state only
+  after successful return. Nested container control is rejected.
 
 Recommendation:
 
@@ -539,6 +539,36 @@ Recommendation:
 - Keep read-only until future dev automation commands are named and gated
   explicitly.
 
+### `taurworks dev clean/test/smoke/lint/format/build`
+
+Implementation: `src/taurworks/dev.py`, `src/taurworks/environments.py`
+
+Side effects observed:
+
+- `SUBPROCESS_MUTATING` for delegated project commands
+- `ENVIRONMENT_ACTIVATE` for Dev Container preparation/reuse
+
+Assessment:
+
+- Command names explicitly select the delegated operation. Host and Conda
+  behavior is unchanged; Dev Container projects use argv-based `devcontainer
+  up`/`exec` calls and preserve delegated exit status.
+
+### `taurworks environment prepare/enter`
+
+Implementation: `src/taurworks/cli.py`, `src/taurworks/environments.py`
+
+Side effects observed:
+
+- `ENVIRONMENT_CREATE` / `ENVIRONMENT_ACTIVATE` via `devcontainer up`
+- `SUBPROCESS_MUTATING` via interactive `devcontainer exec`
+
+Assessment:
+
+- These commands are explicit provider lifecycle operations used by sourced
+  `tw activate`. They neither call Docker directly nor destroy/rebuild a
+  container automatically.
+
 ## Required audit answers
 
 ### Conda creation
@@ -609,7 +639,8 @@ Recommendation:
    writes declarative `config.toml` instead (`WI-ACTIVATION-PRODUCERS-0001`).
    Legacy activate prints a command for the user to source it manually.
 4. Python subprocess calls are narrow and explicit: `conda env list`,
-   `conda create`, and `conda env create` in legacy manager code. Legacy
+   `conda create`, and `conda env create` in legacy manager code plus
+   argv-based `devcontainer up`/`exec` in the Dev Container provider. Legacy
    `taurworks projects --details` also uses `conda env list` as a read-only
    environment existence probe.
 5. No Python `shell=True`, `os.system`, or broad Python `eval` pattern was found.
