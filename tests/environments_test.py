@@ -420,6 +420,22 @@ class ExternalWorkingDirDevContainerTest(unittest.TestCase):
         self.assertIn("outside the project root", result.stderr)
         self.assertFalse(self.shim_log.exists())
 
+    def test_dev_where_and_status_flag_the_problem(self):
+        self._write_config('[activation.environment]\ntype = "devcontainer"\n\n')
+        for command in ("where", "status"):
+            with self.subTest(command=command):
+                result = self._cli("dev", command)
+                self.assertEqual(result.returncode, 1, msg=result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertIn("outside the project root", result.stdout)
+        self.assertFalse(self.shim_log.exists())
+
+    def test_dev_where_for_host_project_with_external_symlink_is_ok(self):
+        self._write_config("")
+        result = self._cli("dev", "where")
+        self.assertEqual(result.returncode, 0, msg=result.stderr)
+        self.assertIn("execution_environment: host", result.stdout)
+
     def test_host_project_with_external_symlink_still_runs_dev(self):
         self._write_config("")
         with mock.patch.object(dev.subprocess, "run") as run:

@@ -125,10 +125,11 @@ def gather_dev_where_diagnostics(
 ) -> dict[str, str | bool]:
     """Collect read-only diagnostics for `taurworks dev where`.
 
-    `ok` is False only when project discovery is ambiguous: the cwd is inside
-    the resolved working_dir of more than one known project. Then no work
-    directory is guessed at all (not even the git root or cwd), so callers
-    never act on a guess.
+    `ok` is False when project discovery is ambiguous (the cwd is inside the
+    resolved working_dir of more than one known project; then no work
+    directory is guessed at all, so callers never act on a guess), or when a
+    Dev Container project's work directory is outside its project root and so
+    cannot be mapped into the container (see `environment_message`).
     """
     cwd = pathlib.Path.cwd().resolve()
     if discovery is None:
@@ -215,8 +216,18 @@ def gather_dev_where_diagnostics(
         "container" if environment_provider == "devcontainer" else "host"
     )
 
+    ok = True
+    if environment_provider == "devcontainer" and project_root is not None:
+        try:
+            environments.container_relative_working_dir(
+                project_root, pathlib.Path(work_directory_guess)
+            )
+        except environments.EnvironmentError as error:
+            ok = False
+            environment_message = str(error)
+
     return {
-        "ok": True,
+        "ok": ok,
         "cwd": str(cwd),
         "project_root": str(project_root) if project_root is not None else "unresolved",
         "resolved_by": discovery.source.value,
@@ -293,6 +304,7 @@ def format_dev_status_output(diagnostics: dict[str, str | bool]) -> str:
     ]
     if not diagnostics.get("ok", True):
         lines.append(f"- message: {diagnostics['working_dir_message']}")
+        lines.append(f"- environment_message: {diagnostics['environment_message']}")
     return "\n".join(lines)
 
 
