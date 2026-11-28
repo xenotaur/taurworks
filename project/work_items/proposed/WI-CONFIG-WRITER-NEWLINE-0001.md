@@ -154,5 +154,7 @@ characters; the global config is not affected.
 - Configs already corrupted by the bug stay corrupted; the fix prevents
   new damage only.
 - `tw activate` prints the message through the shell helper, so a preserved
-  multi-line message will now actually reach it; the CLI test should
-  confirm `project activate --print` still emits a usable message for one.
+  multi-line message will now actually reach it. `project activate --print`
+  reports only `activation_message_configured`, not the message, so verify
+  preservation through `project activate --shell` (which emits
+  `TAURWORKS_ACTIVATION_MESSAGE`) or the sourced `tw activate` helper.
